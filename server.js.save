@@ -1,0 +1,565 @@
+// server.js
+const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
+const cors = require('cors');
+const path = require('path');
+
+console.log('🚀 体感榨汁机多人在线游戏服务器启动中...');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+app.use(express.static('public')); // 用于存放静态文件
+
+// 健康检查端点
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    message: '体感榨汁机游戏服务器运行正常',
+    activeRooms: gameRooms.size,
+    waitingPlayers: waitingPlayers.length,
+    totalConnections: playerSessions.size
+  });
+});
+
+// 服务器状态页面
+app.get('/status', (req, res) => {
+  const roomList = Array.from(gameRooms.entries()).map(([id, room]) => ({
+    roomId: id,
+    roomType: room.roomType,
+    playerCount: room.getPlayerCount(),
+    maxPlayers: room.maxPlayers,
+    status: room.status,
+    players: room.getPlayerList().map(p => p.username)
+  }));
+
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>榨汁机游戏服务器状态</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+            .container { max-width: 1000px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+            .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+            .stat-card { background: #e3f2fd; padding: 15px; border-radius: 8px; text-align: center; }
+            .room-list { margin-top: 20px; }
+            .room-card { background: #f3e5f5; margin: 10px 0; padding: 15px; border-radius: 8px; }
+            .player-item { display: inline-block; background: #c8e6c9; padding: 5px 10px; margin: 2px; border-radius: 4px; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🎮 体感榨汁机游戏服务器状态</h1>
+            <div class="stats">
+                <div class="stat-card">
+                    <h3>活跃房间</h3>
+                    <div style="font-size: 2em; color: #2196f3;">${gameRooms.size}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>等待玩家</h3>
+                    <div style="font-size: 2em; color: #ff9800;">${waitingPlayers.length}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>总连接数</h3>
+                    <div style="font-size: 2em; color: #4caf50;">${playerSessions.size}</div>
+                </div>
+                <div class="stat-card">
+                    <h3>运行时间</h3>
+                    <div style="font-size: 1.2em; color: #9c27b0;">${process.uptime().toFixed(0)} 秒</div>
+                </div>
+            </div>
+            
+            <div class="room-list">
+                <h2>活跃房间</h2>
+                ${roomList.length === 0 ? 
+                  '<p>暂无活跃房间</p>' : 
+                  roomList.map(room => `
+                    <div class="room-card">
+                        <h3>房间 ${room.roomId} (${room.roomType})</h3>
+                        <p>状态: ${room.status} | 玩家: ${room.playerCount}/${room.maxPlayers}</p>
+                        <div>玩家: ${room.players.map(p => `<span class="player-item">${p}</span>`).join('')}</div>
+                    </div>
+                  `).join('')
+                }
+            </div>
+            
+            <div style="margin-top: 30px; color: #666;">
+                <p>服务器时间: ${new Date().toISOString()}</p>
+                <p>Node.js版本: ${process.version}</p>
+            </div>
+        </div>
+    </body>
+    </html>
+  `);
+});
+
+// 创建HTTP服务器
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: "*", // 允许所有域名连接（生产环境应该限制）
+    methods: ["GET", "POST"]
+  }
+});
+
+// 游戏配置
+const GAME_CONFIG = {
+  MAX_PLAYERS_PER_ROOM: 4,
+  MATCHMAKING_TIMEOUT: 30000, // 30秒匹配超时
+  GAME_DURATION: 30000, // 30秒游戏时间
+  ROOM_CLEANUP_DELAY: 60000 // 房间清理延迟
+};
+
+// 数据存储
+const gameRooms = new Map();        // roomId -> GameRoom
+const waitingPlayers = new Map();   // socketId -> PlayerData
+const playerSessions = new Map();   // socketId -> PlayerSession
+
+// 游戏房间类
+class GameRoom {
+  constructor(roomId, creator, roomType = '1v1') {
+    this.roomId = roomId;
+    this.roomType = roomType;
+    this.players = new Map(); // socketId -> Player
+    this.status = 'waiting'; // waiting, playing, finished
+    this.createdAt = new Date();
+    this.gameStartTime = null;
+    this.maxPlayers = this.getMaxPlayers(roomType);
+    
+    // 添加创建者
+    this.addPlayer(creator);
+    
+    console.log(`🎮 新房间创建: ${roomId} 类型: ${roomType} 创建者: ${creator.username}`);
+  }
+
+  getMaxPlayers(roomType) {
+    const config = {
+      '1v1': 2,
+      '2v2': 4,
+      '4player': 4,
+      'freeforall': 8
+    };
+    return config[roomType] || 2;
+  }
+
+  addPlayer(playerData) {
+    const player = {
+      socketId: playerData.socketId,
+      userId: playerData.userId,
+      userEmail: playerData.userEmail,
+      username: playerData.username,
+      score: 0,
+      energy: 0,
+      rpm: 0,
+      connected: true,
+      joinedAt: new Date()
+    };
+    
+    this.players.set(playerData.socketId, player);
+    console.log(`👤 玩家 ${playerData.username} 加入房间 ${this.roomId}`);
+    
+    return player;
+  }
+
+  removePlayer(socketId) {
+    const player = this.players.get(socketId);
+    if (player) {
+      this.players.delete(socketId);
+      console.log(`👋 玩家 ${player.username} 离开房间 ${this.roomId}`);
+      return player;
+    }
+    return null;
+  }
+
+  updatePlayerState(socketId, rpm, energy) {
+    const player = this.players.get(socketId);
+    if (player) {
+      player.rpm = rpm;
+      player.energy = energy;
+      player.score = energy; // 分数基于能量值
+    }
+  }
+
+  getPlayerCount() {
+    return this.players.size;
+  }
+
+  getPlayerList() {
+    return Array.from(this.players.values()).map(p => ({
+      userId: p.userId,
+      userEmail: p.userEmail,
+      username: p.username,
+      score: p.score,
+      energy: p.energy,
+      rpm: p.rpm
+    }));
+  }
+
+  canJoin() {
+    return this.status === 'waiting' && this.getPlayerCount() < this.maxPlayers;
+  }
+
+  startGame() {
+    this.status = 'playing';
+    this.gameStartTime = new Date();
+    console.log(`🎯 房间 ${this.roomId} 游戏开始，玩家数: ${this.getPlayerCount()}`);
+  }
+
+  isGameFinished() {
+    if (this.status !== 'playing') return false;
+    const gameTime = new Date() - this.gameStartTime;
+    return gameTime >= GAME_CONFIG.GAME_DURATION;
+  }
+
+  getGameResults() {
+    const players = this.getPlayerList();
+    players.sort((a, b) => b.score - a.score);
+    
+    return {
+      winner: players[0],
+      rankings: players,
+      roomId: this.roomId,
+      finishedAt: new Date()
+    };
+  }
+}
+
+// Socket.io 连接处理
+io.on('connection', (socket) => {
+  console.log('🔗 新连接:', socket.id);
+
+  // 玩家认证
+  socket.on('player_authenticate', (playerData) => {
+    const { userId, userEmail, username } = playerData;
+    
+    if (!userId || !userEmail) {
+      socket.emit('auth_error', { message: '缺少用户信息' });
+      return;
+    }
+
+    // 存储玩家会话
+    playerSessions.set(socket.id, {
+      userId,
+      userEmail,
+      username: username || userEmail.split('@')[0],
+      connectedAt: new Date(),
+      currentRoom: null
+    });
+
+    socket.emit('auth_success', { 
+      message: '认证成功',
+      playerId: socket.id,
+      username: username || userEmail.split('@')[0]
+    });
+
+    console.log(`✅ 玩家认证: ${userEmail} (${socket.id})`);
+  });
+
+  // 快速匹配
+  socket.on('quick_match', (matchData) => {
+    const playerSession = playerSessions.get(socket.id);
+    if (!playerSession) {
+      socket.emit('match_error', { message: '请先认证' });
+      return;
+    }
+
+    const roomType = matchData.roomType || '1v1';
+    console.log(`🎯 快速匹配请求: ${playerSession.username} 类型: ${roomType}`);
+
+    // 寻找合适的房间
+    let foundRoom = null;
+    for (const [roomId, room] of gameRooms.entries()) {
+      if (room.roomType === roomType && room.canJoin()) {
+        foundRoom = room;
+        break;
+      }
+    }
+
+    if (foundRoom) {
+      // 加入现有房间
+      joinRoom(socket, foundRoom.roomId, playerSession);
+    } else {
+      // 创建新房间并等待
+      const newRoom = createNewRoom(socket, playerSession, roomType);
+      waitingPlayers.set(socket.id, {
+        playerData: playerSession,
+        roomType: roomType,
+        joinedAt: new Date()
+      });
+      
+      socket.emit('matchmaking_waiting', {
+        roomId: newRoom.roomId,
+        roomType: roomType,
+        message: `等待其他玩家加入... (1/${newRoom.maxPlayers})`
+      });
+    }
+  });
+
+  // 创建私人房间
+  socket.on('create_private_room', (roomData) => {
+    const playerSession = playerSessions.get(socket.id);
+    if (!playerSession) {
+      socket.emit('room_error', { message: '请先认证' });
+      return;
+    }
+
+    const roomType = roomData.roomType || '1v1';
+    const room = createNewRoom(socket, playerSession, roomType, true);
+    
+    socket.emit('private_room_created', {
+      roomId: room.roomId,
+      roomType: roomType,
+      maxPlayers: room.maxPlayers,
+      shareLink: `${room.roomId}`,
+      message: '私人房间已创建，分享房间码给朋友'
+    });
+
+    console.log(`🔐 私人房间创建: ${room.roomId} by ${playerSession.username}`);
+  });
+
+  // 加入私人房间
+  socket.on('join_private_room', (joinData) => {
+    const playerSession = playerSessions.get(socket.id);
+    if (!playerSession) {
+      socket.emit('join_error', { message: '请先认证' });
+      return;
+    }
+
+    const { roomId } = joinData;
+    joinRoom(socket, roomId, playerSession);
+  });
+
+  // 游戏状态更新
+  socket.on('game_update', (gameData) => {
+    const { roomId, rpm, energy } = gameData;
+    const room = gameRooms.get(roomId);
+    
+    if (!room) {
+      socket.emit('game_error', { message: '房间不存在' });
+      return;
+    }
+
+    room.updatePlayerState(socket.id, rpm, energy);
+
+    // 广播给房间内其他玩家
+    socket.to(roomId).emit('players_update', {
+      players: room.getPlayerList(),
+      timestamp: new Date()
+    });
+
+    // 检查游戏是否结束
+    if (room.isGameFinished()) {
+      finishGame(room);
+    }
+  });
+
+  // 离开房间
+  socket.on('leave_room', () => {
+    leaveRoom(socket.id);
+  });
+
+  // 断开连接
+  socket.on('disconnect', () => {
+    console.log('❌ 连接断开:', socket.id);
+    leaveRoom(socket.id);
+    waitingPlayers.delete(socket.id);
+    playerSessions.delete(socket.id);
+  });
+
+  // 心跳检测
+  socket.on('ping', () => {
+    socket.emit('pong', { timestamp: new Date().toISOString() });
+  });
+});
+
+// 房间管理函数
+function createNewRoom(socket, playerData, roomType, isPrivate = false) {
+  const roomId = generateRoomId();
+  const room = new GameRoom(roomId, {
+    socketId: socket.id,
+    ...playerData
+  }, roomType);
+  
+  gameRooms.set(roomId, room);
+  playerSessions.get(socket.id).currentRoom = roomId;
+  socket.join(roomId);
+  
+  return room;
+}
+
+function joinRoom(socket, roomId, playerData) {
+  const room = gameRooms.get(roomId);
+  
+  if (!room) {
+    socket.emit('join_error', { message: '房间不存在' });
+    return false;
+  }
+
+  if (!room.canJoin()) {
+    socket.emit('join_error', { message: '房间已满' });
+    return false;
+  }
+
+  // 加入房间
+  room.addPlayer({
+    socketId: socket.id,
+    ...playerData
+  });
+  
+  playerSessions.get(socket.id).currentRoom = roomId;
+  socket.join(roomId);
+  waitingPlayers.delete(socket.id);
+
+  console.log(`✅ 玩家 ${playerData.username} 加入房间 ${roomId} (${room.getPlayerCount()}/${room.maxPlayers})`);
+
+  // 通知所有玩家
+  io.to(roomId).emit('player_joined', {
+    newPlayer: {
+      userId: playerData.userId,
+      userEmail: playerData.userEmail,
+      username: playerData.username
+    },
+    roomInfo: {
+      roomId: roomId,
+      roomType: room.roomType,
+      players: room.getPlayerList(),
+      playerCount: room.getPlayerCount(),
+      maxPlayers: room.maxPlayers
+    },
+    message: `玩家 ${playerData.username} 加入了游戏`
+  });
+
+  // 检查是否可以开始游戏
+  if (room.getPlayerCount() >= room.maxPlayers) {
+    setTimeout(() => {
+      if (room.status === 'waiting') {
+        startRoomGame(room);
+      }
+    }, 2000);
+  }
+
+  return true;
+}
+
+function leaveRoom(socketId) {
+  const playerSession = playerSessions.get(socketId);
+  if (!playerSession || !playerSession.currentRoom) return;
+
+  const roomId = playerSession.currentRoom;
+  const room = gameRooms.get(roomId);
+  
+  if (room) {
+    const leftPlayer = room.removePlayer(socketId);
+    
+    if (leftPlayer) {
+      // 通知其他玩家
+      io.to(roomId).emit('player_left', {
+        leftPlayer: {
+          userId: leftPlayer.userId,
+          userEmail: leftPlayer.userEmail
+        },
+        message: `玩家 ${leftPlayer.username} 离开了游戏`,
+        remainingPlayers: room.getPlayerList()
+      });
+
+      // 如果房间空了，清理房间
+      if (room.getPlayerCount() === 0) {
+        setTimeout(() => {
+          if (room.getPlayerCount() === 0) {
+            gameRooms.delete(roomId);
+            console.log(`🧹 清理空房间: ${roomId}`);
+          }
+        }, 5000);
+      }
+    }
+  }
+
+  playerSession.currentRoom = null;
+}
+
+function startRoomGame(room) {
+  room.startGame();
+  
+  io.to(room.roomId).emit('game_start', {
+    roomId: room.roomId,
+    duration: GAME_CONFIG.GAME_DURATION,
+    startTime: new Date(),
+    players: room.getPlayerList(),
+    message: '游戏开始！转动身体制作果汁！'
+  });
+
+  console.log(`🎯 游戏开始: ${room.roomId} 玩家数: ${room.getPlayerCount()}`);
+
+  // 设置游戏结束检查
+  const gameInterval = setInterval(() => {
+    if (room.isGameFinished()) {
+      clearInterval(gameInterval);
+      finishGame(room);
+    }
+  }, 1000);
+}
+
+function finishGame(room) {
+  const results = room.getGameResults();
+  room.status = 'finished';
+  
+  io.to(room.roomId).emit('game_finished', results);
+  
+  console.log(`🏁 游戏结束: ${room.roomId} 获胜者: ${results.winner.username}`);
+  
+  // 延迟清理房间
+  setTimeout(() => {
+    if (gameRooms.get(room.roomId) === room) {
+      gameRooms.delete(room.roomId);
+      console.log(`🧹 清理完成房间: ${room.roomId}`);
+    }
+  }, GAME_CONFIG.ROOM_CLEANUP_DELAY);
+}
+
+// 工具函数
+function generateRoomId() {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+// 定期清理
+setInterval(() => {
+  const now = new Date();
+  
+  // 清理超时的等待玩家
+  for (const [socketId, waiting] of waitingPlayers.entries()) {
+    if (now - waiting.joinedAt > GAME_CONFIG.MATCHMAKING_TIMEOUT) {
+      waitingPlayers.delete(socketId);
+      const socket = io.sockets.sockets.get(socketId);
+      if (socket) {
+        socket.emit('matchmaking_timeout', {
+          message: '匹配超时，请重试'
+        });
+      }
+    }
+  }
+  
+  console.log(`🕒 定时清理 - 活跃房间: ${gameRooms.size}, 等待玩家: ${waitingPlayers.size}`);
+}, 30000);
+
+// 启动服务器
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`🎮 体感榨汁机多人在线游戏服务器运行中!`);
+  console.log(`📍 端口: ${PORT}`);
+  console.log(`🌐 健康检查: http://localhost:${PORT}/health`);
+  console.log(`📊 状态页面: http://localhost:${PORT}/status`);
+  console.log(`🕒 启动时间: ${new Date().toISOString()}`);
+  console.log(`💡 支持的房间类型: 1v1, 2v2, 4player, freeforall`);
+});
+
+// 优雅关闭
+process.on('SIGTERM', () => {
+  console.log('🛑 收到关闭信号，正在清理...');
+  server.close(() => {
+    console.log('✅ 服务器已关闭');
+    process.exit(0);
+  });
+});
