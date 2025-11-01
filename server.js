@@ -172,6 +172,79 @@ app.get('/auth-callback', (req, res) => {
   }
 });
 
+// ==================== 更新后的 API 路由 ====================
+
+// Wix 用户登录验证
+app.post('/api/wix-login', async (req, res) => {
+  const { email } = req.body;
+  
+  if (!email) {
+    return res.json({ success: false, error: '请输入邮箱' });
+  }
+  
+  try {
+    console.log('🔍 查找 Wix 用户:', email);
+    
+    // 在 Wix 中查找用户
+    const wixUser = await findWixContactByEmail(email);
+    
+    if (wixUser) {
+      console.log('✅ 找到 Wix 用户:', wixUser);
+      
+      // 返回成功响应
+      res.json({
+        success: true,
+        user: {
+          id: wixUser.id || wixUser._id,
+          email: wixUser.loginEmail || wixUser.info?.email,
+          name: wixUser.contact?.firstName || wixUser.profile?.firstName || wixUser.loginEmail?.split('@')[0],
+          fullName: wixUser.contact?.firstName + ' ' + wixUser.contact?.lastName,
+          wixData: wixUser
+        },
+        message: '登录成功'
+      });
+    } else {
+      console.log('❌ 未找到 Wix 用户:', email);
+      res.json({ 
+        success: false, 
+        error: '该邮箱未在学校系统注册' 
+      });
+    }
+  } catch (error) {
+    console.error('登录错误:', error);
+    res.json({ 
+      success: false, 
+      error: '系统错误: ' + error.message 
+    });
+  }
+});
+
+// 测试路由：获取所有联系人
+app.get('/api/wix-users', async (req, res) => {
+  try {
+    console.log('🧪 测试获取 Wix 联系人列表');
+    const result = await getAllWixContacts();
+    
+    res.json({ 
+      success: true, 
+      apiUsed: result.api,
+      count: result.count,
+      users: result.items.map(u => ({ 
+        id: u.id, 
+        email: u.loginEmail || u.info?.email,
+        name: u.contact?.firstName || u.profile?.firstName || '未知',
+        type: u.member ? 'member' : 'contact'
+      }))
+    });
+  } catch (error) {
+    console.error('获取联系人列表错误:', error);
+    res.json({ 
+      success: false, 
+      error: error.message
+    });
+  }
+});
+
 // Wix API 工具函数
 async function callWixAPI(endpoint, method = 'GET', body = null) {
   const API_KEY = process.env.WIX_API_KEY;
