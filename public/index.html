@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学校游戏中心</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .login-btn {
+            padding: 15px 30px;
+            background-color: #ff6b6b;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 20px;
+            transition: all 0.3s ease;
+        }
+        .login-btn:hover {
+            background-color: #ff5252;
+            transform: scale(1.05);
+        }
+        .container {
+            background: rgba(255,255,255,0.1);
+            padding: 40px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            max-width: 500px;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 学校游戏中心</h1>
+        <p>使用你的学校账号登录开始游戏</p>
+        
+        <button class="login-btn" onclick="handleWixLogin()">
+            🎫 使用学校账号登录
+        </button>
+        
+        <div id="status" style="margin-top: 20px;"></div>
+    </div>
+
+    <script>
+        // Wix 登录函数
+        function handleWixLogin() {
+            const clientId = '54186d51-7e8a-483d-b2bd-854aa1ba75ad';
+            const redirectUri = 'https://juice-game-server2-production.up.railway.app/auth-callback';
+            const scope = 'members:read';
+            
+            const wixAuthUrl = `https://www.wix.com/installer/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}`;
+            
+            console.log('跳转到 Wix 登录:', wixAuthUrl);
+            
+            // 在新窗口打开登录页面
+            window.open(wixAuthUrl, 'wix-login', 'width=600,height=700');
+        }
+
+        // 监听来自 OAuth 回调的消息
+        window.addEventListener('message', function(event) {
+            console.log('收到消息:', event.data);
+            
+            if (event.data && event.data.type === 'wix-oauth-callback') {
+                const { code } = event.data;
+                console.log('🎉 收到 Wix 认证代码:', code);
+                
+                document.getElementById('status').innerHTML = `
+                    <div style="color: lightgreen;">
+                        <h3>✅ 登录成功！</h3>
+                        <p>认证代码: ${code}</p>
+                        <p>正在加载游戏...</p>
+                    </div>
+                `;
+                
+                // 可以关闭登录窗口
+                if (event.source) {
+                    event.source.close();
+                }
+                
+                // 这里可以跳转到游戏页面或开始游戏
+                setTimeout(() => {
+                    alert('开始游戏！');
+                }, 1000);
+            }
+        });
+    </script>
+</body>
+</html>
