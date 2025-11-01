@@ -9,6 +9,7 @@ console.log('🚀 启动体感榨汁机游戏服务器...');
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.static('public'));
 
 // 健康检查
 app.get('/health', (req, res) => {
@@ -19,19 +20,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.get('/', (req, res) => {
-  res.send(`
-    <html>
-      <head><title>榨汁机游戏服务器</title></head>
-      <body>
-        <h1>🎮 体感榨汁机游戏服务器</h1>
-        <p>状态: <strong>运行中</strong></p>
-        <p>时间: ${new Date().toISOString()}</p>
-        <p><a href="/health">健康检查</a></p>
-      </body>
-    </html>
-  `);
-});
 
 const server = http.createServer(app);
 const io = socketIo(server, {
