@@ -41,6 +41,58 @@ const io = socketIo(server, {
   }
 });
 
+app.get('/auth-callback', (req, res) => {
+  const { code, error, state } = req.query;
+  
+  console.log('Wix OAuth 回调收到:', { code, error, state });
+  
+  if (error) {
+    return res.send(`
+      <html>
+        <body>
+          <h2>登录失败</h2>
+          <p>错误: ${error}</p>
+          <button onclick="window.close()">关闭</button>
+        </body>
+      </html>
+    `);
+  }
+  
+  if (code) {
+    res.send(`
+      <html>
+        <head>
+          <title>认证成功</title>
+        </head>
+        <body>
+          <script>
+            // 将认证代码传递回主窗口
+            if (window.opener) {
+              window.opener.postMessage({
+                type: 'wix-oauth-callback',
+                code: '${code}',
+                state: '${state || ''}'
+              }, '*');
+            }
+            
+            // 3秒后自动关闭窗口
+            setTimeout(() => {
+              window.close();
+            }, 3000);
+          </script>
+          <div style="text-align: center; padding: 50px;">
+            <h2>✅ 认证成功！</h2>
+            <p>正在跳转，请稍候...</p>
+            <p>如果窗口没有自动关闭，<a href="#" onclick="window.close()">点击这里</a></p>
+          </div>
+        </body>
+      </html>
+    `);
+  } else {
+    res.status(400).send('缺少认证代码');
+  }
+});
+
 // 存储游戏数据
 const gameRooms = new Map();
 const players = new Map();
