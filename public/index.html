@@ -3,95 +3,691 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>学校游戏中心</title>
+    <title>学校游戏中心 - 舞蹈学校</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            padding: 50px;
+            font-family: 'Arial', sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
+            min-height: 100vh;
+            padding: 20px;
         }
-        .login-btn {
-            padding: 15px 30px;
-            background-color: #ff6b6b;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 18px;
-            cursor: pointer;
-            font-weight: bold;
-            margin: 20px;
-            transition: all 0.3s ease;
-        }
-        .login-btn:hover {
-            background-color: #ff5252;
-            transform: scale(1.05);
-        }
+        
         .container {
-            background: rgba(255,255,255,0.1);
-            padding: 40px;
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
             max-width: 500px;
             margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .login-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .section-title {
+            font-size: 1.4em;
+            margin-bottom: 20px;
+            text-align: center;
+            color: #fff;
+        }
+        
+        .wix-login-section {
+            background: rgba(16, 163, 127, 0.2);
+            border: 2px solid #10a37f;
+            margin-bottom: 25px;
+        }
+        
+        .simple-login-section {
+            background: rgba(255, 107, 107, 0.2);
+            border: 2px solid #ff6b6b;
+        }
+        
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            text-decoration: none;
+            margin: 10px 0;
+        }
+        
+        .btn-wix {
+            background: #10a37f;
+            color: white;
+        }
+        
+        .btn-wix:hover {
+            background: #0d8a6a;
+            transform: translateY(-2px);
+        }
+        
+        .btn-simple {
+            background: #ff6b6b;
+            color: white;
+        }
+        
+        .btn-simple:hover {
+            background: #ff5252;
+            transform: translateY(-2px);
+        }
+        
+        .btn-game {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .btn-game:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+        
+        .btn-logout {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-logout:hover {
+            background: #5a6268;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 10px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            font-size: 1em;
+            transition: all 0.3s ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #ff6b6b;
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .form-input::placeholder {
+            color: rgba(255,255,255,0.7);
+        }
+        
+        .user-info {
+            background: rgba(255,255,255,0.15);
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .user-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: #ff6b6b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            margin: 0 auto 15px;
+        }
+        
+        .user-name {
+            font-size: 1.4em;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+        
+        .user-email {
+            text-align: center;
+            opacity: 0.8;
+            margin-bottom: 20px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+        
+        .stat-item {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #ff6b6b;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+        
+        .leaderboard {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px;
+            padding: 25px;
+            margin-top: 20px;
+        }
+        
+        .leaderboard-title {
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            text-align: center;
+            color: #fff;
+        }
+        
+        .leaderboard-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .leaderboard-item:last-child {
+            border-bottom: none;
+        }
+        
+        .rank-1 { color: gold; font-weight: bold; }
+        .rank-2 { color: silver; }
+        .rank-3 { color: #cd7f32; }
+        
+        .player-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .player-score {
+            font-weight: bold;
+            color: #ff6b6b;
+        }
+        
+        .status-message {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            text-align: center;
+            font-weight: bold;
+            min-height: 20px;
+        }
+        
+        .status-success { background: rgba(76, 175, 80, 0.3); color: lightgreen; }
+        .status-error { background: rgba(244, 67, 54, 0.3); color: lightcoral; }
+        .status-info { background: rgba(33, 150, 243, 0.3); color: lightblue; }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .login-options {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .login-option-btn {
+            flex: 1;
+            padding: 12px;
+            background: rgba(255,255,255,0.1);
+            border: 2px solid transparent;
+            border-radius: 10px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        
+        .login-option-btn.active {
+            border-color: #ff6b6b;
+            background: rgba(255,107,107,0.2);
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .login-card {
+                padding: 25px;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎮 学校游戏中心</h1>
-        <p>使用你的学校账号登录开始游戏</p>
+        <!-- 头部 -->
+        <div class="header">
+            <h1>🎮 舞蹈学校游戏中心</h1>
+            <p>选择登录方式开始游戏</p>
+        </div>
         
-        <button class="login-btn" onclick="handleWixLogin()">
-            🎫 使用学校账号登录
-        </button>
+        <!-- 状态消息 -->
+        <div id="statusMessage" class="status-message"></div>
         
-        <div id="status" style="margin-top: 20px;"></div>
+        <!-- 未登录状态 -->
+        <div id="loggedOutView">
+            <!-- 登录选项切换 -->
+            <div class="login-options">
+                <div class="login-option-btn active" onclick="showLoginOption('wix')">
+                    🏫 学校账号
+                </div>
+                <div class="login-option-btn" onclick="showLoginOption('simple')">
+                    📧 快速开始
+                </div>
+            </div>
+            
+            <!-- Wix 学校账号登录 -->
+            <div id="wixLoginSection" class="login-card wix-login-section">
+                <h2 class="section-title">🎓 学校账号登录</h2>
+                <p style="text-align: center; margin-bottom: 20px; opacity: 0.9;">
+                    使用你在舞蹈学校的 Wix 账号登录
+                </p>
+                <button class="btn btn-wix" onclick="startWixOAuth()">
+                    🔐 使用学校账号登录
+                </button>
+                <div style="text-align: center; margin-top: 15px; font-size: 0.9em; opacity: 0.7;">
+                    📍 需要你在学校的注册账号
+                </div>
+            </div>
+            
+            <!-- 简化邮箱登录 -->
+            <div id="simpleLoginSection" class="login-card simple-login-section hidden">
+                <h2 class="section-title">🚀 快速开始游戏</h2>
+                <form id="simpleLoginForm">
+                    <div class="form-group">
+                        <input type="text" class="form-input" id="userName" 
+                               placeholder="你的名字（可选）">
+                    </div>
+                    <div class="form-group">
+                        <input type="email" class="form-input" id="userEmail" 
+                               placeholder="你的邮箱地址" required>
+                    </div>
+                    <button type="submit" class="btn btn-simple">
+                        🎮 开始游戏
+                    </button>
+                </form>
+                <div style="text-align: center; margin-top: 15px; font-size: 0.9em; opacity: 0.7;">
+                    ⚡ 立即开始，无需验证
+                </div>
+            </div>
+        </div>
+        
+        <!-- 已登录状态 -->
+        <div id="loggedInView" class="hidden">
+            <div class="login-card">
+                <!-- 用户信息 -->
+                <div class="user-info">
+                    <div class="user-avatar" id="userAvatar">
+                        👤
+                    </div>
+                    <div class="user-name" id="userDisplayName">玩家</div>
+                    <div class="user-email" id="userDisplayEmail">user@example.com</div>
+                    
+                    <!-- 游戏统计 -->
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value" id="bestScore">0</div>
+                            <div class="stat-label">🎯 最高分</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="gamesPlayed">0</div>
+                            <div class="stat-label">🎮 游戏次数</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="totalScore">0</div>
+                            <div class="stat-label">⭐ 总得分</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 操作按钮 -->
+                <button class="btn btn-game" onclick="startGame()">
+                    🎯 开始新游戏
+                </button>
+                <button class="btn btn-logout" onclick="logout()">
+                    🚪 退出登录
+                </button>
+            </div>
+        </div>
+        
+        <!-- 排行榜 -->
+        <div class="leaderboard">
+            <h3 class="leaderboard-title">🏆 游戏排行榜</h3>
+            <div id="leaderboardList">
+                <div style="text-align: center; padding: 20px; opacity: 0.7;">
+                    加载中...
+                </div>
+            </div>
+        </div>
+        
+        <!-- 游戏直接入口 -->
+        <div style="text-align: center; margin-top: 20px;">
+            <a href="https://juice-game-server2-production.up.railway.app" 
+               class="btn btn-game" target="_blank">
+               🎲 直接进入游戏大厅
+            </a>
+        </div>
     </div>
 
     <script>
-        // Wix 登录函数
-        function handleWixLogin() {
-            const clientId = '54186d51-7e8a-483d-b2bd-854aa1ba75ad';
-            const redirectUri = 'https://juice-game-server2-production.up.railway.app/auth-callback';
-            const scope = 'members:read';
+        // 页面加载时检查登录状态
+        document.addEventListener('DOMContentLoaded', function() {
+            checkLoginStatus();
+            loadLeaderboard();
+        });
+        
+        // 显示登录选项
+        function showLoginOption(option) {
+            const wixBtn = document.querySelectorAll('.login-option-btn')[0];
+            const simpleBtn = document.querySelectorAll('.login-option-btn')[1];
+            const wixSection = document.getElementById('wixLoginSection');
+            const simpleSection = document.getElementById('simpleLoginSection');
             
-            const wixAuthUrl = `https://www.wix.com/installer/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}`;
-            
-            console.log('跳转到 Wix 登录:', wixAuthUrl);
-            
-            // 在新窗口打开登录页面
-            window.open(wixAuthUrl, 'wix-login', 'width=600,height=700');
+            if (option === 'wix') {
+                wixBtn.classList.add('active');
+                simpleBtn.classList.remove('active');
+                wixSection.classList.remove('hidden');
+                simpleSection.classList.add('hidden');
+            } else {
+                simpleBtn.classList.add('active');
+                wixBtn.classList.remove('active');
+                simpleSection.classList.remove('hidden');
+                wixSection.classList.add('hidden');
+            }
         }
-
-        // 监听来自 OAuth 回调的消息
-        window.addEventListener('message', function(event) {
-            console.log('收到消息:', event.data);
+        
+        // ==================== Wix OAuth 登录 ====================
+        async function startWixOAuth() {
+            showStatus('🔄 准备 Wix 登录...', 'info');
             
-            if (event.data && event.data.type === 'wix-oauth-callback') {
-                const { code } = event.data;
-                console.log('🎉 收到 Wix 认证代码:', code);
+            try {
+                const response = await fetch('/api/wix-oauth-pkce');
+                const result = await response.json();
                 
-                document.getElementById('status').innerHTML = `
-                    <div style="color: lightgreen;">
-                        <h3>✅ 登录成功！</h3>
-                        <p>认证代码: ${code}</p>
-                        <p>正在加载游戏...</p>
-                    </div>
-                `;
-                
-                // 可以关闭登录窗口
-                if (event.source) {
-                    event.source.close();
+                if (result.success) {
+                    showStatus('🔐 请在弹出窗口中登录...', 'info');
+                    
+                    // 在新窗口打开 Wix 登录
+                    const authWindow = window.open(result.authUrl, 'wix-login', 'width=600,height=700,scrollbars=yes');
+                    
+                    // 监听 OAuth 回调
+                    const messageHandler = async (event) => {
+                        if (event.data.type === 'wix-oauth-success') {
+                            console.log('✅ 收到 OAuth 授权代码');
+                            
+                            showStatus('🔐 验证用户信息...', 'info');
+                            
+                            // 获取用户信息
+                            const userResponse = await fetch('/api/wix-user-info', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ code: event.data.code })
+                            });
+                            
+                            const userResult = await userResponse.json();
+                            
+                            if (userResult.success) {
+                                showStatus('✅ ' + userResult.message, 'success');
+                                
+                                // 保存用户信息
+                                localStorage.setItem('game_user', JSON.stringify(userResult.user));
+                                localStorage.setItem('game_user_type', 'wix');
+                                localStorage.setItem('game_logged_in', 'true');
+                                
+                                showLoggedInView(userResult.user);
+                                loadLeaderboard();
+                            } else {
+                                if (userResult.requiresFullOAuth) {
+                                    showStatus('🔧 需要完整 OAuth 配置', 'error');
+                                } else {
+                                    showStatus('❌ ' + userResult.error, 'error');
+                                }
+                            }
+                            
+                            // 清理
+                            window.removeEventListener('message', messageHandler);
+                            if (authWindow && !authWindow.closed) authWindow.close();
+                        }
+                    };
+                    
+                    window.addEventListener('message', messageHandler);
+                    
+                    // 超时处理
+                    setTimeout(() => {
+                        window.removeEventListener('message', messageHandler);
+                        showStatus('⏰ 登录超时，请重试', 'error');
+                    }, 300000); // 5分钟超时
+                    
+                } else {
+                    showStatus('❌ 启动登录失败: ' + result.error, 'error');
                 }
+            } catch (error) {
+                showStatus('❌ 登录失败: ' + error.message, 'error');
+            }
+        }
+        
+        // ==================== 简化邮箱登录 ====================
+        document.getElementById('simpleLoginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('userEmail').value.trim();
+            const name = document.getElementById('userName').value.trim() || email.split('@')[0];
+            
+            if (!email) {
+                showStatus('❌ 请输入邮箱地址', 'error');
+                return;
+            }
+            
+            showStatus('🔐 登录中...', 'info');
+            
+            try {
+                const response = await fetch('/api/simple-login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, name })
+                });
                 
-                // 这里可以跳转到游戏页面或开始游戏
-                setTimeout(() => {
-                    alert('开始游戏！');
-                }, 1000);
+                const result = await response.json();
+                
+                if (result.success) {
+                    // 保存用户信息到本地存储
+                    localStorage.setItem('game_user', JSON.stringify(result.user));
+                    localStorage.setItem('game_user_token', result.token);
+                    localStorage.setItem('game_user_type', 'simple');
+                    localStorage.setItem('game_logged_in', 'true');
+                    
+                    showStatus('✅ ' + result.message, 'success');
+                    showLoggedInView(result.user);
+                    loadLeaderboard();
+                } else {
+                    showStatus('❌ ' + result.error, 'error');
+                }
+            } catch (error) {
+                showStatus('❌ 网络错误，请重试', 'error');
             }
         });
+        
+        // ==================== 通用功能 ====================
+        
+        // 检查登录状态
+        async function checkLoginStatus() {
+            const isLoggedIn = localStorage.getItem('game_logged_in') === 'true';
+            const userData = localStorage.getItem('game_user');
+            
+            if (isLoggedIn && userData) {
+                try {
+                    const user = JSON.parse(userData);
+                    const token = localStorage.getItem('game_user_token');
+                    
+                    if (token) {
+                        const response = await fetch(`/api/verify-session?token=${token}`);
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            showLoggedInView(result.user);
+                            return;
+                        }
+                    }
+                    
+                    // 如果验证失败，使用本地存储的数据
+                    showLoggedInView(user);
+                } catch (error) {
+                    // 如果出错，清除登录状态
+                    logout();
+                }
+            }
+        }
+        
+        // 显示登录后的界面
+        function showLoggedInView(user) {
+            document.getElementById('loggedOutView').classList.add('hidden');
+            document.getElementById('loggedInView').classList.remove('hidden');
+            
+            document.getElementById('userDisplayName').textContent = user.name;
+            document.getElementById('userDisplayEmail').textContent = user.email;
+            document.getElementById('bestScore').textContent = user.gameStats?.bestScore || 0;
+            document.getElementById('gamesPlayed').textContent = user.gameStats?.gamesPlayed || 0;
+            document.getElementById('totalScore').textContent = user.gameStats?.totalScore || 0;
+            
+            // 设置用户头像
+            const avatar = document.getElementById('userAvatar');
+            if (user.profilePhoto) {
+                avatar.innerHTML = `<img src="${user.profilePhoto}" alt="头像" style="width: 100%; height: 100%; border-radius: 50%;">`;
+            } else {
+                avatar.textContent = user.name.charAt(0).toUpperCase();
+            }
+        }
+        
+        // 开始游戏
+        function startGame() {
+            showStatus('🎮 准备开始游戏...', 'info');
+            setTimeout(() => {
+                window.open('https://juice-game-server2-production.up.railway.app', '_blank');
+            }, 1000);
+        }
+        
+        // 退出登录
+        function logout() {
+            localStorage.removeItem('game_user');
+            localStorage.removeItem('game_user_token');
+            localStorage.removeItem('game_user_type');
+            localStorage.removeItem('game_logged_in');
+            
+            document.getElementById('loggedOutView').classList.remove('hidden');
+            document.getElementById('loggedInView').classList.add('hidden');
+            document.getElementById('simpleLoginForm').reset();
+            
+            showStatus('👋 已退出登录', 'info');
+            loadLeaderboard();
+        }
+        
+        // 加载排行榜
+        async function loadLeaderboard() {
+            try {
+                const response = await fetch('/api/leaderboard');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const leaderboardHTML = result.leaderboard.length > 0 ? 
+                        result.leaderboard.map(player => `
+                            <div class="leaderboard-item">
+                                <div class="player-info">
+                                    <span class="rank-${player.rank}">${player.rank}.</span>
+                                    <span>${player.name}</span>
+                                </div>
+                                <div class="player-score">${player.bestScore} 分</div>
+                            </div>
+                        `).join('') : 
+                        '<div style="text-align: center; padding: 20px; opacity: 0.7;">暂无游戏记录</div>';
+                    
+                    document.getElementById('leaderboardList').innerHTML = leaderboardHTML;
+                }
+            } catch (error) {
+                document.getElementById('leaderboardList').innerHTML = 
+                    '<div style="text-align: center; padding: 20px; opacity: 0.7;">加载排行榜失败</div>';
+            }
+        }
+        
+        // 显示状态消息
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('statusMessage');
+            statusDiv.textContent = message;
+            statusDiv.className = 'status-message';
+            
+            if (type === 'success') {
+                statusDiv.classList.add('status-success');
+            } else if (type === 'error') {
+                statusDiv.classList.add('status-error');
+            } else if (type === 'info') {
+                statusDiv.classList.add('status-info');
+            }
+            
+            // 3秒后自动清除成功和信息消息
+            if (type === 'success' || type === 'info') {
+                setTimeout(() => {
+                    statusDiv.textContent = '';
+                    statusDiv.className = 'status-message';
+                }, 3000);
+            }
+        }
+        
+        // 定期更新排行榜
+        setInterval(loadLeaderboard, 30000);
     </script>
 </body>
 </html>
