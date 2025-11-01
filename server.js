@@ -4,12 +4,15 @@ const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
 
+
 console.log('🚀 启动体感榨汁机游戏服务器...');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
+
+const WIX_API_BASE = 'https://www.wixapis.com';
 
 // 健康检查
 app.get('/health', (req, res) => {
@@ -20,6 +23,94 @@ app.get('/health', (req, res) => {
   });
 });
 
+
+// ==================== API 路由 ====================
+
+// Wix 用户登录验证
+app.post('/api/wix-login', async (req, res) => {
+  const { email } = req.body;
+  
+  if (!email) {
+    return res.json({ success: false, error: '请输入邮箱' });
+  }
+  
+  try {
+    console.log('🔍 查找 Wix 用户:', email);
+    
+    // 在 Wix 中查找用户
+    const wixUser = await findWixUserByEmail(email);
+    
+    if (wixUser) {
+      console.log('✅ 找到 Wix 用户:', wixUser);
+      
+      // 返回成功响应
+      res.json({
+        success: true,
+        user: {
+          id: wixUser.id || wixUser._id,
+          email: wixUser.email,
+          name: wixUser.displayName || wixUser.name || wixUser.email.split('@')[0],
+          avatar: wixUser.photo || wixUser.picture || null,
+          wixData: wixUser // 包含完整的 Wix 用户数据
+        },
+        message: '登录成功'
+      });
+    } else {
+      console.log('❌ 未找到 Wix 用户:', email);
+      res.json({ 
+        success: false, 
+        error: '该邮箱未在学校系统注册，请先联系管理员' 
+      });
+    }
+  } catch (error) {
+    console.error('登录错误:', error);
+    res.json({ 
+      success: false, 
+      error: '系统错误，请稍后重试: ' + error.message 
+    });
+  }
+});
+
+// 测试路由：获取所有用户
+app.get('/api/wix-users', async (req, res) => {
+  try {
+    console.log('🧪 测试获取 Wix 用户列表');
+    const result = await getAllWixUsers();
+    
+    res.json({ 
+      success: true, 
+      dataCollection: result.collection,
+      count: result.users.length,
+      users: result.users.map(u => ({ 
+        id: u.id || u._id, 
+        email: u.email, 
+        name: u.displayName || u.name || '未知',
+        rawData: u // 包含完整数据用于调试
+      }))
+    });
+  } catch (error) {
+    console.error('获取用户列表错误:', error);
+    res.json({ 
+      success: false, 
+      error: error.message,
+      dataCollection: 'none'
+    });
+  }
+});
+
+// 测试 API Key 配置
+app.get('/api/test-wix', async (req, res) => {
+  try {
+    const API_KEY = process.env.WIX_API_KEY;
+    res.json({
+      apiKeyConfigured: !!API_KEY,
+      apiKeyLength: API_KEY ? API_KEY.length : 0,
+      message: API_KEY ? '✅ Wix API Key 已配置' : '❌ Wix API Key 未配置'
+    });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
 
 const server = http.createServer(app);
 const io = socketIo(server, {
@@ -80,6 +171,96 @@ app.get('/auth-callback', (req, res) => {
     res.status(400).send('缺少认证代码');
   }
 });
+
+// Wix Data API 工具函数
+async function callWixAPI(endpoint, method = 'GET', body = null) {
+  const API_KEY = process.env.WIX_API_KEY;
+
+  console.log('🔑 使用 Wix API Key:', API_KEY ? '已配置' : '未配置');
+  
+  const options = {
+    method,
+    headers: {
+      'Authorization': API_KEY,
+      'Content-Type': 'application/json'
+    }
+  };
+  
+  if (body) {
+    options.body = JSON.stringify(body);
+  }
+  
+  try {
+    const response = await fetch(`${WIX_API_BASE}${endpoint}`, options);
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Wix API 调用失败:', error);
+    throw error;
+  }
+}
+
+// 查询 Wix 用户
+async function findWixUserByEmail(email) {
+  console.log('🔍 查找 Wix 用户:', email);
+  
+  // 尝试不同的数据集合名称
+  const collections = ['Members', 'Users', 'Contacts', 'SiteMembers'];
+  
+  for (const collection of collections) {
+    try {
+      console.log(`尝试数据集合: ${collection}`);
+      const result = await callWixAPI('/wix-data/v2/items/query', 'POST', {
+        dataCollectionId: collection,
+        query: {
+          filter: {
+            'email': email
+          }
+        }
+      });
+      
+      if (result.items && result.items.length > 0) {
+        console.log(`✅ 在 ${collection} 中找到用户`);
+        return result.items[0];
+      }
+    } catch (error) {
+      console.log(`❌ 数据集合 ${collection} 查询失败:`, error.message);
+    }
+  }
+  
+  return null;
+}
+
+// 获取所有用户（用于测试）
+async function getAllWixUsers() {
+  const collections = ['Members', 'Users', 'Contacts', 'SiteMembers'];
+  
+  for (const collection of collections) {
+    try {
+      console.log(`尝试获取 ${collection} 数据集合`);
+      const result = await callWixAPI('/wix-data/v2/items/query', 'POST', {
+        dataCollectionId: collection,
+        query: {
+          paging: {
+            limit: 50
+          }
+        }
+      });
+      
+      if (result.items) {
+        console.log(`✅ 从 ${collection} 获取到 ${result.items.length} 个用户`);
+        return {
+          collection: collection,
+          users: result.items
+        };
+      }
+    } catch (error) {
+      console.log(`❌ 数据集合 ${collection} 查询失败:`, error.message);
+    }
+  }
+  
+  return { collection: 'none', users: [] };
+}
 
 // 存储游戏数据
 const gameRooms = new Map();
