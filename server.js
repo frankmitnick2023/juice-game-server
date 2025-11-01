@@ -413,3 +413,177 @@ app.get('/api/test-data-members', async (req, res) => {
     });
   }
 });
+
+// ==================== WIX OAuth PKCE 流程 ====================
+
+// 生成随机字符串
+function generateRandomString(length) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+// 启动 PKCE OAuth 流程
+app.get('/api/wix-oauth-pkce', (req, res) => {
+  const codeVerifier = generateRandomString(128);
+  const state = generateRandomString(16);
+  
+  // 保存用于验证（在实际应用中应该用session）
+  res.cookie('oauth_code_verifier', codeVerifier, { httpOnly: true });
+  res.cookie('oauth_state', state, { httpOnly: true });
+  
+  const authUrl = `https://www.wix.com/installer/oauth2/authorize?client_id=54186d51-7e8a-483d-b2bd-854aa1ba75ad&redirect_uri=${encodeURIComponent('https://juice-game-server2-production.up.railway.app/auth-callback')}&response_type=code&scope=members:read&state=${state}`;
+  
+  res.json({
+    success: true,
+    authUrl: authUrl,
+    codeVerifier: codeVerifier,
+    state: state,
+    message: 'PKCE OAuth 流程已启动'
+  });
+});
+
+// 处理 OAuth 回调（简化版）
+app.get('/auth-callback-final', (req, res) => {
+  const { code, error, state } = req.query;
+  
+  console.log('🎯 OAuth 回调最终版:', { code: code ? '有代码' : '无代码', error, state });
+  
+  if (error) {
+    return res.send(`
+      <html>
+        <head><title>登录失败</title></head>
+        <body style="font-family: Arial; text-align: center; padding: 50px;">
+          <h2 style="color: red;">❌ Wix 登录失败</h2>
+          <p>错误: ${error}</p>
+          <button onclick="window.close()" style="padding: 10px 20px; background: #ff6b6b; color: white; border: none; border-radius: 5px; cursor: pointer;">关闭窗口</button>
+        </body>
+      </html>
+    `);
+  }
+  
+  if (code) {
+    res.send(`
+      <html>
+        <head><title>登录成功</title></head>
+        <body style="font-family: Arial; text-align: center; padding: 50px;">
+          <h2 style="color: green;">✅ 授权成功！</h2>
+          <p>正在处理您的登录信息...</p>
+          <script>
+            // 将授权代码发送回主窗口
+            setTimeout(() => {
+              if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({
+                  type: 'wix-oauth-success',
+                  code: '${code}',
+                  state: '${state || ''}'
+                }, '*');
+                
+                // 给主窗口一些时间处理，然后关闭
+                setTimeout(() => {
+                  window.close();
+                }, 1000);
+              } else {
+                document.body.innerHTML = '<h2>⚠️ 请返回原窗口</h2><p>主窗口已关闭，请返回游戏页面重试。</p><button onclick="window.close()">关闭</button>';
+              }
+            }, 500);
+          </script>
+        </body>
+      </html>
+    `);
+  } else {
+    res.send(`
+      <html>
+        <body style="font-family: Arial; text-align: center; padding: 50px;">
+          <h2 style="color: red;">❌ 缺少授权代码</h2>
+          <button onclick="window.close()">关闭</button>
+        </body>
+      </html>
+    `);
+  }
+});
+
+// 使用授权代码获取用户信息
+app.post('/api/wix-user-info', async (req, res) => {
+  const { code } = req.body;
+  
+  if (!code) {
+    return res.json({ success: false, error: '缺少授权代码' });
+  }
+  
+  try {
+    console.log('🔍 使用 OAuth code 获取用户信息:', code.substring(0, 20) + '...');
+    
+    // 方法1: 直接使用 code 作为 Bearer token（某些配置支持）
+    let userResponse = await fetch('https://www.wixapis.com/members/v1/members/current', {
+      headers: {
+        'Authorization': `Bearer ${code}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    // 如果方法1失败，尝试方法2: 使用 code 作为 Basic auth
+    if (!userResponse.ok) {
+      userResponse = await fetch('https://www.wixapis.com/members/v1/members/current', {
+        headers: {
+          'Authorization': `Basic ${Buffer.from(code + ':').toString('base64')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+    }
+    
+    // 如果方法2失败，尝试方法3: 直接传递 code
+    if (!userResponse.ok) {
+      userResponse = await fetch('https://www.wixapis.com/members/v1/members/current', {
+        headers: {
+          'Authorization': code,
+          'Content-Type': 'application/json'
+        }
+      });
+    }
+    
+    if (userResponse.ok) {
+      const userData = await userResponse.json();
+      
+      if (userData.member) {
+        console.log('✅ 获取到 Wix 用户信息:', userData.member.loginEmail);
+        
+        return res.json({
+          success: true,
+          user: {
+            id: userData.member.id,
+            email: userData.member.loginEmail,
+            name: userData.member.contact?.firstName || userData.member.loginEmail.split('@')[0],
+            fullName: (userData.member.contact?.firstName || '') + ' ' + (userData.member.contact?.lastName || ''),
+            profilePhoto: userData.member.profile?.photo,
+            slug: userData.member.slug,
+            status: userData.member.status,
+            wixData: userData.member
+          },
+          message: 'Wix 用户登录成功！'
+        });
+      }
+    }
+    
+    // 如果所有方法都失败
+    const errorText = await userResponse.text();
+    console.error('❌ 获取用户信息失败:', userResponse.status, errorText);
+    
+    res.json({
+      success: false,
+      error: `无法获取用户信息 (${userResponse.status})`,
+      details: errorText,
+      requiresFullOAuth: true
+    });
+    
+  } catch (error) {
+    console.error('获取用户信息异常:', error);
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
