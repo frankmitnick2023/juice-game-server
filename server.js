@@ -587,3 +587,91 @@ app.post('/api/wix-user-info', async (req, res) => {
     });
   }
 });
+// 增强的 OAuth 回调处理
+app.get('/auth-callback', (req, res) => {
+  const { code, error, error_description, state, scope } = req.query;
+  
+  console.log('🔐 OAuth 回调详细参数:', {
+    code: code ? '有代码' : '无代码',
+    error: error || '无错误',
+    error_description: error_description || '无错误描述',
+    state: state || '无state',
+    scope: scope || '无scope',
+    fullQuery: req.query
+  });
+  
+  if (error) {
+    return res.send(`
+      <html>
+        <head><title>登录失败</title></head>
+        <body style="font-family: Arial; text-align: center; padding: 50px;">
+          <h2 style="color: red;">❌ Wix 登录失败</h2>
+          <p><strong>错误:</strong> ${error}</p>
+          <p><strong>描述:</strong> ${error_description || '无详细描述'}</p>
+          <p><strong>State:</strong> ${state || '无'}</p>
+          <button onclick="window.close()" style="padding: 10px 20px; background: #ff6b6b; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px;">
+            关闭窗口
+          </button>
+        </body>
+      </html>
+    `);
+  }
+  
+  if (code) {
+    res.send(`
+      <html>
+        <head><title>登录成功</title></head>
+        <body style="font-family: Arial; text-align: center; padding: 50px;">
+          <h2 style="color: green;">✅ 授权成功！</h2>
+          <p><strong>代码长度:</strong> ${code.length} 字符</p>
+          <p><strong>State:</strong> ${state || '无'}</p>
+          <p>正在处理您的登录信息...</p>
+          <script>
+            console.log('🎯 OAuth 回调收到代码:', '${code.substring(0, 20)}...');
+            setTimeout(() => {
+              if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({
+                  type: 'wix-oauth-success',
+                  code: '${code}',
+                  state: '${state || ''}'
+                }, '*');
+                console.log('✅ 代码已发送到主窗口');
+                
+                setTimeout(() => {
+                  window.close();
+                }, 1000);
+              } else {
+                document.body.innerHTML = '<h2>⚠️ 请返回原窗口</h2><p>主窗口已关闭，请返回游戏页面重试。</p><button onclick="window.close()">关闭</button>';
+              }
+            }, 500);
+          </script>
+        </body>
+      </html>
+    `);
+  } else {
+    res.send(`
+      <html>
+        <head><title>登录问题</title></head>
+        <body style="font-family: Arial; text-align: center; padding: 50px;">
+          <h2 style="color: orange;">⚠️ 登录未完成</h2>
+          <p><strong>可能的原因:</strong></p>
+          <ul style="text-align: left; display: inline-block; margin: 20px;">
+            <li>用户取消了登录</li>
+            <li>权限被拒绝</li>
+            <li>Wix App 配置问题</li>
+          </ul>
+          <p><strong>收到的参数:</strong></p>
+          <p>Code: ${code ? '有' : '无'}</p>
+          <p>Error: ${error || '无'}</p>
+          <p>State: ${state || '无'}</p>
+          <button onclick="window.close()" style="padding: 10px 20px; background: #ff6b6b; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px;">
+            关闭窗口
+          </button>
+          <button onclick="window.history.back()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px;">
+            返回重试
+          </button>
+        </body>
+      </html>
+    `);
+  }
+});
