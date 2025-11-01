@@ -1,9 +1,8 @@
-// server.js - 体感榨汁机游戏服务器（简化稳定版）
+// server.js - 体感榨汁机游戏服务器（完整整理版）
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const cors = require('cors');
-
+const cors = require('express-cors');
 
 console.log('🚀 启动体感榨汁机游戏服务器...');
 
@@ -12,7 +11,121 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
+// ==================== WIX API 配置 ====================
 const WIX_API_BASE = 'https://www.wixapis.com';
+
+// Wix API 工具函数
+async function callWixAPI(endpoint, method = 'GET', body = null) {
+  const API_KEY = process.env.WIX_API_KEY;
+  
+  console.log('🔑 Wix API Key:', API_KEY ? '已配置' : '未配置');
+  
+  const options = {
+    method,
+    headers: {
+      'Authorization': API_KEY,
+      'Content-Type': 'application/json'
+    }
+  };
+  
+  if (body) {
+    options.body = JSON.stringify(body);
+  }
+  
+  try {
+    console.log('📡 调用 Wix API:', endpoint);
+    const response = await fetch(`${WIX_API_BASE}${endpoint}`, options);
+    const data = await response.json();
+    console.log('✅ Wix API 响应状态:', response.status);
+    return data;
+  } catch (error) {
+    console.error('❌ Wix API 调用失败:', error);
+    throw error;
+  }
+}
+
+// 通过邮箱查找 Wix 用户
+async function findWixUserByEmail(email) {
+  try {
+    console.log('🔍 查找 Wix 用户:', email);
+    
+    // 先尝试 Contacts API
+    const contactsResult = await callWixAPI('/contacts/v4/contacts/query', 'POST', {
+      query: {
+        filter: {
+          'info.email': email
+        }
+      },
+      paging: {
+        limit: 1
+      }
+    });
+    
+    if (contactsResult.contacts && contactsResult.contacts.length > 0) {
+      console.log('✅ 通过 Contacts API 找到用户');
+      return { type: 'contact', data: contactsResult.contacts[0] };
+    }
+    
+    // 如果 Contacts API 没找到，尝试 Members API
+    console.log('🔍 尝试通过 Members API 查找用户');
+    const membersResult = await callWixAPI('/members/v1/members', 'GET');
+    
+    if (membersResult.members) {
+      const member = membersResult.members.find(m => 
+        m.loginEmail === email || (m.contact && m.contact.email === email)
+      );
+      if (member) {
+        console.log('✅ 通过 Members API 找到用户');
+        return { type: 'member', data: member };
+      }
+    }
+    
+    console.log('❌ 在所有 API 中均未找到用户');
+    return null;
+  } catch (error) {
+    console.error('查找用户失败:', error);
+    return null;
+  }
+}
+
+// 获取所有 Wix 联系人（用于测试）
+async function getAllWixContacts() {
+  try {
+    console.log('📞 获取所有 Wix 联系人');
+    
+    // 先尝试 Contacts API
+    const contactsResult = await callWixAPI('/contacts/v4/contacts', 'GET');
+    
+    if (contactsResult.contacts) {
+      console.log(`✅ 通过 Contacts API 获取到 ${contactsResult.contacts.length} 个联系人`);
+      return {
+        api: 'contacts',
+        count: contactsResult.contacts.length,
+        items: contactsResult.contacts
+      };
+    }
+    
+    // 如果 Contacts API 失败，尝试 Members API
+    const membersResult = await callWixAPI('/members/v1/members', 'GET');
+    
+    if (membersResult.members) {
+      console.log(`✅ 通过 Members API 获取到 ${membersResult.members.length} 个会员`);
+      return {
+        api: 'members', 
+        count: membersResult.members.length,
+        items: membersResult.members
+      };
+    }
+    
+    console.log('❌ 两个 API 都未返回数据');
+    return { api: 'none', count: 0, items: [] };
+  } catch (error) {
+    console.error('获取联系人失败:', error);
+    return { api: 'error', count: 0, items: [], error: error.message };
+  }
+}
+
+// ==================== Express 路由 ====================
 
 // 健康检查
 app.get('/health', (req, res) => {
@@ -23,103 +136,12 @@ app.get('/health', (req, res) => {
   });
 });
 
-
-// ==================== API 路由 ====================
-
-// Wix 用户登录验证
-app.post('/api/wix-login', async (req, res) => {
-  const { email } = req.body;
-  
-  if (!email) {
-    return res.json({ success: false, error: '请输入邮箱' });
-  }
-  
-  try {
-    console.log('🔍 查找 Wix 用户:', email);
-    
-    // 在 Wix 中查找用户
-    const wixUser = await findWixUserByEmail(email);
-    
-    if (wixUser) {
-      console.log('✅ 找到 Wix 用户:', wixUser);
-      
-      // 返回成功响应
-      res.json({
-        success: true,
-        user: {
-          id: wixUser.id || wixUser._id,
-          email: wixUser.email,
-          name: wixUser.displayName || wixUser.name || wixUser.email.split('@')[0],
-          avatar: wixUser.photo || wixUser.picture || null,
-          wixData: wixUser // 包含完整的 Wix 用户数据
-        },
-        message: '登录成功'
-      });
-    } else {
-      console.log('❌ 未找到 Wix 用户:', email);
-      res.json({ 
-        success: false, 
-        error: '该邮箱未在学校系统注册，请先联系管理员' 
-      });
-    }
-  } catch (error) {
-    console.error('登录错误:', error);
-    res.json({ 
-      success: false, 
-      error: '系统错误，请稍后重试: ' + error.message 
-    });
-  }
+// 根路由 - 提供前端页面
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/public/index.html');
 });
 
-// 测试路由：获取所有用户
-app.get('/api/wix-users', async (req, res) => {
-  try {
-    console.log('🧪 测试获取 Wix 用户列表');
-    const result = await getAllWixUsers();
-    
-    res.json({ 
-      success: true, 
-      dataCollection: result.collection,
-      count: result.users.length,
-      users: result.users.map(u => ({ 
-        id: u.id || u._id, 
-        email: u.email, 
-        name: u.displayName || u.name || '未知',
-        rawData: u // 包含完整数据用于调试
-      }))
-    });
-  } catch (error) {
-    console.error('获取用户列表错误:', error);
-    res.json({ 
-      success: false, 
-      error: error.message,
-      dataCollection: 'none'
-    });
-  }
-});
-
-// 测试 API Key 配置
-app.get('/api/test-wix', async (req, res) => {
-  try {
-    const API_KEY = process.env.WIX_API_KEY;
-    res.json({
-      apiKeyConfigured: !!API_KEY,
-      apiKeyLength: API_KEY ? API_KEY.length : 0,
-      message: API_KEY ? '✅ Wix API Key 已配置' : '❌ Wix API Key 未配置'
-    });
-  } catch (error) {
-    res.json({ error: error.message });
-  }
-});
-
-const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
-});
-
+// Wix OAuth 回调路由
 app.get('/auth-callback', (req, res) => {
   const { code, error, state } = req.query;
   
@@ -172,7 +194,50 @@ app.get('/auth-callback', (req, res) => {
   }
 });
 
-// ==================== 更新后的 API 路由 ====================
+// ==================== WIX API 路由 ====================
+
+// 测试 API Key 配置
+app.get('/api/test-wix', async (req, res) => {
+  try {
+    const API_KEY = process.env.WIX_API_KEY;
+    res.json({
+      apiKeyConfigured: !!API_KEY,
+      apiKeyLength: API_KEY ? API_KEY.length : 0,
+      message: API_KEY ? '✅ Wix API Key 已配置' : '❌ Wix API Key 未配置'
+    });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
+// 测试 Wix API 连接
+app.get('/api/test-wix-connection', async (req, res) => {
+  try {
+    console.log('🔗 测试 Wix API 连接');
+    
+    // 测试 Contacts API
+    const contactsTest = await callWixAPI('/contacts/v4/contacts', 'GET');
+    const contactsWorking = !!contactsTest.contacts;
+    
+    // 测试 Members API  
+    const membersTest = await callWixAPI('/members/v1/members', 'GET');
+    const membersWorking = !!membersTest.members;
+    
+    res.json({
+      success: true,
+      apiKeyConfigured: !!process.env.WIX_API_KEY,
+      contactsApi: contactsWorking ? '工作正常' : '失败',
+      membersApi: membersWorking ? '工作正常' : '失败',
+      contactsCount: contactsWorking ? contactsTest.contacts.length : 0,
+      membersCount: membersWorking ? membersTest.members.length : 0
+    });
+  } catch (error) {
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 
 // Wix 用户登录验证
 app.post('/api/wix-login', async (req, res) => {
@@ -186,20 +251,23 @@ app.post('/api/wix-login', async (req, res) => {
     console.log('🔍 查找 Wix 用户:', email);
     
     // 在 Wix 中查找用户
-    const wixUser = await findWixContactByEmail(email);
+    const wixUser = await findWixUserByEmail(email);
     
     if (wixUser) {
-      console.log('✅ 找到 Wix 用户:', wixUser);
+      console.log('✅ 找到 Wix 用户:', wixUser.type);
+      
+      const userData = wixUser.data;
       
       // 返回成功响应
       res.json({
         success: true,
         user: {
-          id: wixUser.id || wixUser._id,
-          email: wixUser.loginEmail || wixUser.info?.email,
-          name: wixUser.contact?.firstName || wixUser.profile?.firstName || wixUser.loginEmail?.split('@')[0],
-          fullName: wixUser.contact?.firstName + ' ' + wixUser.contact?.lastName,
-          wixData: wixUser
+          id: userData.id,
+          email: userData.loginEmail || userData.info?.email,
+          name: userData.contact?.firstName || userData.profile?.firstName || '用户',
+          fullName: (userData.contact?.firstName || '') + ' ' + (userData.contact?.lastName || ''),
+          type: wixUser.type,
+          wixData: userData
         },
         message: '登录成功'
       });
@@ -207,7 +275,7 @@ app.post('/api/wix-login', async (req, res) => {
       console.log('❌ 未找到 Wix 用户:', email);
       res.json({ 
         success: false, 
-        error: '该邮箱未在学校系统注册' 
+        error: '该邮箱未在学校系统注册，请先联系管理员' 
       });
     }
   } catch (error) {
@@ -220,16 +288,24 @@ app.post('/api/wix-login', async (req, res) => {
 });
 
 // 测试路由：获取所有联系人
-app.get('/api/wix-users', async (req, res) => {
+app.get('/api/wix-contacts', async (req, res) => {
   try {
     console.log('🧪 测试获取 Wix 联系人列表');
     const result = await getAllWixContacts();
+    
+    if (result.error) {
+      return res.json({ 
+        success: false, 
+        error: result.error,
+        apiUsed: result.api
+      });
+    }
     
     res.json({ 
       success: true, 
       apiUsed: result.api,
       count: result.count,
-      users: result.items.map(u => ({ 
+      users: result.items.slice(0, 10).map(u => ({ 
         id: u.id, 
         email: u.loginEmail || u.info?.email,
         name: u.contact?.firstName || u.profile?.firstName || '未知',
@@ -245,105 +321,15 @@ app.get('/api/wix-users', async (req, res) => {
   }
 });
 
-// Wix API 工具函数
-async function callWixAPI(endpoint, method = 'GET', body = null) {
-  const API_KEY = process.env.WIX_API_KEY;
-  
-  const options = {
-    method,
-    headers: {
-      'Authorization': API_KEY,
-      'Content-Type': 'application/json'
-    }
-  };
-  
-  if (body) {
-    options.body = JSON.stringify(body);
-  }
-  
-  try {
-    const response = await fetch(`${WIX_API_BASE}${endpoint}`, options);
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Wix API 调用失败:', error);
-    throw error;
-  }
-}
+// ==================== Socket.IO 游戏逻辑 ====================
 
-// 通过邮箱查找联系人
-async function findWixContactByEmail(email) {
-  try {
-    console.log('🔍 通过 Contacts API 查找用户:', email);
-    
-    const result = await callWixAPI('/contacts/v4/contacts/query', 'POST', {
-      query: {
-        filter: {
-          'info.email': email
-        }
-      },
-      paging: {
-        limit: 1
-      }
-    });
-    
-    if (result.contacts && result.contacts.length > 0) {
-      console.log('✅ 通过 Contacts API 找到用户');
-      return result.contacts[0];
-    }
-    
-    // 如果 Contacts API 没找到，尝试 Members API
-    console.log('🔍 尝试通过 Members API 查找用户');
-    const memberResult = await callWixAPI('/members/v1/members', 'GET');
-    
-    if (memberResult.members) {
-      const member = memberResult.members.find(m => m.loginEmail === email || m.contactId === email);
-      if (member) {
-        console.log('✅ 通过 Members API 找到用户');
-        return member;
-      }
-    }
-    
-    return null;
-  } catch (error) {
-    console.error('查找用户失败:', error);
-    return null;
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
   }
-}
-
-// 获取所有联系人（用于测试）
-async function getAllWixContacts() {
-  try {
-    console.log('📞 获取所有联系人');
-    
-    // 先尝试 Contacts API
-    const contactsResult = await callWixAPI('/contacts/v4/contacts', 'GET');
-    
-    if (contactsResult.contacts) {
-      return {
-        api: 'contacts',
-        count: contactsResult.contacts.length,
-        items: contactsResult.contacts
-      };
-    }
-    
-    // 如果 Contacts API 失败，尝试 Members API
-    const membersResult = await callWixAPI('/members/v1/members', 'GET');
-    
-    if (membersResult.members) {
-      return {
-        api: 'members', 
-        count: membersResult.members.length,
-        items: membersResult.members
-      };
-    }
-    
-    return { api: 'none', count: 0, items: [] };
-  } catch (error) {
-    console.error('获取联系人失败:', error);
-    return { api: 'error', count: 0, items: [], error: error.message };
-  }
-}
+});
 
 // 存储游戏数据
 const gameRooms = new Map();
@@ -488,7 +474,8 @@ io.on('connection', (socket) => {
   });
 });
 
-// 启动服务器
+// ==================== 服务器启动 ====================
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log('=================================');
