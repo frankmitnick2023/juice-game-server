@@ -300,3 +300,132 @@ process.on('unhandledRejection', (error) => {
 process.on('uncaughtException', (error) => {
   console.error('未捕获的异常:', error);
 });
+
+// 详细的 Wix API 诊断
+app.get('/api/wix-debug-detailed', async (req, res) => {
+  try {
+    const API_KEY = process.env.WIX_API_KEY;
+    const diagnostic = {
+      apiKey: {
+        exists: !!API_KEY,
+        length: API_KEY ? API_KEY.length : 0,
+        startsWith: API_KEY ? API_KEY.substring(0, 10) : 'none'
+      },
+      tests: {}
+    };
+
+    // 测试 1: 基础站点信息（通常有权限）
+    try {
+      const siteResponse = await fetch('https://www.wixapis.com/site/read-only/v1/site', {
+        headers: {
+          'Authorization': API_KEY,
+          'Content-Type': 'application/json'
+        }
+      });
+      diagnostic.tests.siteApi = {
+        status: siteResponse.status,
+        statusText: siteResponse.statusText,
+        ok: siteResponse.ok
+      };
+    } catch (error) {
+      diagnostic.tests.siteApi = { error: error.message };
+    }
+
+    // 测试 2: Members API 详细错误信息
+    try {
+      const membersResponse = await fetch('https://www.wixapis.com/members/v1/members', {
+        headers: {
+          'Authorization': API_KEY,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      diagnostic.tests.membersApi = {
+        status: membersResponse.status,
+        statusText: membersResponse.statusText,
+        ok: membersResponse.ok
+      };
+      
+      // 如果是 403，尝试获取详细的错误信息
+      if (!membersResponse.ok) {
+        const errorText = await membersResponse.text();
+        diagnostic.tests.membersApi.details = errorText;
+      } else {
+        const data = await membersResponse.json();
+        diagnostic.tests.membersApi.data = data;
+      }
+    } catch (error) {
+      diagnostic.tests.membersApi = { error: error.message };
+    }
+
+    // 测试 3: Contacts API
+    try {
+      const contactsResponse = await fetch('https://www.wixapis.com/contacts/v4/contacts', {
+        headers: {
+          'Authorization': API_KEY,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      diagnostic.tests.contactsApi = {
+        status: contactsResponse.status,
+        statusText: contactsResponse.statusText,
+        ok: contactsResponse.ok
+      };
+    } catch (error) {
+      diagnostic.tests.contactsApi = { error: error.message };
+    }
+
+    res.json({
+      success: true,
+      diagnostic: diagnostic,
+      message: '详细诊断完成'
+    });
+
+  } catch (error) {
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// 备用方案：使用 Data API 查询 Members 数据
+app.get('/api/wix-data-members', async (req, res) => {
+  try {
+    console.log('🔍 尝试通过 Data API 获取会员数据');
+    
+    const result = await callWixAPI('/wix-data/v2/items/query', 'POST', {
+      dataCollectionId: 'Members',
+      query: {
+        paging: {
+          limit: 10
+        }
+      }
+    });
+    
+    if (result.items) {
+      res.json({
+        success: true,
+        count: result.items.length,
+        members: result.items.map(item => ({
+          id: item._id || item.id,
+          email: item.email || item.loginEmail,
+          name: item.displayName || item.name || '未知',
+          rawData: item
+        }))
+      });
+    } else {
+      res.json({
+        success: false,
+        error: '未找到会员数据',
+        response: result
+      });
+    }
+  } catch (error) {
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
