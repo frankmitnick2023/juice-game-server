@@ -301,87 +301,66 @@ process.on('uncaughtException', (error) => {
   console.error('未捕获的异常:', error);
 });
 
-// 详细的 Wix API 诊断
-app.get('/api/wix-debug-detailed', async (req, res) => {
+// 测试具体的 Members API 端点
+app.get('/api/test-members-specific', async (req, res) => {
   try {
-    const API_KEY = process.env.WIX_API_KEY;
-    const diagnostic = {
-      apiKey: {
-        exists: !!API_KEY,
-        length: API_KEY ? API_KEY.length : 0,
-        startsWith: API_KEY ? API_KEY.substring(0, 10) : 'none'
-      },
-      tests: {}
-    };
-
-    // 测试 1: 基础站点信息（通常有权限）
+    const tests = {};
+    
+    // 测试 1: 获取当前用户信息（如果有用户上下文）
     try {
-      const siteResponse = await fetch('https://www.wixapis.com/site/read-only/v1/site', {
-        headers: {
-          'Authorization': API_KEY,
-          'Content-Type': 'application/json'
-        }
-      });
-      diagnostic.tests.siteApi = {
-        status: siteResponse.status,
-        statusText: siteResponse.statusText,
-        ok: siteResponse.ok
+      const currentResult = await callWixAPI('/members/v1/members/current', 'GET');
+      tests.currentMember = { 
+        success: true, 
+        exists: !!currentResult.member,
+        data: currentResult 
       };
     } catch (error) {
-      diagnostic.tests.siteApi = { error: error.message };
+      tests.currentMember = { success: false, error: error.message };
     }
-
-    // 测试 2: Members API 详细错误信息
+    
+    // 测试 2: 通过 ID 获取特定成员（需要知道成员ID）
     try {
-      const membersResponse = await fetch('https://www.wixapis.com/members/v1/members', {
-        headers: {
-          'Authorization': API_KEY,
-          'Content-Type': 'application/json'
+      // 这里需要提供一个已知的成员ID，我们先用一个测试ID
+      const byIdResult = await callWixAPI('/members/v1/members/some-member-id', 'GET');
+      tests.memberById = { success: true, data: byIdResult };
+    } catch (error) {
+      tests.memberById = { success: false, error: error.message };
+    }
+    
+    // 测试 3: 查询成员（带过滤条件）
+    try {
+      const queryResult = await callWixAPI('/members/v1/members/query', 'POST', {
+        query: {
+          filter: {
+            'status': 'ACTIVE'
+          },
+          paging: {
+            limit: 5
+          }
         }
       });
-      
-      diagnostic.tests.membersApi = {
-        status: membersResponse.status,
-        statusText: membersResponse.statusText,
-        ok: membersResponse.ok
+      tests.membersQuery = { 
+        success: true, 
+        count: queryResult.members?.length || 0 
       };
-      
-      // 如果是 403，尝试获取详细的错误信息
-      if (!membersResponse.ok) {
-        const errorText = await membersResponse.text();
-        diagnostic.tests.membersApi.details = errorText;
-      } else {
-        const data = await membersResponse.json();
-        diagnostic.tests.membersApi.data = data;
-      }
     } catch (error) {
-      diagnostic.tests.membersApi = { error: error.message };
+      tests.membersQuery = { success: false, error: error.message };
     }
-
-    // 测试 3: Contacts API
+    
+    // 测试 4: 站点成员统计
     try {
-      const contactsResponse = await fetch('https://www.wixapis.com/contacts/v4/contacts', {
-        headers: {
-          'Authorization': API_KEY,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      diagnostic.tests.contactsApi = {
-        status: contactsResponse.status,
-        statusText: contactsResponse.statusText,
-        ok: contactsResponse.ok
-      };
+      const statsResult = await callWixAPI('/members/v1/members/stats', 'GET');
+      tests.memberStats = { success: true, data: statsResult };
     } catch (error) {
-      diagnostic.tests.contactsApi = { error: error.message };
+      tests.memberStats = { success: false, error: error.message };
     }
-
+    
     res.json({
       success: true,
-      diagnostic: diagnostic,
-      message: '详细诊断完成'
+      tests: tests,
+      message: '具体 Members API 端点测试完成'
     });
-
+    
   } catch (error) {
     res.json({
       success: false,
@@ -390,38 +369,43 @@ app.get('/api/wix-debug-detailed', async (req, res) => {
   }
 });
 
-// 备用方案：使用 Data API 查询 Members 数据
-app.get('/api/wix-data-members', async (req, res) => {
+// 测试 Data API 中的 Members 数据集合
+app.get('/api/test-data-members', async (req, res) => {
   try {
-    console.log('🔍 尝试通过 Data API 获取会员数据');
+    console.log('🔍 测试 Data API 中的 Members 数据');
     
-    const result = await callWixAPI('/wix-data/v2/items/query', 'POST', {
-      dataCollectionId: 'Members',
-      query: {
-        paging: {
-          limit: 10
-        }
+    // 尝试不同的数据集合名称
+    const collections = ['Members', 'SiteMembers', 'Memberships', 'Users'];
+    const results = {};
+    
+    for (const collection of collections) {
+      try {
+        const result = await callWixAPI('/wix-data/v2/items/query', 'POST', {
+          dataCollectionId: collection,
+          query: {
+            paging: { limit: 3 }
+          }
+        });
+        
+        results[collection] = {
+          exists: true,
+          count: result.items ? result.items.length : 0,
+          sample: result.items ? result.items.slice(0, 2) : []
+        };
+      } catch (error) {
+        results[collection] = {
+          exists: false,
+          error: error.message
+        };
       }
+    }
+    
+    res.json({
+      success: true,
+      dataCollections: results,
+      message: 'Data API Members 测试完成'
     });
     
-    if (result.items) {
-      res.json({
-        success: true,
-        count: result.items.length,
-        members: result.items.map(item => ({
-          id: item._id || item.id,
-          email: item.email || item.loginEmail,
-          name: item.displayName || item.name || '未知',
-          rawData: item
-        }))
-      });
-    } else {
-      res.json({
-        success: false,
-        error: '未找到会员数据',
-        response: result
-      });
-    }
   } catch (error) {
     res.json({
       success: false,
