@@ -299,12 +299,26 @@ process.on('unhandledRejection', (reason, promise) => {
     console.log('⚠️  Unhandled rejection at:', promise, 'reason:', reason);
 });
 
-// 启动服务器
-app.listen(PORT, '0.0.0.0', () => {
+
+
+// 启动服务器 - Railway 优化版
+const listener = app.listen(PORT, undefined, () => {  // 先试默认 (IPv6 ::)
     console.log('=================================');
     console.log('✅ FUNX PLATFORM - ULTRA STABLE');
     console.log(`📍 Port: ${PORT}`);
     console.log(`🌐 URL: http://localhost:${PORT}`);
     console.log('✅ Guaranteed to never crash');
     console.log('=================================');
+});
+
+// Fallback 如果 IPv6 失败
+listener.on('error', (err) => {
+    if (err.code === 'EADDRINUSE' || err.code === 'EAFNOSUPPORT') {
+        console.log('🔄 Retrying with IPv4...');
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`✅ Bound to 0.0.0.0:${PORT}`);
+        });
+    } else {
+        console.error('🚨 Listen error:', err);
+    }
 });
