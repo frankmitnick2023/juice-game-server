@@ -675,3 +675,430 @@ app.get('/auth-callback', (req, res) => {
     `);
   }
 });
+
+// 游戏大厅路由
+app.get('/lobby', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>游戏大厅 - 舞蹈学校</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            body {
+                font-family: 'Arial', sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                min-height: 100vh;
+                padding: 20px;
+            }
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+            }
+            .header {
+                text-align: center;
+                margin-bottom: 40px;
+                padding: 20px;
+            }
+            .header h1 {
+                font-size: 3em;
+                margin-bottom: 10px;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            }
+            .user-info {
+                background: rgba(255,255,255,0.1);
+                padding: 20px;
+                border-radius: 15px;
+                margin-bottom: 30px;
+                backdrop-filter: blur(10px);
+            }
+            .games-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 25px;
+                margin: 30px 0;
+            }
+            .game-card {
+                background: rgba(255,255,255,0.1);
+                border-radius: 20px;
+                padding: 30px;
+                text-align: center;
+                backdrop-filter: blur(10px);
+                border: 2px solid rgba(255,255,255,0.2);
+                transition: all 0.3s ease;
+                cursor: pointer;
+            }
+            .game-card:hover {
+                transform: translateY(-10px);
+                background: rgba(255,255,255,0.15);
+                border-color: #ff6b6b;
+            }
+            .game-icon {
+                font-size: 4em;
+                margin-bottom: 20px;
+            }
+            .game-title {
+                font-size: 1.5em;
+                font-weight: bold;
+                margin-bottom: 10px;
+            }
+            .game-description {
+                opacity: 0.8;
+                margin-bottom: 20px;
+                line-height: 1.5;
+            }
+            .btn {
+                padding: 12px 30px;
+                background: #ff6b6b;
+                color: white;
+                border: none;
+                border-radius: 10px;
+                font-size: 1.1em;
+                cursor: pointer;
+                text-decoration: none;
+                display: inline-block;
+                transition: all 0.3s ease;
+            }
+            .btn:hover {
+                background: #ff5252;
+                transform: scale(1.05);
+            }
+            .btn-back {
+                background: #6c757d;
+            }
+            .btn-back:hover {
+                background: #5a6268;
+            }
+            .coming-soon {
+                opacity: 0.6;
+            }
+            .coming-soon .btn {
+                background: #6c757d;
+                cursor: not-allowed;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🎮 游戏大厅</h1>
+                <p>选择你想玩的游戏</p>
+            </div>
+
+            <div class="user-info">
+                <div id="userWelcome">欢迎来到游戏大厅！</div>
+            </div>
+
+            <div class="games-grid">
+                <!-- 体感榨汁机游戏 -->
+                <div class="game-card" onclick="startGame('juice-maker')">
+                    <div class="game-icon">🍹</div>
+                    <div class="game-title">体感榨汁机</div>
+                    <div class="game-description">
+                        通过体感操作摇晃设备来制作果汁！<br>
+                        与朋友比赛看谁榨的果汁更多！
+                    </div>
+                    <button class="btn">开始游戏</button>
+                </div>
+
+                <!-- 节奏舞蹈游戏（即将推出） -->
+                <div class="game-card coming-soon">
+                    <div class="game-icon">💃</div>
+                    <div class="game-title">节奏舞蹈</div>
+                    <div class="game-description">
+                        跟随节奏舞动！<br>
+                        匹配舞蹈动作获得高分！
+                    </div>
+                    <button class="btn">即将推出</button>
+                </div>
+
+                <!-- 音乐记忆游戏（即将推出） -->
+                <div class="game-card coming-soon">
+                    <div class="game-icon">🎵</div>
+                    <div class="game-title">音乐记忆</div>
+                    <div class="game-description">
+                        记忆音乐序列！<br>
+                        测试你的音乐记忆能力！
+                    </div>
+                    <button class="btn">即将推出</button>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 40px;">
+                <a href="/" class="btn btn-back">🏠 返回首页</a>
+            </div>
+        </div>
+
+        <script>
+            // 显示用户信息
+            const userData = localStorage.getItem('game_user');
+            if (userData) {
+                const user = JSON.parse(userData);
+                document.getElementById('userWelcome').textContent = 
+                    `欢迎 ${user.name} 来到游戏大厅！`;
+            }
+
+            function startGame(gameType) {
+                if (gameType === 'juice-maker') {
+                    window.location.href = '/game/juice-maker';
+                }
+            }
+
+            // 检查登录状态
+            if (!localStorage.getItem('game_logged_in')) {
+                alert('请先登录！');
+                window.location.href = '/';
+            }
+        </script>
+    </body>
+    </html>
+  `);
+});
+
+// 体感榨汁机游戏页面
+app.get('/game/juice-maker', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>体感榨汁机 - 游戏中</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            body {
+                font-family: 'Arial', sans-serif;
+                background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+                color: white;
+                min-height: 100vh;
+                padding: 20px;
+            }
+            .game-container {
+                max-width: 800px;
+                margin: 0 auto;
+                text-align: center;
+            }
+            .header {
+                margin-bottom: 30px;
+            }
+            .header h1 {
+                font-size: 2.5em;
+                margin-bottom: 10px;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            }
+            .game-area {
+                background: rgba(255,255,255,0.1);
+                padding: 40px;
+                border-radius: 20px;
+                margin: 20px 0;
+                backdrop-filter: blur(10px);
+            }
+            .juice-machine {
+                width: 200px;
+                height: 300px;
+                background: #e17055;
+                border-radius: 20px;
+                margin: 0 auto 30px;
+                position: relative;
+                border: 5px solid #d63031;
+                overflow: hidden;
+            }
+            .juice-level {
+                position: absolute;
+                bottom: 0;
+                width: 100%;
+                background: linear-gradient(to top, #e17055, #fd79a8);
+                transition: height 0.5s ease;
+                border-radius: 15px 15px 0 0;
+            }
+            .game-stats {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 15px;
+                margin: 30px 0;
+            }
+            .stat-item {
+                background: rgba(255,255,255,0.15);
+                padding: 20px;
+                border-radius: 15px;
+            }
+            .stat-value {
+                font-size: 2em;
+                font-weight: bold;
+                color: #ffeaa7;
+            }
+            .controls {
+                margin: 30px 0;
+            }
+            .btn {
+                padding: 15px 30px;
+                background: #00b894;
+                color: white;
+                border: none;
+                border-radius: 10px;
+                font-size: 1.2em;
+                cursor: pointer;
+                margin: 10px;
+                text-decoration: none;
+                display: inline-block;
+                transition: all 0.3s ease;
+            }
+            .btn:hover {
+                background: #00a085;
+                transform: scale(1.05);
+            }
+            .btn-back {
+                background: #6c5ce7;
+            }
+            .instructions {
+                background: rgba(255,255,255,0.1);
+                padding: 20px;
+                border-radius: 15px;
+                margin: 20px 0;
+                text-align: left;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="game-container">
+            <div class="header">
+                <h1>🍹 体感榨汁机</h1>
+                <p>摇晃你的设备来制作果汁！</p>
+            </div>
+
+            <div class="game-area">
+                <div class="juice-machine">
+                    <div class="juice-level" id="juiceLevel" style="height: 0%;"></div>
+                </div>
+
+                <div class="game-stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="currentScore">0</div>
+                        <div>当前分数</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="timeLeft">60</div>
+                        <div>剩余时间</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="bestScore">0</div>
+                        <div>最高分数</div>
+                    </div>
+                </div>
+
+                <div class="controls">
+                    <button class="btn" onclick="startGame()">🎯 开始游戏</button>
+                    <button class="btn" onclick="resetGame()">🔄 重新开始</button>
+                </div>
+
+                <div class="instructions">
+                    <h3>🎮 游戏说明：</h3>
+                    <ul>
+                        <li>点击"开始游戏"按钮开始</li>
+                        <li>摇晃你的手机或设备来榨汁</li>
+                        <li>在60秒内获得尽可能高的分数</li>
+                        <li>果汁越多，分数越高！</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div>
+                <a href="/lobby" class="btn btn-back">← 返回游戏大厅</a>
+                <a href="/" class="btn btn-back">🏠 返回首页</a>
+            </div>
+        </div>
+
+        <script>
+            let gameActive = false;
+            let score = 0;
+            let timeLeft = 60;
+            let gameTimer;
+
+            function startGame() {
+                if (gameActive) return;
+                
+                gameActive = true;
+                score = 0;
+                timeLeft = 60;
+                
+                updateDisplay();
+                startTimer();
+                setupMotionDetection();
+            }
+
+            function resetGame() {
+                gameActive = false;
+                clearInterval(gameTimer);
+                score = 0;
+                timeLeft = 60;
+                updateDisplay();
+            }
+
+            function startTimer() {
+                gameTimer = setInterval(() => {
+                    timeLeft--;
+                    updateDisplay();
+                    
+                    if (timeLeft <= 0) {
+                        endGame();
+                    }
+                }, 1000);
+            }
+
+            function setupMotionDetection() {
+                // 简化的体感检测 - 实际应该使用 DeviceMotion API
+                let shakeCount = 0;
+                const shakeInterval = setInterval(() => {
+                    if (!gameActive) {
+                        clearInterval(shakeInterval);
+                        return;
+                    }
+                    
+                    // 模拟摇晃效果
+                    score += Math.floor(Math.random() * 10) + 5;
+                    const juiceLevel = Math.min(100, (score / 500) * 100);
+                    
+                    document.getElementById('juiceLevel').style.height = juiceLevel + '%';
+                    updateDisplay();
+                    
+                    shakeCount++;
+                    if (shakeCount > 100) {
+                        clearInterval(shakeInterval);
+                    }
+                }, 500);
+            }
+
+            function updateDisplay() {
+                document.getElementById('currentScore').textContent = score;
+                document.getElementById('timeLeft').textContent = timeLeft;
+                
+                const bestScore = localStorage.getItem('juice_maker_best_score') || 0;
+                document.getElementById('bestScore').textContent = bestScore;
+            }
+
+            function endGame() {
+                gameActive = false;
+                clearInterval(gameTimer);
+                
+                const bestScore = localStorage.getItem('juice_maker_best_score') || 0;
+                if (score > bestScore) {
+                    localStorage.setItem('juice_maker_best_score', score);
+                }
+                
+                alert(`游戏结束！你的得分: ${score}`);
+            }
+
+            // 初始化显示
+            updateDisplay();
+        </script>
+    </body>
+    </html>
+  `);
+});

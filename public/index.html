@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>学校游戏中心 - 舞蹈学校</title>
+    <title>舞蹈学校游戏中心</title>
     <style>
         * {
             margin: 0;
@@ -111,6 +111,16 @@
         
         .btn-game:hover {
             background: #45a049;
+            transform: translateY(-2px);
+        }
+        
+        .btn-lobby {
+            background: #6c5ce7;
+            color: white;
+        }
+        
+        .btn-lobby:hover {
+            background: #5b4cd1;
             transform: translateY(-2px);
         }
         
@@ -287,6 +297,25 @@
             background: rgba(255,107,107,0.2);
         }
         
+        .game-features {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin: 25px 0;
+        }
+        
+        .feature-item {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        
+        .feature-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
         @media (max-width: 600px) {
             .container {
                 padding: 10px;
@@ -300,8 +329,16 @@
                 grid-template-columns: 1fr;
             }
             
+            .game-features {
+                grid-template-columns: 1fr;
+            }
+            
             .header h1 {
                 font-size: 2em;
+            }
+            
+            .login-options {
+                flex-direction: column;
             }
         }
     </style>
@@ -311,7 +348,7 @@
         <!-- 头部 -->
         <div class="header">
             <h1>🎮 舞蹈学校游戏中心</h1>
-            <p>选择登录方式开始游戏</p>
+            <p>欢迎来到我们的游戏世界！</p>
         </div>
         
         <!-- 状态消息 -->
@@ -363,6 +400,29 @@
                     ⚡ 立即开始，无需验证
                 </div>
             </div>
+
+            <!-- 游戏特色介绍 -->
+            <div class="login-card">
+                <h2 class="section-title">🎯 游戏特色</h2>
+                <div class="game-features">
+                    <div class="feature-item">
+                        <div class="feature-icon">🍹</div>
+                        <div>体感榨汁机</div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">👥</div>
+                        <div>多人对战</div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">🏆</div>
+                        <div>实时排行榜</div>
+                    </div>
+                    <div class="feature-item">
+                        <div class="feature-icon">💃</div>
+                        <div>舞蹈主题</div>
+                    </div>
+                </div>
+            </div>
         </div>
         
         <!-- 已登录状态 -->
@@ -394,8 +454,8 @@
                 </div>
                 
                 <!-- 操作按钮 -->
-                <button class="btn btn-game" onclick="startGame()">
-                    🎯 开始新游戏
+                <button class="btn btn-lobby" onclick="goToLobby()">
+                    🎪 进入游戏大厅
                 </button>
                 <button class="btn btn-logout" onclick="logout()">
                     🚪 退出登录
@@ -413,12 +473,14 @@
             </div>
         </div>
         
-        <!-- 游戏直接入口 -->
+        <!-- 直接入口 -->
         <div style="text-align: center; margin-top: 20px;">
-            <a href="https://juice-game-server2-production.up.railway.app" 
-               class="btn btn-game" target="_blank">
-               🎲 直接进入游戏大厅
+            <a href="/lobby" class="btn btn-lobby">
+                🎲 直接进入游戏大厅
             </a>
+            <div style="margin-top: 10px; font-size: 0.9em; opacity: 0.7;">
+                可以先体验游戏，再登录保存进度
+            </div>
         </div>
     </div>
 
@@ -454,65 +516,44 @@
             showStatus('🔄 准备 Wix 登录...', 'info');
             
             try {
-                const response = await fetch('/api/wix-oauth-pkce');
+                // 弹出邮箱输入框作为简化方案
+                const email = prompt('请输入你在舞蹈学校的注册邮箱:');
+                
+                if (!email) {
+                    showStatus('❌ 请输入邮箱地址', 'error');
+                    return;
+                }
+                
+                if (!email.includes('@')) {
+                    showStatus('❌ 请输入有效的邮箱地址', 'error');
+                    return;
+                }
+                
+                showStatus('🔐 验证学校账号...', 'info');
+                
+                // 使用模拟的 Wix 登录
+                const response = await fetch('/api/wix-simulated-login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email })
+                });
+                
                 const result = await response.json();
                 
                 if (result.success) {
-                    showStatus('🔐 请在弹出窗口中登录...', 'info');
+                    showStatus('✅ ' + result.message, 'success');
                     
-                    // 在新窗口打开 Wix 登录
-                    const authWindow = window.open(result.authUrl, 'wix-login', 'width=600,height=700,scrollbars=yes');
+                    // 保存用户信息
+                    localStorage.setItem('game_user', JSON.stringify(result.user));
+                    localStorage.setItem('game_user_type', 'wix');
+                    localStorage.setItem('game_logged_in', 'true');
                     
-                    // 监听 OAuth 回调
-                    const messageHandler = async (event) => {
-                        if (event.data.type === 'wix-oauth-success') {
-                            console.log('✅ 收到 OAuth 授权代码');
-                            
-                            showStatus('🔐 验证用户信息...', 'info');
-                            
-                            // 获取用户信息
-                            const userResponse = await fetch('/api/wix-user-info', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ code: event.data.code })
-                            });
-                            
-                            const userResult = await userResponse.json();
-                            
-                            if (userResult.success) {
-                                showStatus('✅ ' + userResult.message, 'success');
-                                
-                                // 保存用户信息
-                                localStorage.setItem('game_user', JSON.stringify(userResult.user));
-                                localStorage.setItem('game_user_type', 'wix');
-                                localStorage.setItem('game_logged_in', 'true');
-                                
-                                showLoggedInView(userResult.user);
-                                loadLeaderboard();
-                            } else {
-                                if (userResult.requiresFullOAuth) {
-                                    showStatus('🔧 需要完整 OAuth 配置', 'error');
-                                } else {
-                                    showStatus('❌ ' + userResult.error, 'error');
-                                }
-                            }
-                            
-                            // 清理
-                            window.removeEventListener('message', messageHandler);
-                            if (authWindow && !authWindow.closed) authWindow.close();
-                        }
-                    };
-                    
-                    window.addEventListener('message', messageHandler);
-                    
-                    // 超时处理
-                    setTimeout(() => {
-                        window.removeEventListener('message', messageHandler);
-                        showStatus('⏰ 登录超时，请重试', 'error');
-                    }, 300000); // 5分钟超时
-                    
+                    showLoggedInView(result.user);
+                    loadLeaderboard();
                 } else {
-                    showStatus('❌ 启动登录失败: ' + result.error, 'error');
+                    showStatus('❌ ' + result.error, 'error');
                 }
             } catch (error) {
                 showStatus('❌ 登录失败: ' + error.message, 'error');
@@ -609,16 +650,14 @@
             if (user.profilePhoto) {
                 avatar.innerHTML = `<img src="${user.profilePhoto}" alt="头像" style="width: 100%; height: 100%; border-radius: 50%;">`;
             } else {
-                avatar.textContent = user.name.charAt(0).toUpperCase();
+                const nameInitial = user.name ? user.name.charAt(0).toUpperCase() : '👤';
+                avatar.textContent = nameInitial;
             }
         }
         
-        // 开始游戏
-        function startGame() {
-            showStatus('🎮 准备开始游戏...', 'info');
-            setTimeout(() => {
-                window.open('https://juice-game-server2-production.up.railway.app', '_blank');
-            }, 1000);
+        // 进入游戏大厅
+        function goToLobby() {
+            window.location.href = '/lobby';
         }
         
         // 退出登录
@@ -653,7 +692,7 @@
                                 <div class="player-score">${player.bestScore} 分</div>
                             </div>
                         `).join('') : 
-                        '<div style="text-align: center; padding: 20px; opacity: 0.7;">暂无游戏记录</div>';
+                        '<div style="text-align: center; padding: 20px; opacity: 0.7;">暂无游戏记录，快来成为第一个玩家吧！</div>';
                     
                     document.getElementById('leaderboardList').innerHTML = leaderboardHTML;
                 }
