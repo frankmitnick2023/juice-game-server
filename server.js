@@ -10,7 +10,9 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
-const Database = require('better-sqlite3');
+const sqlite3 = require('sqlite3').verbose();
+const db = new sqlite3.Database(DB_PATH);
+
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -29,6 +31,8 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 const DB_PATH = path.join(DATA_DIR, 'users.db');
 const db = new Database(DB_PATH);
+db.run('CREATE TABLE IF NOT EXISTS users (...)');
+db.get('SELECT * FROM users WHERE email=?', [email], (err,row)=>{ ... });
 
 // Schema
 db.exec(`
