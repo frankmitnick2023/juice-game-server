@@ -65,8 +65,16 @@ function findUserByEmail(email) {
   return readUsers().find((u) => u.email.toLowerCase() === String(email).toLowerCase());
 }
 
-// --- 动态加载游戏（智能扫描 + game.json 支持） ---
+// --- 动态加载游戏（稳定 ID + 强入口识别 + game.json 支持） ---
 let games = new Map();
+
+function stableIdFromFolder(folder) {
+  // 生成稳定数字 ID：简单无依赖 hash（避免目录顺序变导致ID变）
+  const s = String(folder);
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return Math.abs(h); // 正数
+}
 
 function loadGames() {
   const map = new Map();
@@ -77,17 +85,18 @@ function loadGames() {
     return;
   }
 
-  // 只拿一层子目录（每个子目录 = 一个游戏）
+  // 读取并排序（稳定顺序）
   const folders = fs
     .readdirSync(gamesDir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
-    .map((d) => d.name);
+    .map((d) => d.name)
+    .sort((a, b) => a.localeCompare(b));
 
-  folders.forEach((folder, i) => {
-    const id = i + 1;
+  folders.forEach((folder) => {
+    const id = stableIdFromFolder(folder);
     const dir = path.join(gamesDir, folder);
 
-    // 1) 先尝试读取 game.json
+    // 1) 读 game.json（可选）
     let meta = {};
     const metaFile = path.join(dir, 'game.json');
     if (fs.existsSync(metaFile)) {
@@ -98,47 +107,43 @@ function loadGames() {
       }
     }
 
-    // 2) 自动寻找入口文件（若 meta.entryFile 未给出）
-    //    优先常见命名；找不到则取该目录下第一个 .html 文件
+    // 2) 决定入口文件
     let entryFile = meta.entryFile || null;
     const candidates = ['index.html', 'game.html', 'main.html', `${folder}.html`];
 
     if (!entryFile) {
-      // 先看候选列表
+      // 候选列表优先
       const picked = candidates.find(f => fs.existsSync(path.join(dir, f)));
-      if (picked) {
-        entryFile = picked;
-      } else {
-        // 扫描任意 .html
-        const anyHtml = (fs.readdirSync(dir).find(f => /\.html?$/i.test(f))) || null;
-        entryFile = anyHtml;
-      }
+      if (picked) entryFile = picked;
+    }
+    if (!entryFile) {
+      // 任意第一个 .html
+      const anyHtml = (fs.readdirSync(dir).find(f => /\.html?$/i.test(f))) || null;
+      if (anyHtml) entryFile = anyHtml;
     }
 
-    // 如果还没找到入口，就跳过该目录
     if (!entryFile) {
       console.warn(`⚠️ 跳过 ${folder}：未找到入口 HTML`);
       return;
     }
 
-    // 3) 展示名与默认值
+    // 3) 展示名
     const displayName = (meta.name && String(meta.name).trim())
       ? String(meta.name).trim()
       : folder.replace(/[-_]/g, ' ').replace(/\b\w/g, m => m.toUpperCase());
 
     // 4) 组装配置
     const cfg = {
-      id,
-      folder,                // 真实目录名（用于物理路径）
+      id,                    // 稳定 ID
+      folder,                // 真实目录名
       name: displayName,     // 展示名
       description: meta.description || `A fun game: ${displayName}`,
       icon: meta.icon || '🎮',
       category: meta.category || 'General',
       difficulty: meta.difficulty || 'medium',
-      entryFile              // 实际入口文件
+      entryFile
     };
 
-    // 5) 最终放入 Map（id 递增）
     map.set(id, cfg);
   });
 
@@ -239,21 +244,36 @@ app.get('/api/games', (req, res) => {
   });
 });
 
-// --- 播放游戏（需登录） ---
+// --- 播放游戏（需登录；进来先刷新游戏列表；入口缺失时回退静态目录） ---
 app.get('/play/:id', (req, res) => {
-  const u = req.session.user;
-  if (!u) return res.redirect('/login');
+  if (!req.session.user) return res.redirect('/login');
+
+  // 关键：确保与 /api/games 一致
+  loadGames();
 
   const gameId = parseInt(req.params.id, 10);
   const game = games.get(gameId);
-  if (!game) return res.redirect('/');
+  if (!game) {
+    console.warn(`❌ /play/${gameId} 未找到游戏（可能 ID 不稳定）`);
+    return res.redirect('/');
+  }
 
-  // 重要：用真实的 folder + entryFile 拼物理路径
-  const gameFile = path.join(__dirname, 'games', game.folder, game.entryFile);
-  if (!fs.existsSync(gameFile)) return res.status(404).send('Game not found');
-  res.sendFile(gameFile);
+  const dir = path.join(__dirname, 'games', game.folder);
+  const gameFile = path.join(dir, game.entryFile);
+
+  if (fs.existsSync(gameFile)) {
+    return res.sendFile(gameFile);
+  } else {
+    console.warn(`❌ 找不到入口文件：${path.relative(__dirname, gameFile)}，尝试回退静态目录`);
+    // 回退策略：如果入口文件丢了，至少把目录静态暴露，用户可点开目录文件
+    //（也可以换成自定义404页面）
+    if (fs.existsSync(dir)) {
+      // 让前端重定向到静态路径，目录下若有 index.html 仍可被 web 服务器处理
+      return res.redirect(`/games/${encodeURIComponent(game.folder)}/${encodeURIComponent(game.entryFile)}`);
+    }
+    return res.status(404).send('Game not found');
+  }
 });
-
 // --- 健康检查 ---
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 
