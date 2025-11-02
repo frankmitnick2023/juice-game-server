@@ -65,7 +65,7 @@ function findUserByEmail(email) {
   return readUsers().find((u) => u.email.toLowerCase() === String(email).toLowerCase());
 }
 
-// --- 动态加载游戏 ---
+// --- 动态加载游戏（智能扫描 + game.json 支持） ---
 let games = new Map();
 
 function loadGames() {
@@ -77,6 +77,7 @@ function loadGames() {
     return;
   }
 
+  // 只拿一层子目录（每个子目录 = 一个游戏）
   const folders = fs
     .readdirSync(gamesDir, { withFileTypes: true })
     .filter((d) => d.isDirectory())
@@ -84,27 +85,60 @@ function loadGames() {
 
   folders.forEach((folder, i) => {
     const id = i + 1;
+    const dir = path.join(gamesDir, folder);
 
-    // 展示名：把中划线转空格并首字母大写
-    const displayName = folder
-      .replace(/[-_]/g, ' ')
-      .replace(/\b\w/g, (m) => m.toUpperCase());
+    // 1) 先尝试读取 game.json
+    let meta = {};
+    const metaFile = path.join(dir, 'game.json');
+    if (fs.existsSync(metaFile)) {
+      try {
+        meta = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
+      } catch (e) {
+        console.warn(`⚠️ 解析 ${path.join('games', folder, 'game.json')} 失败：`, e.message);
+      }
+    }
 
+    // 2) 自动寻找入口文件（若 meta.entryFile 未给出）
+    //    优先常见命名；找不到则取该目录下第一个 .html 文件
+    let entryFile = meta.entryFile || null;
+    const candidates = ['index.html', 'game.html', 'main.html', `${folder}.html`];
+
+    if (!entryFile) {
+      // 先看候选列表
+      const picked = candidates.find(f => fs.existsSync(path.join(dir, f)));
+      if (picked) {
+        entryFile = picked;
+      } else {
+        // 扫描任意 .html
+        const anyHtml = (fs.readdirSync(dir).find(f => /\.html?$/i.test(f))) || null;
+        entryFile = anyHtml;
+      }
+    }
+
+    // 如果还没找到入口，就跳过该目录
+    if (!entryFile) {
+      console.warn(`⚠️ 跳过 ${folder}：未找到入口 HTML`);
+      return;
+    }
+
+    // 3) 展示名与默认值
+    const displayName = (meta.name && String(meta.name).trim())
+      ? String(meta.name).trim()
+      : folder.replace(/[-_]/g, ' ').replace(/\b\w/g, m => m.toUpperCase());
+
+    // 4) 组装配置
     const cfg = {
       id,
-      folder, // 真实目录名（关键！用来拼物理路径）
-      name: displayName, // 展示名
-      description: `A fun game: ${displayName}`,
-      icon: '🎮',
-      category: 'General',
-      entryFile: 'index.html',
+      folder,                // 真实目录名（用于物理路径）
+      name: displayName,     // 展示名
+      description: meta.description || `A fun game: ${displayName}`,
+      icon: meta.icon || '🎮',
+      category: meta.category || 'General',
+      difficulty: meta.difficulty || 'medium',
+      entryFile              // 实际入口文件
     };
 
-    // 自动识别入口文件
-    const candidates = ['index.html', 'game.html', 'main.html', `${folder}.html`];
-    const found = candidates.find((f) => fs.existsSync(path.join(gamesDir, folder, f)));
-    if (found) cfg.entryFile = found;
-
+    // 5) 最终放入 Map（id 递增）
     map.set(id, cfg);
   });
 
