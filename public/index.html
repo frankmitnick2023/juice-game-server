@@ -1,138 +1,315 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FunX - Game Platform</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .container {
-            text-align: center;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            padding: 50px 40px;
-            border-radius: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            max-width: 500px;
-            width: 90%;
-        }
-        
-        .logo {
-            font-size: 4rem;
-            margin-bottom: 20px;
-        }
-        
-        h1 {
-            font-size: 3rem;
-            margin-bottom: 10px;
-            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        
-        .tagline {
-            font-size: 1.2rem;
-            margin-bottom: 30px;
-            opacity: 0.9;
-        }
-        
-        .btn {
-            display: inline-block;
-            background: #ff6b6b;
-            color: white;
-            padding: 15px 30px;
-            border-radius: 10px;
-            text-decoration: none;
-            font-size: 1.1rem;
-            margin: 10px;
-            transition: all 0.3s ease;
-            border: none;
-            cursor: pointer;
-        }
-        
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-        }
-        
-        .btn-secondary {
-            background: #4ecdc4;
-        }
-        
-        .features {
-            margin: 30px 0;
-            text-align: left;
-        }
-        
-        .feature {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 15px;
-            border-radius: 10px;
-            margin: 10px 0;
-        }
-        
-        .stats {
-            margin-top: 20px;
-            font-size: 0.9rem;
-            opacity: 0.7;
-        }
-    </style>
+  <meta charset="utf-8" />
+  <title>FunX • Juice Game Hub</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --card: #111827;
+      --muted: #94a3b8;
+      --text: #e5e7eb;
+      --primary: #22d3ee;
+      --primary-2: #38bdf8;
+      --danger: #ef4444;
+      --ok: #10b981;
+      --btn: #1f2937;
+      --btn2: #374151;
+      --radius: 16px;
+    }
+    html, body { height: 100%; }
+    body {
+      margin: 0; background: radial-gradient(1200px 600px at 10% -10%, #112, transparent), var(--bg);
+      color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      display: grid; place-items: center;
+    }
+    .shell { width: 100%; max-width: 900px; padding: 24px; }
+    .nav {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;
+    }
+    .brand { font-weight: 800; letter-spacing: .5px; }
+    .nav .right { display:flex; gap: 10px; align-items:center; }
+    .badge {
+      background: #0f172a; padding: 8px 12px; border-radius: 999px; font-size: 13px; color: var(--muted);
+      border: 1px solid #1f2937;
+    }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(0,0,0,.15));
+      border: 1px solid #1f2937; border-radius: var(--radius);
+      padding: 22px; box-shadow: 0 10px 40px rgba(0,0,0,.3);
+    }
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+    h1 { margin: 10px 0 4px; font-size: 28px; }
+    p { margin: 8px 0; color: var(--muted); }
+
+    .btn {
+      background: linear-gradient(180deg, var(--primary), var(--primary-2));
+      border: none; color: #021017; font-weight: 700; padding: 12px 18px; border-radius: 12px; cursor: pointer;
+    }
+    .btn.secondary { background: var(--btn2); color: #e2e8f0; }
+    .btn.ghost { background: transparent; border: 1px solid #334155; color: #e2e8f0; }
+
+    .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .hidden { display: none !important; }
+
+    .input {
+      width: 100%; background: #0b1220; border: 1px solid #1f2937; color: var(--text);
+      border-radius: 12px; padding: 12px 14px;
+    }
+
+    .game {
+      background: #0b1220; border: 1px solid #1f2937; border-radius: 14px; padding: 14px;
+      transition: transform .15s ease;
+      display:flex; flex-direction:column; gap:8px;
+    }
+    .game:hover { transform: translateY(-2px); }
+    .game .title { font-weight: 700; }
+    .game .desc { color: var(--muted); font-size: 14px; }
+    .game .play { margin-top: auto; }
+    .error { color: var(--danger); font-size: 14px; min-height:1.5em; }
+    .ok { color: var(--ok); font-size: 14px; min-height:1.5em; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <div class="logo">🎮</div>
-        <h1>FunX</h1>
-        <p class="tagline">Next Generation Game Platform</p>
-        
-        <div class="features">
-            <div class="feature">
-                <strong>🚀 Instant Registration</strong>
-                <p>Get started with just your email</p>
-            </div>
-            <div class="feature">
-                <strong>🎯 Smart Games</strong>
-                <p>Auto-detected game library</p>
-            </div>
-            <div class="feature">
-                <strong>💫 Real-time Multiplayer</strong>
-                <p>Play with friends online</p>
-            </div>
-        </div>
-        
-        <div>
-            <a href="/register" class="btn">Get Started</a>
-            <a href="/login" class="btn btn-secondary">Login</a>
-        </div>
-        
-        <div class="stats">
-            <p>Secure • Fast • Fun</p>
-        </div>
+  <div class="shell">
+    <div class="nav">
+      <div class="brand">🍹 FunX Game Hub</div>
+      <div class="right">
+        <span id="userBadge" class="badge hidden"></span>
+        <button id="loginBtnTop" class="btn ghost" onclick="goto('/login')">Login</button>
+        <button id="logoutBtnTop" class="btn secondary hidden" onclick="doLogout()">Logout</button>
+      </div>
     </div>
 
-    <script>
-        // Simple animation for logo
-        const logo = document.querySelector('.logo');
-        setInterval(() => {
-            logo.style.transform = 'scale(1.1)';
-            setTimeout(() => {
-                logo.style.transform = 'scale(1)';
-            }, 300);
-        }, 3000);
-    </script>
+    <!-- Landing（未登录） -->
+    <section id="view-landing" class="card">
+      <h1>Train like a gamer. Move like a dancer.</h1>
+      <p>Login to track your progress and play all games.</p>
+      <div class="row" style="margin-top:10px;">
+        <button class="btn" onclick="goto('/register')">Get Started</button>
+        <button class="btn secondary" onclick="goto('/login')">Login</button>
+      </div>
+    </section>
+
+    <!-- Register -->
+    <section id="view-register" class="card hidden">
+      <h1>Create account</h1>
+      <p>Unlock all games and save your progress.</p>
+      <div class="row">
+        <input id="r_name" class="input" placeholder="Your name" />
+        <input id="r_email" class="input" placeholder="Email" />
+        <input id="r_pwd" class="input" placeholder="Password" type="password" />
+        <div class="error" id="r_err"></div>
+        <div class="row">
+          <button class="btn" onclick="doRegister()">Create account</button>
+          <button class="btn ghost" onclick="goto('/')">Back</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Login -->
+    <section id="view-login" class="card hidden">
+      <h1>Welcome back</h1>
+      <p>Sign in to continue.</p>
+      <div class="row">
+        <input id="l_email" class="input" placeholder="Email" />
+        <input id="l_pwd" class="input" placeholder="Password" type="password" />
+        <div class="error" id="l_err"></div>
+        <div class="row">
+          <button class="btn" onclick="doLogin()">Login</button>
+          <button class="btn ghost" onclick="goto('/')">Back</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Dashboard（已登录） -->
+    <section id="view-dashboard" class="card hidden">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+        <div>
+          <h1 id="helloTitle">Hi!</h1>
+          <p id="helloSub" class="ok"></p>
+        </div>
+        <button class="btn secondary" onclick="doLogout()">Logout</button>
+      </div>
+
+      <h2 style="margin-top:10px;">Available Games</h2>
+      <div id="gamesGrid" class="grid" style="margin-top:10px;"></div>
+      <div id="gamesErr" class="error"></div>
+    </section>
+  </div>
+
+  <script>
+    // --- SPA 视图切换 ---
+    const views = ['landing','register','login','dashboard'];
+    function show(id) {
+      for (const v of views) {
+        const el = document.getElementById('view-' + v);
+        if (!el) continue;
+        if (v === id) el.classList.remove('hidden'); else el.classList.add('hidden');
+      }
+    }
+
+    function goto(pathname) {
+      history.pushState({ path: pathname }, '', pathname);
+      route();
+    }
+
+    window.addEventListener('popstate', route);
+
+    // --- 状态 ---
+    let currentUser = null;
+
+    async function fetchMe() {
+      try {
+        const r = await fetch('/api/me', { credentials: 'same-origin' });
+        if (!r.ok) throw 0;
+        const data = await r.json();
+        if (data.ok) {
+          currentUser = data.user;
+        } else {
+          currentUser = null;
+        }
+      } catch {
+        currentUser = null;
+      }
+      renderUserBadge();
+    }
+
+    function renderUserBadge() {
+      const badge = document.getElementById('userBadge');
+      const loginTop = document.getElementById('loginBtnTop');
+      const logoutTop = document.getElementById('logoutBtnTop');
+
+      if (currentUser) {
+        badge.textContent = `${currentUser.name} • Lv.${currentUser.level} • ${currentUser.coins}💰`;
+        badge.classList.remove('hidden');
+        logoutTop.classList.remove('hidden');
+        loginTop.classList.add('hidden');
+      } else {
+        badge.classList.add('hidden');
+        logoutTop.classList.add('hidden');
+        loginTop.classList.remove('hidden');
+      }
+    }
+
+    // --- 注册 / 登录 / 登出 ---
+    async function doRegister() {
+      const name = document.getElementById('r_name').value.trim();
+      const email = document.getElementById('r_email').value.trim();
+      const pwd = document.getElementById('r_pwd').value;
+      const err = document.getElementById('r_err'); err.textContent = '';
+
+      try {
+        const r = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ name, email, password: pwd })
+        });
+        const data = await r.json();
+        if (!r.ok || !data.ok) throw new Error(data.error || 'Register failed');
+        // 注册成功 → 回主页
+        await fetchMe();
+        goto('/');
+      } catch (e) {
+        err.textContent = e.message || 'Server error';
+      }
+    }
+
+    async function doLogin() {
+      const email = document.getElementById('l_email').value.trim();
+      const pwd = document.getElementById('l_pwd').value;
+      const err = document.getElementById('l_err'); err.textContent = '';
+
+      try {
+        const r = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ email, password: pwd })
+        });
+        const data = await r.json();
+        if (!r.ok || !data.ok) throw new Error(data.error || 'Login failed');
+        // 登录成功 → 回主页
+        await fetchMe();
+        goto('/');
+      } catch (e) {
+        err.textContent = e.message || 'Server error';
+      }
+    }
+
+    async function doLogout() {
+      try {
+        await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+      } catch {}
+      currentUser = null;
+      renderUserBadge();
+      goto('/');
+    }
+
+    // --- 加载游戏 ---
+    async function loadGames() {
+      const grid = document.getElementById('gamesGrid');
+      const err = document.getElementById('gamesErr');
+      grid.innerHTML = ''; err.textContent = '';
+
+      try {
+        const r = await fetch('/api/games', { credentials: 'same-origin' });
+        const data = await r.json();
+        if (!r.ok || !data.ok) throw new Error(data.error || 'Failed to load games');
+
+        if (!data.items.length) {
+          grid.innerHTML = '<div class="card">No games found. Put your games under <code>/games/*/index.html</code>.</div>';
+          return;
+        }
+
+        for (const g of data.items) {
+          const div = document.createElement('div');
+          div.className = 'game';
+          div.innerHTML = `
+            <div class="title">${g.icon || '🎮'} ${g.name}</div>
+            <div class="desc">${g.description || ''}</div>
+            <div class="play">
+              <button class="btn" onclick="location.href='/play/${g.id}'">Play</button>
+            </div>
+          `;
+          grid.appendChild(div);
+        }
+      } catch (e) {
+        err.textContent = e.message || 'Server error';
+      }
+    }
+
+    // --- 路由逻辑 ---
+    async function route() {
+      await fetchMe();
+      const path = location.pathname;
+
+      if (!currentUser) {
+        if (path === '/register') {
+          show('register');
+          return;
+        }
+        if (path === '/login') {
+          show('login');
+          return;
+        }
+        // 未登录默认 Landing
+        show('landing');
+        return;
+      }
+
+      // 已登录：总是展示 Dashboard
+      document.getElementById('helloTitle').textContent = `Welcome, ${currentUser.name}!`;
+      document.getElementById('helloSub').textContent = `Level ${currentUser.level} • ${currentUser.coins} coins`;
+      await loadGames();
+      show('dashboard');
+    }
+
+    // 首次进入
+    route();
+  </script>
 </body>
 </html>
+
