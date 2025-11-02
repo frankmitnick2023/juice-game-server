@@ -1,16 +1,20 @@
-// server.js - 修复路由版本
+// server.js - 动态游戏加载版本
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
+const fs = require('fs');
+const path = require('path');
 
 console.log('🚀 Starting FunX Gaming Platform...');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// 中间件 - 必须在路由之前
+// 中间件
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(express.static('public'));
+app.use('/games', express.static('games')); // 提供 games 文件夹的静态文件
 
 // 会话管理
 app.use(session({
@@ -22,46 +26,82 @@ app.use(session({
 
 // 内存存储
 const users = new Map();
-const games = new Map();
 let userCount = 0;
 
-// 预置游戏
-const defaultGames = [
-  {
-    id: 1,
-    name: "Number Guess",
-    description: "Guess a number between 1-100",
-    type: "puzzle",
-    difficulty: "easy",
-    icon: "🔢",
-    category: "Puzzle"
-  },
-  {
-    id: 2, 
-    name: "Memory Cards",
-    description: "Match identical cards",
-    type: "memory", 
-    difficulty: "medium",
-    icon: "🎴",
-    category: "Memory"
-  },
-  {
-    id: 3,
-    name: "Juice Maker",
-    description: "Create delicious juice recipes",
-    type: "creative",
-    difficulty: "easy", 
-    icon: "🥤",
-    category: "Creative"
+// 动态加载游戏
+function loadGames() {
+  const games = new Map();
+  const gamesDir = path.join(__dirname, 'games');
+  
+  try {
+    if (!fs.existsSync(gamesDir)) {
+      console.log('📁 Creating games directory...');
+      fs.mkdirSync(gamesDir, { recursive: true });
+      return games;
+    }
+    
+    const gameFolders = fs.readdirSync(gamesDir, { withFileTypes: true })
+      .filter(dirent => dirent.isDirectory())
+      .map(dirent => dirent.name);
+    
+    console.log(`🎮 Found ${gameFolders.length} game folders:`, gameFolders);
+    
+    gameFolders.forEach((folder, index) => {
+      const gameId = index + 1;
+      const gamePath = path.join(gamesDir, folder);
+      const configPath = path.join(gamePath, 'game.json');
+      
+      // 读取游戏配置
+      let gameConfig = {
+        id: gameId,
+        name: folder,
+        description: `A fun game: ${folder}`,
+        type: "unknown",
+        difficulty: "medium",
+        icon: "🎮",
+        category: "General",
+        entryFile: "index.html"
+      };
+      
+      try {
+        if (fs.existsSync(configPath)) {
+          const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+          gameConfig = { ...gameConfig, ...configData };
+        }
+      } catch (error) {
+        console.log(`⚠️ Error reading config for ${folder}:`, error.message);
+      }
+      
+      // 检查入口文件
+      const entryPath = path.join(gamePath, gameConfig.entryFile);
+      if (!fs.existsSync(entryPath)) {
+        // 尝试查找常见的入口文件
+        const possibleEntries = ['index.html', 'game.html', 'main.html', `${folder}.html`];
+        for (const entry of possibleEntries) {
+          if (fs.existsSync(path.join(gamePath, entry))) {
+            gameConfig.entryFile = entry;
+            break;
+          }
+        }
+      }
+      
+      games.set(gameId, gameConfig);
+      console.log(`✅ Loaded game: ${gameConfig.name} (ID: ${gameId})`);
+    });
+    
+  } catch (error) {
+    console.log('❌ Error loading games:', error.message);
   }
-];
+  
+  return games;
+}
 
-defaultGames.forEach(game => games.set(game.id, game));
+// 初始化游戏
+let games = loadGames();
 
-// 首先定义API路由（避免冲突）
+// API 路由
 app.post('/api/register', async (req, res) => {
   try {
-    console.log('Registration attempt:', req.body);
     const { name, email, password } = req.body;
     
     if (!name || !email || !password) {
@@ -103,11 +143,9 @@ app.post('/api/register', async (req, res) => {
       coins: user.coins 
     };
     
-    console.log('New user registered:', user.email);
     res.json({ success: true, user: req.session.user });
     
   } catch (error) {
-    console.error('Registration error:', error);
     res.json({ success: false, error: 'Registration failed' });
   }
 });
@@ -200,9 +238,12 @@ app.post('/api/game/result', (req, res) => {
   }
 });
 
-// 现在定义页面路由
+// 页面路由
 app.get('/', (req, res) => {
   const user = req.session.user;
+  
+  // 重新加载游戏（确保最新）
+  games = loadGames();
   
   res.send(`
   <!DOCTYPE html>
@@ -279,6 +320,13 @@ app.get('/', (req, res) => {
               border-radius: 10px;
               text-align: center;
           }
+          .empty-state {
+              text-align: center;
+              padding: 4rem 2rem;
+              background: rgba(255,255,255,0.1);
+              border-radius: 15px;
+              margin: 2rem 0;
+          }
       </style>
   </head>
   <body>
@@ -322,17 +370,26 @@ app.get('/', (req, res) => {
                   </div>
               </div>
 
-              <h2>Available Games</h2>
-              <div class="games-grid">
-                  ${Array.from(games.values()).map(game => `
-                      <div class="game-card" onclick="location.href='/game/${game.id}'">
-                          <div class="game-icon">${game.icon}</div>
-                          <h3>${game.name}</h3>
-                          <p>${game.description}</p>
-                          <p><small>Difficulty: ${game.difficulty}</small></p>
-                      </div>
-                  `).join('')}
-              </div>
+              <h2>Available Games (${games.size})</h2>
+              
+              ${games.size > 0 ? `
+                  <div class="games-grid">
+                      ${Array.from(games.values()).map(game => `
+                          <div class="game-card" onclick="location.href='/play/${game.id}'">
+                              <div class="game-icon">${game.icon}</div>
+                              <h3>${game.name}</h3>
+                              <p>${game.description}</p>
+                              <p><small>Category: ${game.category} • Difficulty: ${game.difficulty}</small></p>
+                          </div>
+                      `).join('')}
+                  </div>
+              ` : `
+                  <div class="empty-state">
+                      <h3>🎮 No Games Found</h3>
+                      <p>Add games to the 'games' folder to get started!</p>
+                      <p><small>Each game should be in its own folder with an HTML file.</small></p>
+                  </div>
+              `}
           ` : `
               <div style="text-align: center; padding: 4rem 0;">
                   <h2>Please login to start playing</h2>
@@ -347,7 +404,7 @@ app.get('/', (req, res) => {
   `);
 });
 
-// 注册页面 - 确保这个路由存在
+// 注册页面
 app.get('/register', (req, res) => {
   if (req.session.user) {
     return res.redirect('/');
@@ -586,8 +643,8 @@ app.get('/login', (req, res) => {
   `);
 });
 
-// 游戏页面
-app.get('/game/:id', (req, res) => {
+// 游戏播放页面 - 直接加载游戏文件夹中的HTML文件
+app.get('/play/:id', (req, res) => {
   const user = req.session.user;
   if (!user) {
     return res.redirect('/login');
@@ -600,440 +657,148 @@ app.get('/game/:id', (req, res) => {
     return res.redirect('/');
   }
   
-  let gameHTML = '';
+  const gamePath = path.join(__dirname, 'games', game.name, game.entryFile);
   
-  switch(gameId) {
-    case 1: // Number Guess
-      gameHTML = `
-        <div style="text-align: center;">
-          <h2>🔢 Number Guess</h2>
-          <p>Guess a number between 1-100, you have 7 attempts!</p>
-          <div style="margin: 2rem 0;">
-            <input type="number" id="guess" min="1" max="100" placeholder="Enter your guess" style="padding: 10px; font-size: 1.2rem; border-radius: 5px; border: none;">
-            <button onclick="makeGuess()" style="padding: 10px 20px; margin-left: 10px; background: #ff6b6b; color: white; border: none; border-radius: 5px; cursor: pointer;">Guess!</button>
-          </div>
-          <div id="result" style="min-height: 100px; margin: 1rem 0;"></div>
-          <div id="attempts" style="font-weight: bold;">Attempts left: 7</div>
-        </div>
-        <script>
-          let targetNumber = Math.floor(Math.random() * 100) + 1;
-          let attemptsLeft = 7;
-          
-          function makeGuess() {
-            if (attemptsLeft <= 0) {
-              showResult('Game over! The number was: ' + targetNumber, 'error');
-              return;
-            }
-            
-            const guess = parseInt(document.getElementById('guess').value);
-            if (!guess || guess < 1 || guess > 100) {
-              showResult('Please enter a number between 1-100', 'error');
-              return;
-            }
-            
-            attemptsLeft--;
-            document.getElementById('attempts').textContent = 'Attempts left: ' + attemptsLeft;
-            
-            if (guess === targetNumber) {
-              showResult('🎉 Congratulations! You guessed it!', 'success');
-              submitGameResult(true, 100);
-            } else if (guess < targetNumber) {
-              showResult('📈 Too low! Try again', 'info');
-            } else {
-              showResult('📉 Too high! Try again', 'info');
-            }
-            
-            document.getElementById('guess').value = '';
-            document.getElementById('guess').focus();
-            
-            if (attemptsLeft === 0 && guess !== targetNumber) {
-              showResult('😔 Game over! The number was: ' + targetNumber, 'error');
-              submitGameResult(false, 0);
-            }
-          }
-          
-          function showResult(message, type) {
-            const result = document.getElementById('result');
-            result.innerHTML = '<div style="padding: 10px; border-radius: 5px; margin: 10px 0; background: ' + 
-                             (type === 'success' ? 'rgba(0,255,0,0.2)' : type === 'error' ? 'rgba(255,0,0,0.2)' : 'rgba(255,255,0,0.2)') + 
-                             '">' + message + '</div>';
-          }
-        </script>
-      `;
-      break;
+  try {
+    if (fs.existsSync(gamePath)) {
+      // 读取游戏HTML文件
+      const gameHTML = fs.readFileSync(gamePath, 'utf8');
       
-    case 2: // Memory Cards
-      gameHTML = `
-        <div style="text-align: center;">
-          <h2>🎴 Memory Cards</h2>
-          <p>Click cards to find all matching pairs!</p>
-          <div id="memory-game" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 400px; margin: 2rem auto;"></div>
-          <div id="game-info" style="font-weight: bold;">Matched pairs: 0/8</div>
-        </div>
-        <script>
-          const cards = ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼'];
-          const gameCards = [...cards, ...cards].sort(() => Math.random() - 0.5);
-          let flippedCards = [];
-          let matchedPairs = 0;
-          
-          function initGame() {
-            const gameBoard = document.getElementById('memory-game');
-            gameBoard.innerHTML = '';
-            
-            gameCards.forEach((emoji, index) => {
-              const card = document.createElement('div');
-              card.className = 'memory-card';
-              card.innerHTML = \`
-                <div class="card-front">?</div>
-                <div class="card-back">\${emoji}</div>
-              \`;
-              card.style.cssText = \`
-                width: 80px; height: 80px; 
-                background: #ff6b6b; 
-                border-radius: 8px; 
-                display: flex; 
-                align-items: center; 
-                justify-content: center; 
-                font-size: 1.5rem; 
-                cursor: pointer;
-                position: relative;
-                transform-style: preserve-3d;
-                transition: transform 0.6s;
-              \`;
-              card.onclick = () => flipCard(card, index, emoji);
-              gameBoard.appendChild(card);
-            });
-          }
-          
-          function flipCard(card, index, emoji) {
-            if (flippedCards.length >= 2 || card.classList.contains('flipped')) return;
-            
-            card.style.transform = 'rotateY(180deg)';
-            card.classList.add('flipped');
-            flippedCards.push({card, emoji});
-            
-            if (flippedCards.length === 2) {
-              checkMatch();
-            }
-          }
-          
-          function checkMatch() {
-            const [card1, card2] = flippedCards;
-            
-            if (card1.emoji === card2.emoji) {
-              matchedPairs++;
-              document.getElementById('game-info').textContent = \`Matched pairs: \${matchedPairs}/8\`;
-              flippedCards = [];
-              
-              if (matchedPairs === 8) {
-                setTimeout(() => {
-                  showResult('🎉 Congratulations! You completed the game!', 'success');
-                  submitGameResult(true, 150);
-                }, 500);
+      // 包装游戏，添加平台导航和用户信息
+      res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <title>${game.name} - FunX</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+              body { 
+                  font-family: Arial; 
+                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  color: white; 
+                  margin: 0;
+                  padding: 0;
               }
-            } else {
-              setTimeout(() => {
-                card1.card.style.transform = 'rotateY(0deg)';
-                card2.card.style.transform = 'rotateY(0deg)';
-                card1.card.classList.remove('flipped');
-                card2.card.classList.remove('flipped');
-                flippedCards = [];
-              }, 1000);
-            }
-          }
+              .platform-header {
+                  background: rgba(0,0,0,0.3);
+                  padding: 1rem 2rem;
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  backdrop-filter: blur(10px);
+              }
+              .btn {
+                  background: #ff6b6b;
+                  color: white;
+                  padding: 10px 20px;
+                  border-radius: 8px;
+                  text-decoration: none;
+                  border: none;
+                  cursor: pointer;
+              }
+              .game-container {
+                  padding: 20px;
+                  max-width: 1200px;
+                  margin: 0 auto;
+              }
+          </style>
+      </head>
+      <body>
+          <div class="platform-header">
+              <a href="/" class="btn">← Back to Platform</a>
+              <h2>🎮 ${game.name}</h2>
+              <div>
+                  <span>Player: ${user.name}</span>
+                  <span style="margin-left: 1rem;">Level: ${user.level}</span>
+              </div>
+          </div>
           
-          function showResult(message, type) {
-            alert(message);
-          }
+          <div class="game-container">
+              <!-- 游戏内容 -->
+              ${gameHTML}
+          </div>
           
-          initGame();
-        </script>
+          <script>
+              // 提供游戏结果提交功能
+              async function submitGameResult(win, score) {
+                  try {
+                      const response = await fetch('/api/game/result', {
+                          method: 'POST',
+                          headers: {'Content-Type': 'application/json'},
+                          body: JSON.stringify({
+                              gameId: ${gameId},
+                              win: win,
+                              score: score
+                          })
+                      });
+                      
+                      const data = await response.json();
+                      if (data.success) {
+                          console.log('Game result submitted successfully');
+                      }
+                  } catch (error) {
+                      console.log('Result submission failed');
+                  }
+              }
+              
+              // 让游戏可以使用平台功能
+              window.funxPlatform = {
+                  submitScore: submitGameResult,
+                  user: ${JSON.stringify(user)}
+              };
+          </script>
+      </body>
+      </html>
+      `);
+    } else {
+      res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <title>Game Not Found - FunX</title>
+          <style>
+              body { 
+                  font-family: Arial; 
+                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  color: white; 
+                  text-align: center; 
+                  padding: 100px 20px; 
+              }
+          </style>
+      </head>
+      <body>
+          <h1>🎮 Game Not Found</h1>
+          <p>The game file could not be loaded.</p>
+          <p><small>Make sure the game folder contains an HTML file.</small></p>
+          <a href="/" class="btn" style="display: inline-block; margin-top: 1rem;">Back to Platform</a>
+      </body>
+      </html>
+      `);
+    }
+  } catch (error) {
+    res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Error - FunX</title>
         <style>
-          .memory-card .card-front, .memory-card .card-back {
-              position: absolute;
-              width: 100%;
-              height: 100%;
-              backface-visibility: hidden;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              border-radius: 8px;
-          }
-          .memory-card .card-front { background: #ff6b6b; }
-          .memory-card .card-back { background: #4ecdc4; transform: rotateY(180deg); }
+            body { 
+                font-family: Arial; 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white; 
+                text-align: center; 
+                padding: 100px 20px; 
+            }
         </style>
-      `;
-      break;
-      
-    case 3: // Juice Maker
-      gameHTML = `
-        <div style="text-align: center;">
-          <h2>🥤 Juice Maker</h2>
-          <p>Create delicious juice recipes by dragging fruits to the blender!</p>
-          <div style="max-width: 500px; margin: 0 auto;">
-            <div id="juice-game" style="background: rgba(255,255,255,0.1); padding: 2rem; border-radius: 15px; margin: 2rem 0;">
-              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 2rem;">
-                <div class="fruit" data-fruit="apple" style="padding: 1rem; background: rgba(255,255,255,0.2); border-radius: 10px; cursor: grab;">
-                  🍎 Apple
-                </div>
-                <div class="fruit" data-fruit="orange" style="padding: 1rem; background: rgba(255,255,255,0.2); border-radius: 10px; cursor: grab;">
-                  🍊 Orange
-                </div>
-                <div class="fruit" data-fruit="banana" style="padding: 1rem; background: rgba(255,255,255,0.2); border-radius: 10px; cursor: grab;">
-                  🍌 Banana
-                </div>
-                <div class="fruit" data-fruit="grape" style="padding: 1rem; background: rgba(255,255,255,0.2); border-radius: 10px; cursor: grab;">
-                  🍇 Grape
-                </div>
-                <div class="fruit" data-fruit="strawberry" style="padding: 1rem; background: rgba(255,255,255,0.2); border-radius: 10px; cursor: grab;">
-                  🍓 Strawberry
-                </div>
-                <div class="fruit" data-fruit="pineapple" style="padding: 1rem; background: rgba(255,255,255,0.2); border-radius: 10px; cursor: grab;">
-                  🍍 Pineapple
-                </div>
-              </div>
-              
-              <div id="blender" style="background: #8B4513; padding: 2rem; border-radius: 50%; width: 150px; height: 150px; margin: 0 auto; display: flex; align-items: center; justify-content: center; position: relative;">
-                <div style="background: rgba(255,255,255,0.9); width: 100px; height: 100px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem;">
-                  <span id="blender-content">🥤</span>
-                </div>
-              </div>
-              
-              <div style="margin: 2rem 0;">
-                <div id="recipe" style="min-height: 60px; margin: 1rem 0; padding: 1rem; background: rgba(255,255,255,0.1); border-radius: 10px;">
-                  <strong>Your Recipe:</strong> <span id="recipe-items">Nothing yet...</span>
-                </div>
-                <button onclick="blendJuice()" style="padding: 12px 24px; background: #ff6b6b; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1.1rem;">Blend Juice! 🎉</button>
-                <button onclick="resetBlender()" style="padding: 12px 24px; background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 8px; cursor: pointer; margin-left: 1rem;">Reset</button>
-              </div>
-              
-              <div id="result" style="min-height: 80px; padding: 1rem; background: rgba(255,255,255,0.1); border-radius: 10px; margin-top: 1rem;"></div>
-            </div>
-          </div>
-        </div>
-        
-        <script>
-          let selectedFruits = [];
-          let score = 0;
-          
-          // 拖拽功能
-          document.addEventListener('DOMContentLoaded', function() {
-            const fruits = document.querySelectorAll('.fruit');
-            const blender = document.getElementById('blender');
-            
-            fruits.forEach(fruit => {
-              fruit.addEventListener('dragstart', function(e) {
-                e.dataTransfer.setData('text/plain', this.getAttribute('data-fruit'));
-              });
-            });
-            
-            blender.addEventListener('dragover', function(e) {
-              e.preventDefault();
-              this.style.background = '#A0522D';
-            });
-            
-            blender.addEventListener('dragleave', function() {
-              this.style.background = '#8B4513';
-            });
-            
-            blender.addEventListener('drop', function(e) {
-              e.preventDefault();
-              this.style.background = '#8B4513';
-              
-              const fruitType = e.dataTransfer.getData('text/plain');
-              addFruitToBlender(fruitType);
-            });
-          });
-          
-          function addFruitToBlender(fruitType) {
-            if (selectedFruits.length >= 5) {
-              showMessage('Blender is full! Blend or reset first.', 'error');
-              return;
-            }
-            
-            selectedFruits.push(fruitType);
-            updateRecipeDisplay();
-            updateBlenderDisplay();
-            
-            const blender = document.getElementById('blender');
-            blender.style.transform = 'scale(1.1)';
-            setTimeout(() => {
-              blender.style.transform = 'scale(1)';
-            }, 200);
-          }
-          
-          function updateRecipeDisplay() {
-            const recipeItems = document.getElementById('recipe-items');
-            if (selectedFruits.length === 0) {
-              recipeItems.textContent = 'Nothing yet...';
-            } else {
-              const fruitEmojis = selectedFruits.map(fruit => {
-                const emojiMap = {
-                  'apple': '🍎',
-                  'orange': '🍊', 
-                  'banana': '🍌',
-                  'grape': '🍇',
-                  'strawberry': '🍓',
-                  'pineapple': '🍍'
-                };
-                return emojiMap[fruit] || '🍎';
-              });
-              recipeItems.textContent = fruitEmojis.join(' + ');
-            }
-          }
-          
-          function updateBlenderDisplay() {
-            const blenderContent = document.getElementById('blender-content');
-            if (selectedFruits.length === 0) {
-              blenderContent.textContent = '🥤';
-            } else {
-              const uniqueFruits = [...new Set(selectedFruits)];
-              if (uniqueFruits.length === 1) {
-                blenderContent.textContent = '🥤';
-              } else if (uniqueFruits.length >= 3) {
-                blenderContent.textContent = '🌈';
-              } else {
-                blenderContent.textContent = '✨';
-              }
-            }
-          }
-          
-          function blendJuice() {
-            if (selectedFruits.length === 0) {
-              showMessage('Add some fruits first!', 'error');
-              return;
-            }
-            
-            const uniqueFruits = [...new Set(selectedFruits)];
-            let points = 0;
-            let message = '';
-            
-            if (selectedFruits.length >= 5) {
-              points = 100;
-              message = '🎉 Perfect Blend! Maximum points!';
-            } else if (uniqueFruits.length >= 3) {
-              points = 80;
-              message = '🌟 Great Combination! Tasty juice!';
-            } else if (selectedFruits.length >= 2) {
-              points = 50;
-              message = '👍 Good mix! Refreshing juice!';
-            } else {
-              points = 20;
-              message = '😊 Simple but delicious!';
-            }
-            
-            score += points;
-            
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = \`
-              <div style="background: rgba(0,255,0,0.2); padding: 1rem; border-radius: 8px;">
-                <h3>🥤 Juice Created!</h3>
-                <p>\${message}</p>
-                <p><strong>Points earned: +\${points}</strong></p>
-                <p>Total score: \${score}</p>
-              </div>
-            \`;
-            
-            submitGameResult(true, points);
-            
-            setTimeout(() => {
-              selectedFruits = [];
-              updateRecipeDisplay();
-              updateBlenderDisplay();
-            }, 3000);
-          }
-          
-          function resetBlender() {
-            selectedFruits = [];
-            updateRecipeDisplay();
-            updateBlenderDisplay();
-            document.getElementById('result').innerHTML = '';
-          }
-          
-          function showMessage(text, type) {
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = \`<div style="background: \${type === 'error' ? 'rgba(255,0,0,0.2)' : 'rgba(255,255,0,0.2)'}; padding: 1rem; border-radius: 8px;">\${text}</div>\`;
-          }
-        </script>
-      `;
-      break;
-      
-    default:
-      gameHTML = `<p>Game under development...</p>`;
+    </head>
+    <body>
+        <h1>⚠️ Error Loading Game</h1>
+        <p>There was an error loading the game.</p>
+        <a href="/" class="btn" style="display: inline-block; margin-top: 1rem;">Back to Platform</a>
+    </body>
+    </html>
+    `);
   }
-  
-  res.send(`
-  <!DOCTYPE html>
-  <html>
-  <head>
-      <title>${game.name} - FunX</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>
-          body { 
-              font-family: Arial; 
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              color: white; 
-              margin: 0;
-              padding: 20px;
-          }
-          .header {
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              margin-bottom: 2rem;
-              padding-bottom: 1rem;
-              border-bottom: 1px solid rgba(255,255,255,0.2);
-          }
-          .btn {
-              background: #ff6b6b;
-              color: white;
-              padding: 10px 20px;
-              border-radius: 8px;
-              text-decoration: none;
-              border: none;
-              cursor: pointer;
-          }
-          .game-container {
-              background: rgba(255,255,255,0.1);
-              padding: 2rem;
-              border-radius: 15px;
-              backdrop-filter: blur(10px);
-              max-width: 800px;
-              margin: 0 auto;
-          }
-      </style>
-  </head>
-  <body>
-      <div class="header">
-          <a href="/" class="btn">← Back to Home</a>
-          <h1>${game.icon} ${game.name}</h1>
-          <div>Player: ${user.name}</div>
-      </div>
-      
-      <div class="game-container">
-          ${gameHTML}
-      </div>
-      
-      <script>
-          async function submitGameResult(win, score) {
-              try {
-                  await fetch('/api/game/result', {
-                      method: 'POST',
-                      headers: {'Content-Type': 'application/json'},
-                      body: JSON.stringify({
-                          gameId: ${gameId},
-                          win: win,
-                          score: score
-                      })
-                  });
-              } catch (error) {
-                  console.log('Result submission failed');
-              }
-          }
-      </script>
-  </body>
-  </html>
-  `);
 });
 
 // 退出登录
@@ -1052,6 +817,12 @@ app.get('/health', (req, res) => {
   });
 });
 
+// 重新加载游戏端点（用于开发）
+app.post('/api/reload-games', (req, res) => {
+  games = loadGames();
+  res.json({ success: true, games: Array.from(games.values()) });
+});
+
 // 错误处理
 process.on('uncaughtException', (error) => {
   console.log('⚠️ Exception caught:', error.message);
@@ -1067,8 +838,9 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('🎮 FUNX GAMING PLATFORM');
   console.log(`📍 Port: ${PORT}`);
   console.log(`🌐 URL: http://0.0.0.0:${PORT}`);
-  console.log('✅ Routes: /, /register, /login, /game/:id');
-  console.log('✅ Games: Number Guess, Memory Cards, Juice Maker');
+  console.log('📁 Games folder: ./games/');
+  console.log('✅ Dynamic game loading: ENABLED');
+  console.log('✅ Routes: /, /register, /login, /play/:id');
   console.log('=================================');
 });
 
