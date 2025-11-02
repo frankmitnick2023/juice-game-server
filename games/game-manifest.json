@@ -1,0 +1,32 @@
+{
+  "games": [
+    {
+      "id": "juice-maker",
+      "file": "juice-maker.html",
+      "title": "体感榨汁机",
+      "description": "通过设备摇晃来制作果汁！简单易上手",
+      "icon": "🍹",
+      "version": "基础版",
+      "category": "体感游戏",
+      "tags": ["体感", "休闲", "单人"],
+      "difficulty": "简单",
+      "duration": "1分钟",
+      "players": "1人",
+      "color": "#ff6b6b"
+    },
+    {
+      "id": "juice-maker-mobile",
+      "file": "juice-maker-mobile.html",
+      "title": "体感榨汁机",
+      "description": "使用摄像头进行姿态检测，通过腰部和胯部扭转控制榨汁机",
+      "icon": "📱",
+      "version": "手机体感版",
+      "category": "体感游戏",
+      "tags": ["体感", "AI", "摄像头"],
+      "difficulty": "中等",
+      "duration": "2分钟",
+      "players": "1人",
+      "color": "#4ecdc4"
+    }
+  ]
+}
