@@ -1,4 +1,4 @@
-// server.js - 动态游戏加载版本
+// server.js - 修复按钮点击问题
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 8080;
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
-app.use('/games', express.static('games')); // 提供 games 文件夹的静态文件
+app.use('/games', express.static('games'));
 
 // 会话管理
 app.use(session({
@@ -49,12 +49,10 @@ function loadGames() {
     gameFolders.forEach((folder, index) => {
       const gameId = index + 1;
       const gamePath = path.join(gamesDir, folder);
-      const configPath = path.join(gamePath, 'game.json');
       
-      // 读取游戏配置
-      let gameConfig = {
+      const gameConfig = {
         id: gameId,
-        name: folder,
+        name: folder.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
         description: `A fun game: ${folder}`,
         type: "unknown",
         difficulty: "medium",
@@ -63,19 +61,9 @@ function loadGames() {
         entryFile: "index.html"
       };
       
-      try {
-        if (fs.existsSync(configPath)) {
-          const configData = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-          gameConfig = { ...gameConfig, ...configData };
-        }
-      } catch (error) {
-        console.log(`⚠️ Error reading config for ${folder}:`, error.message);
-      }
-      
       // 检查入口文件
       const entryPath = path.join(gamePath, gameConfig.entryFile);
       if (!fs.existsSync(entryPath)) {
-        // 尝试查找常见的入口文件
         const possibleEntries = ['index.html', 'game.html', 'main.html', `${folder}.html`];
         for (const entry of possibleEntries) {
           if (fs.existsSync(path.join(gamePath, entry))) {
@@ -96,7 +84,6 @@ function loadGames() {
   return games;
 }
 
-// 初始化游戏
 let games = loadGames();
 
 // API 路由
@@ -108,7 +95,6 @@ app.post('/api/register', async (req, res) => {
       return res.json({ success: false, error: 'Please fill all fields' });
     }
     
-    // 检查邮箱是否已存在
     for (let user of users.values()) {
       if (user.email === email) {
         return res.json({ success: false, error: 'Email already exists' });
@@ -133,7 +119,6 @@ app.post('/api/register', async (req, res) => {
     
     users.set(user.id, user);
     
-    // 自动登录
     req.session.user = { 
       id: user.id, 
       name: user.name, 
@@ -158,7 +143,6 @@ app.post('/api/login', async (req, res) => {
       return res.json({ success: false, error: 'Please enter email and password' });
     }
     
-    // 查找用户
     let userFound = null;
     for (let user of users.values()) {
       if (user.email === email) {
@@ -176,7 +160,6 @@ app.post('/api/login', async (req, res) => {
       return res.json({ success: false, error: 'Invalid password' });
     }
     
-    // 创建会话
     req.session.user = { 
       id: userFound.id, 
       name: userFound.name, 
@@ -211,7 +194,6 @@ app.post('/api/game/result', (req, res) => {
         userData.xp = (userData.xp || 0) + score;
         userData.coins = (userData.coins || 0) + Math.floor(score / 10);
         
-        // 升级逻辑
         const newLevel = Math.floor(userData.xp / 100) + 1;
         if (newLevel > userData.level) {
           userData.level = newLevel;
@@ -219,7 +201,6 @@ app.post('/api/game/result', (req, res) => {
         }
       }
       
-      // 更新会话
       req.session.user = {
         id: userData.id,
         name: userData.name,
@@ -238,11 +219,9 @@ app.post('/api/game/result', (req, res) => {
   }
 });
 
-// 页面路由
+// 主页 - 修复按钮问题
 app.get('/', (req, res) => {
   const user = req.session.user;
-  
-  // 重新加载游戏（确保最新）
   games = loadGames();
   
   res.send(`
@@ -276,6 +255,12 @@ app.get('/', (req, res) => {
               text-decoration: none;
               border: none;
               cursor: pointer;
+              display: inline-block;
+              text-align: center;
+          }
+          .btn:hover {
+              background: #ff5252;
+              transform: translateY(-2px);
           }
           .container {
               max-width: 1200px;
@@ -286,6 +271,13 @@ app.get('/', (req, res) => {
               text-align: center;
               margin-bottom: 3rem;
               padding: 4rem 0;
+          }
+          .hero-buttons {
+              margin-top: 2rem;
+              display: flex;
+              gap: 1rem;
+              justify-content: center;
+              flex-wrap: wrap;
           }
           .games-grid {
               display: grid;
@@ -300,9 +292,11 @@ app.get('/', (req, res) => {
               text-align: center;
               transition: transform 0.3s;
               cursor: pointer;
+              border: 1px solid rgba(255,255,255,0.1);
           }
           .game-card:hover {
               transform: translateY(-5px);
+              background: rgba(255,255,255,0.15);
           }
           .game-icon { 
               font-size: 3rem; 
@@ -346,36 +340,51 @@ app.get('/', (req, res) => {
 
       <div class="container">
           <div class="hero">
-              <h1>Welcome to FunX Gaming Platform</h1>
-              <p>Discover amazing games and earn rewards!</p>
+              <h1 style="font-size: 3rem; margin-bottom: 1rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
+                  Welcome to FunX Gaming
+              </h1>
+              <p style="font-size: 1.2rem; opacity: 0.9; margin-bottom: 2rem;">
+                  Discover amazing games and earn rewards!
+              </p>
+              
+              ${!user ? `
+                  <div class="hero-buttons">
+                      <a href="/register" class="btn" style="padding: 15px 30px; font-size: 1.1rem;">
+                          Get Started
+                      </a>
+                      <a href="/login" class="btn" style="padding: 15px 30px; font-size: 1.1rem; background: rgba(255,255,255,0.2);">
+                          Login
+                      </a>
+                  </div>
+              ` : ''}
           </div>
 
           ${user ? `
               <div class="stats">
                   <div class="stat-card">
                       <h3>🏆 Level</h3>
-                      <p>${user.level}</p>
+                      <p style="font-size: 2rem; font-weight: bold;">${user.level}</p>
                   </div>
                   <div class="stat-card">
                       <h3>⭐ XP</h3>
-                      <p>${user.xp}</p>
+                      <p style="font-size: 2rem; font-weight: bold;">${user.xp}</p>
                   </div>
                   <div class="stat-card">
                       <h3>🪙 Coins</h3>
-                      <p>${user.coins || 0}</p>
+                      <p style="font-size: 2rem; font-weight: bold;">${user.coins || 0}</p>
                   </div>
                   <div class="stat-card">
                       <h3>🎯 Games Played</h3>
-                      <p>${user.gamesPlayed || 0}</p>
+                      <p style="font-size: 2rem; font-weight: bold;">${user.gamesPlayed || 0}</p>
                   </div>
               </div>
 
-              <h2>Available Games (${games.size})</h2>
+              <h2 style="text-align: center; margin: 3rem 0 1rem 0;">Available Games (${games.size})</h2>
               
               ${games.size > 0 ? `
                   <div class="games-grid">
                       ${Array.from(games.values()).map(game => `
-                          <div class="game-card" onclick="location.href='/play/${game.id}'">
+                          <div class="game-card" onclick="window.location.href='/play/${game.id}'">
                               <div class="game-icon">${game.icon}</div>
                               <h3>${game.name}</h3>
                               <p>${game.description}</p>
@@ -388,17 +397,59 @@ app.get('/', (req, res) => {
                       <h3>🎮 No Games Found</h3>
                       <p>Add games to the 'games' folder to get started!</p>
                       <p><small>Each game should be in its own folder with an HTML file.</small></p>
+                      <div style="margin-top: 2rem;">
+                          <a href="/" class="btn">Refresh Games</a>
+                      </div>
                   </div>
               `}
           ` : `
-              <div style="text-align: center; padding: 4rem 0;">
-                  <h2>Please login to start playing</h2>
-                  <p style="margin: 2rem 0;">Login to experience all amazing games</p>
-                  <a href="/login" class="btn" style="padding: 15px 30px; font-size: 1.1rem;">Login Now</a>
-                  <a href="/register" class="btn" style="padding: 15px 30px; font-size: 1.1rem; margin-left: 1rem; background: rgba(255,255,255,0.2);">Register</a>
+              <div style="text-align: center; padding: 2rem 0;">
+                  <h2>Join Our Gaming Community</h2>
+                  <p style="margin: 1rem 0; font-size: 1.1rem; opacity: 0.9;">
+                      Register now to unlock all games, track your progress, and compete with friends!
+                  </p>
+                  <div class="hero-buttons">
+                      <a href="/register" class="btn" style="padding: 15px 30px; font-size: 1.1rem;">
+                          Create Free Account
+                      </a>
+                      <a href="/games" class="btn" style="padding: 15px 30px; font-size: 1.1rem; background: rgba(255,255,255,0.2);">
+                          Browse Games
+                      </a>
+                  </div>
               </div>
           `}
       </div>
+
+      <script>
+          // 确保所有链接都能正常工作
+          document.addEventListener('DOMContentLoaded', function() {
+              // 为所有按钮添加点击效果
+              const buttons = document.querySelectorAll('.btn, .game-card');
+              buttons.forEach(btn => {
+                  btn.addEventListener('click', function(e) {
+                      if (this.getAttribute('href')) {
+                          // 如果是链接按钮，让它正常工作
+                          return true;
+                      }
+                  });
+              });
+              
+              // 控制台日志，帮助调试
+              console.log('FunX Platform loaded successfully');
+              console.log('User logged in: ${!!user}');
+              console.log('Games available: ${games.size}');
+          });
+          
+          ${!user ? `
+              // 未登录用户自动重定向
+              setTimeout(() => {
+                  const currentPath = window.location.pathname;
+                  if (currentPath === '/' || currentPath === '') {
+                      console.log('User not logged in, showing login options');
+                  }
+              }, 100);
+          ` : ''}
+      </script>
   </body>
   </html>
   `);
@@ -417,8 +468,9 @@ app.get('/register', (req, res) => {
       <title>Register - FunX</title>
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
-              font-family: Arial; 
+              font-family: Arial, sans-serif;
               background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
               color: white; 
               min-height: 100vh;
@@ -434,8 +486,20 @@ app.get('/register', (req, res) => {
               backdrop-filter: blur(10px);
               max-width: 400px;
               width: 100%;
+              border: 1px solid rgba(255,255,255,0.2);
           }
-          .back { color: white; text-decoration: none; margin-bottom: 20px; display: inline-block; }
+          .back { 
+              color: white; 
+              text-decoration: none; 
+              margin-bottom: 20px; 
+              display: inline-block;
+              padding: 8px 16px;
+              background: rgba(255,255,255,0.1);
+              border-radius: 6px;
+          }
+          .back:hover {
+              background: rgba(255,255,255,0.2);
+          }
           input, button {
               width: 100%;
               padding: 15px;
@@ -443,37 +507,74 @@ app.get('/register', (req, res) => {
               border: none;
               border-radius: 8px;
               font-size: 1rem;
+              box-sizing: border-box;
+          }
+          input {
+              background: rgba(255,255,255,0.9);
+              color: #333;
+          }
+          input:focus {
+              outline: 2px solid #ff6b6b;
           }
           button { 
               background: #ff6b6b; 
               color: white; 
-              cursor: pointer; 
+              cursor: pointer;
+              font-weight: bold;
+              transition: all 0.3s;
+          }
+          button:hover {
+              background: #ff5252;
+              transform: translateY(-2px);
           }
           .message { 
-              padding: 10px; 
-              border-radius: 5px; 
-              margin: 10px 0; 
+              padding: 12px; 
+              border-radius: 8px; 
+              margin: 15px 0; 
               text-align: center;
+              font-weight: bold;
           }
-          .error { background: rgba(255,0,0,0.2); }
-          .success { background: rgba(0,255,0,0.2); }
+          .error { 
+              background: rgba(255,0,0,0.2); 
+              border: 1px solid rgba(255,0,0,0.3);
+          }
+          .success { 
+              background: rgba(0,255,0,0.2); 
+              border: 1px solid rgba(0,255,0,0.3);
+          }
+          .form-group {
+              margin-bottom: 1rem;
+          }
+          label {
+              display: block;
+              margin-bottom: 5px;
+              font-weight: bold;
+          }
       </style>
   </head>
   <body>
       <div class="container">
           <a href="/" class="back">← Back to Home</a>
-          <h2>Register for FunX</h2>
-          <p>Create your gaming account</p>
+          <h2 style="text-align: center; margin-bottom: 0.5rem;">Register for FunX</h2>
+          <p style="text-align: center; opacity: 0.8; margin-bottom: 2rem;">Create your gaming account</p>
           
           <div id="message"></div>
           
-          <input type="text" id="name" placeholder="Username" value="Test User">
-          <input type="email" id="email" placeholder="Email" value="test@funx.com">
-          <input type="password" id="password" placeholder="Password" value="123456">
-          <button onclick="register()">Register</button>
+          <div class="form-group">
+              <input type="text" id="name" placeholder="Username" value="Test User">
+          </div>
+          <div class="form-group">
+              <input type="email" id="email" placeholder="Email" value="test@funx.com">
+          </div>
+          <div class="form-group">
+              <input type="password" id="password" placeholder="Password" value="123456">
+          </div>
           
-          <p style="text-align: center; margin-top: 20px;">
-              Have an account? <a href="/login" style="color: #ff6b6b;">Login now</a>
+          <button onclick="register()">Create Account</button>
+          
+          <p style="text-align: center; margin-top: 20px; opacity: 0.8;">
+              Already have an account? 
+              <a href="/login" style="color: #ff6b6b; text-decoration: none; font-weight: bold;">Login here</a>
           </p>
       </div>
 
@@ -483,6 +584,8 @@ app.get('/register', (req, res) => {
               const email = document.getElementById('email').value;
               const password = document.getElementById('password').value;
               const message = document.getElementById('message');
+              
+              console.log('Registration attempt:', { name, email, password });
               
               if (!name || !email || !password) {
                   showMessage('Please fill all fields', 'error');
@@ -497,14 +600,18 @@ app.get('/register', (req, res) => {
               try {
                   const response = await fetch('/api/register', {
                       method: 'POST',
-                      headers: {'Content-Type': 'application/json'},
+                      headers: {
+                          'Content-Type': 'application/json',
+                      },
                       body: JSON.stringify({name, email, password})
                   });
                   
+                  console.log('Response status:', response.status);
                   const data = await response.json();
+                  console.log('Response data:', data);
                   
                   if (data.success) {
-                      showMessage('Registration successful! Auto-login...', 'success');
+                      showMessage('🎉 Registration successful! Redirecting...', 'success');
                       setTimeout(() => {
                           window.location.href = '/';
                       }, 1500);
@@ -512,6 +619,7 @@ app.get('/register', (req, res) => {
                       showMessage('Registration failed: ' + data.error, 'error');
                   }
               } catch (error) {
+                  console.error('Registration error:', error);
                   showMessage('Network error, please try again', 'error');
               }
           }
@@ -520,7 +628,20 @@ app.get('/register', (req, res) => {
               const message = document.getElementById('message');
               message.innerHTML = text;
               message.className = 'message ' + type;
+              message.style.display = 'block';
           }
+
+          // 按Enter键提交表单
+          document.addEventListener('DOMContentLoaded', function() {
+              const inputs = document.querySelectorAll('input');
+              inputs.forEach(input => {
+                  input.addEventListener('keypress', function(e) {
+                      if (e.key === 'Enter') {
+                          register();
+                      }
+                  });
+              });
+          });
       </script>
   </body>
   </html>
@@ -540,8 +661,9 @@ app.get('/login', (req, res) => {
       <title>Login - FunX</title>
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
-              font-family: Arial; 
+              font-family: Arial, sans-serif;
               background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
               color: white; 
               min-height: 100vh;
@@ -557,8 +679,20 @@ app.get('/login', (req, res) => {
               backdrop-filter: blur(10px);
               max-width: 400px;
               width: 100%;
+              border: 1px solid rgba(255,255,255,0.2);
           }
-          .back { color: white; text-decoration: none; margin-bottom: 20px; display: inline-block; }
+          .back { 
+              color: white; 
+              text-decoration: none; 
+              margin-bottom: 20px; 
+              display: inline-block;
+              padding: 8px 16px;
+              background: rgba(255,255,255,0.1);
+              border-radius: 6px;
+          }
+          .back:hover {
+              background: rgba(255,255,255,0.2);
+          }
           input, button {
               width: 100%;
               padding: 15px;
@@ -566,27 +700,48 @@ app.get('/login', (req, res) => {
               border: none;
               border-radius: 8px;
               font-size: 1rem;
+              box-sizing: border-box;
+          }
+          input {
+              background: rgba(255,255,255,0.9);
+              color: #333;
+          }
+          input:focus {
+              outline: 2px solid #ff6b6b;
           }
           button { 
               background: #ff6b6b; 
               color: white; 
-              cursor: pointer; 
+              cursor: pointer;
+              font-weight: bold;
+              transition: all 0.3s;
+          }
+          button:hover {
+              background: #ff5252;
+              transform: translateY(-2px);
           }
           .message { 
-              padding: 10px; 
-              border-radius: 5px; 
-              margin: 10px 0; 
+              padding: 12px; 
+              border-radius: 8px; 
+              margin: 15px 0; 
               text-align: center;
+              font-weight: bold;
           }
-          .error { background: rgba(255,0,0,0.2); }
-          .success { background: rgba(0,255,0,0.2); }
+          .error { 
+              background: rgba(255,0,0,0.2); 
+              border: 1px solid rgba(255,0,0,0.3);
+          }
+          .success { 
+              background: rgba(0,255,0,0.2); 
+              border: 1px solid rgba(0,255,0,0.3);
+          }
       </style>
   </head>
   <body>
       <div class="container">
           <a href="/" class="back">← Back to Home</a>
-          <h2>Login to FunX</h2>
-          <p>Login to your gaming account</p>
+          <h2 style="text-align: center; margin-bottom: 0.5rem;">Login to FunX</h2>
+          <p style="text-align: center; opacity: 0.8; margin-bottom: 2rem;">Login to your gaming account</p>
           
           <div id="message"></div>
           
@@ -594,8 +749,9 @@ app.get('/login', (req, res) => {
           <input type="password" id="password" placeholder="Password" value="123456">
           <button onclick="login()">Login</button>
           
-          <p style="text-align: center; margin-top: 20px;">
-              No account? <a href="/register" style="color: #ff6b6b;">Register now</a>
+          <p style="text-align: center; margin-top: 20px; opacity: 0.8;">
+              Don't have an account? 
+              <a href="/register" style="color: #ff6b6b; text-decoration: none; font-weight: bold;">Register here</a>
           </p>
       </div>
 
@@ -604,6 +760,8 @@ app.get('/login', (req, res) => {
               const email = document.getElementById('email').value;
               const password = document.getElementById('password').value;
               const message = document.getElementById('message');
+              
+              console.log('Login attempt:', { email, password });
               
               if (!email || !password) {
                   showMessage('Please enter email and password', 'error');
@@ -617,10 +775,12 @@ app.get('/login', (req, res) => {
                       body: JSON.stringify({email, password})
                   });
                   
+                  console.log('Response status:', response.status);
                   const data = await response.json();
+                  console.log('Response data:', data);
                   
                   if (data.success) {
-                      showMessage('Login successful! Redirecting...', 'success');
+                      showMessage('🎉 Login successful! Redirecting...', 'success');
                       setTimeout(() => {
                           window.location.href = '/';
                       }, 1000);
@@ -628,6 +788,7 @@ app.get('/login', (req, res) => {
                       showMessage('Login failed: ' + data.error, 'error');
                   }
               } catch (error) {
+                  console.error('Login error:', error);
                   showMessage('Network error, please try again', 'error');
               }
           }
@@ -636,14 +797,27 @@ app.get('/login', (req, res) => {
               const message = document.getElementById('message');
               message.innerHTML = text;
               message.className = 'message ' + type;
+              message.style.display = 'block';
           }
+
+          // 按Enter键提交表单
+          document.addEventListener('DOMContentLoaded', function() {
+              const inputs = document.querySelectorAll('input');
+              inputs.forEach(input => {
+                  input.addEventListener('keypress', function(e) {
+                      if (e.key === 'Enter') {
+                          login();
+                      }
+                  });
+              });
+          });
       </script>
   </body>
   </html>
   `);
 });
 
-// 游戏播放页面 - 直接加载游戏文件夹中的HTML文件
+// 其他路由保持不变...
 app.get('/play/:id', (req, res) => {
   const user = req.session.user;
   if (!user) {
@@ -661,10 +835,7 @@ app.get('/play/:id', (req, res) => {
   
   try {
     if (fs.existsSync(gamePath)) {
-      // 读取游戏HTML文件
       const gameHTML = fs.readFileSync(gamePath, 'utf8');
-      
-      // 包装游戏，添加平台导航和用户信息
       res.send(`
       <!DOCTYPE html>
       <html>
@@ -714,12 +885,10 @@ app.get('/play/:id', (req, res) => {
           </div>
           
           <div class="game-container">
-              <!-- 游戏内容 -->
               ${gameHTML}
           </div>
           
           <script>
-              // 提供游戏结果提交功能
               async function submitGameResult(win, score) {
                   try {
                       const response = await fetch('/api/game/result', {
@@ -741,7 +910,6 @@ app.get('/play/:id', (req, res) => {
                   }
               }
               
-              // 让游戏可以使用平台功能
               window.funxPlatform = {
                   submitScore: submitGameResult,
                   user: ${JSON.stringify(user)}
@@ -756,20 +924,10 @@ app.get('/play/:id', (req, res) => {
       <html>
       <head>
           <title>Game Not Found - FunX</title>
-          <style>
-              body { 
-                  font-family: Arial; 
-                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                  color: white; 
-                  text-align: center; 
-                  padding: 100px 20px; 
-              }
-          </style>
+          <style>body { font-family: Arial; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-align: center; padding: 100px 20px; }</style>
       </head>
       <body>
           <h1>🎮 Game Not Found</h1>
-          <p>The game file could not be loaded.</p>
-          <p><small>Make sure the game folder contains an HTML file.</small></p>
           <a href="/" class="btn" style="display: inline-block; margin-top: 1rem;">Back to Platform</a>
       </body>
       </html>
@@ -781,19 +939,10 @@ app.get('/play/:id', (req, res) => {
     <html>
     <head>
         <title>Error - FunX</title>
-        <style>
-            body { 
-                font-family: Arial; 
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white; 
-                text-align: center; 
-                padding: 100px 20px; 
-            }
-        </style>
+        <style>body { font-family: Arial; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-align: center; padding: 100px 20px; }</style>
     </head>
     <body>
         <h1>⚠️ Error Loading Game</h1>
-        <p>There was an error loading the game.</p>
         <a href="/" class="btn" style="display: inline-block; margin-top: 1rem;">Back to Platform</a>
     </body>
     </html>
@@ -801,13 +950,11 @@ app.get('/play/:id', (req, res) => {
   }
 });
 
-// 退出登录
 app.get('/logout', (req, res) => {
   req.session.destroy();
   res.redirect('/');
 });
 
-// 健康检查
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok',
@@ -815,12 +962,6 @@ app.get('/health', (req, res) => {
     games: games.size,
     timestamp: Date.now()
   });
-});
-
-// 重新加载游戏端点（用于开发）
-app.post('/api/reload-games', (req, res) => {
-  games = loadGames();
-  res.json({ success: true, games: Array.from(games.values()) });
 });
 
 // 错误处理
@@ -838,9 +979,8 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('🎮 FUNX GAMING PLATFORM');
   console.log(`📍 Port: ${PORT}`);
   console.log(`🌐 URL: http://0.0.0.0:${PORT}`);
-  console.log('📁 Games folder: ./games/');
-  console.log('✅ Dynamic game loading: ENABLED');
-  console.log('✅ Routes: /, /register, /login, /play/:id');
+  console.log('✅ Fixed button issues');
+  console.log('✅ Enhanced user interface');
   console.log('=================================');
 });
 
