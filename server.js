@@ -1,8 +1,8 @@
-// server.js - 体感榨汁机游戏服务器（稳定修复版）
+// server.js - 体感榨汁机游戏服务器（优化修复版）
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const cors = require('cors'); // 修复：使用正确的 cors 包
+const cors = require('cors');
 
 console.log('🚀 启动体感榨汁机游戏服务器...');
 
@@ -14,7 +14,7 @@ app.use(express.static('public'));
 // ==================== WIX API 配置 ====================
 const WIX_API_BASE = 'https://www.wixapis.com';
 
-// Wix API 工具函数（添加错误处理）
+// Wix API 工具函数
 async function callWixAPI(endpoint, method = 'GET', body = null) {
   const API_KEY = process.env.WIX_API_KEY;
   
@@ -52,12 +52,11 @@ async function callWixAPI(endpoint, method = 'GET', body = null) {
   }
 }
 
-// 通过邮箱查找 Wix 用户（简化版，先确保基础功能）
+// 通过邮箱查找 Wix 用户
 async function findWixUserByEmail(email) {
   try {
     console.log('🔍 查找 Wix 用户:', email);
     
-    // 简化：只尝试 Members API
     const membersResult = await callWixAPI('/members/v1/members', 'GET');
     
     if (membersResult.members) {
@@ -78,7 +77,7 @@ async function findWixUserByEmail(email) {
   }
 }
 
-// 获取所有 Wix 联系人（简化版）
+// 获取所有 Wix 联系人
 async function getAllWixContacts() {
   try {
     console.log('📞 获取 Wix 联系人');
@@ -118,50 +117,27 @@ app.get('/', (req, res) => {
       <head>
         <title>学校游戏中心</title>
         <style>
-          body { font-family: Arial; text-align: center; padding: 50px; }
-          .container { max-width: 500px; margin: 0 auto; }
+          body { font-family: Arial; text-align: center; padding: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; min-height: 100vh; }
+          .container { max-width: 500px; margin: 0 auto; background: rgba(255,255,255,0.1); padding: 40px; border-radius: 20px; backdrop-filter: blur(10px); }
+          .btn { display: inline-block; padding: 12px 24px; background: #ff6b6b; color: white; text-decoration: none; border-radius: 8px; margin: 10px; transition: all 0.3s ease; }
+          .btn:hover { background: #ff5252; transform: scale(1.05); }
         </style>
       </head>
       <body>
         <div class="container">
           <h1>🎮 学校游戏中心</h1>
           <p>服务器运行正常</p>
-          <p><a href="/health">健康检查</a></p>
+          <div>
+            <a href="/health" class="btn">健康检查</a>
+            <a href="/lobby" class="btn">进入游戏大厅</a>
+          </div>
         </div>
       </body>
     </html>
   `);
 });
 
-// Wix OAuth 回调路由
-app.get('/auth-callback', (req, res) => {
-  const { code } = req.query;
-  
-  if (code) {
-    res.send(`
-      <html>
-        <body>
-          <script>
-            if (window.opener) {
-              window.opener.postMessage({
-                type: 'wix-oauth-callback',
-                code: '${code}'
-              }, '*');
-            }
-            setTimeout(() => window.close(), 2000);
-          </script>
-          <h2>✅ 认证成功！</h2>
-        </body>
-      </html>
-    `);
-  } else {
-    res.status(400).send('缺少认证代码');
-  }
-});
-
-// ==================== 基础 API 路由 ====================
-
-// 测试 API Key 配置
+// 基础 API 路由
 app.get('/api/test-wix', (req, res) => {
   const API_KEY = process.env.WIX_API_KEY;
   res.json({
@@ -170,7 +146,7 @@ app.get('/api/test-wix', (req, res) => {
   });
 });
 
-// 简化版 Wix 用户登录
+// Wix 用户登录
 app.post('/api/wix-login', async (req, res) => {
   const { email } = req.body;
   
@@ -205,7 +181,7 @@ app.post('/api/wix-login', async (req, res) => {
   }
 });
 
-// 简化版获取联系人
+// 获取联系人
 app.get('/api/wix-contacts', async (req, res) => {
   try {
     const result = await getAllWixContacts();
@@ -248,7 +224,7 @@ const io = socketIo(server, {
 const gameRooms = new Map();
 const players = new Map();
 
-// 基础 Socket.IO 连接处理
+// Socket.IO 连接处理
 io.on('connection', (socket) => {
   console.log('🔗 玩家连接:', socket.id);
 
@@ -275,408 +251,14 @@ io.on('connection', (socket) => {
     players.delete(socket.id);
   });
 
-  // 心跳
   socket.on('ping', () => {
     socket.emit('pong', { time: new Date().toISOString() });
   });
 });
 
-// ==================== 服务器启动 ====================
+// ==================== 游戏页面路由 ====================
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log('=================================');
-  console.log('🎮 体感榨汁机游戏服务器已启动!');
-  console.log(`📍 端口: ${PORT}`);
-  console.log(`🌐 健康检查: http://localhost:${PORT}/health`);
-  console.log('=================================');
-});
-
-// 全局错误处理
-process.on('unhandledRejection', (error) => {
-  console.error('未处理的 Promise 拒绝:', error);
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('未捕获的异常:', error);
-});
-
-// 测试具体的 Members API 端点
-app.get('/api/test-members-specific', async (req, res) => {
-  try {
-    const tests = {};
-    
-    // 测试 1: 获取当前用户信息（如果有用户上下文）
-    try {
-      const currentResult = await callWixAPI('/members/v1/members/current', 'GET');
-      tests.currentMember = { 
-        success: true, 
-        exists: !!currentResult.member,
-        data: currentResult 
-      };
-    } catch (error) {
-      tests.currentMember = { success: false, error: error.message };
-    }
-    
-    // 测试 2: 通过 ID 获取特定成员（需要知道成员ID）
-    try {
-      // 这里需要提供一个已知的成员ID，我们先用一个测试ID
-      const byIdResult = await callWixAPI('/members/v1/members/some-member-id', 'GET');
-      tests.memberById = { success: true, data: byIdResult };
-    } catch (error) {
-      tests.memberById = { success: false, error: error.message };
-    }
-    
-    // 测试 3: 查询成员（带过滤条件）
-    try {
-      const queryResult = await callWixAPI('/members/v1/members/query', 'POST', {
-        query: {
-          filter: {
-            'status': 'ACTIVE'
-          },
-          paging: {
-            limit: 5
-          }
-        }
-      });
-      tests.membersQuery = { 
-        success: true, 
-        count: queryResult.members?.length || 0 
-      };
-    } catch (error) {
-      tests.membersQuery = { success: false, error: error.message };
-    }
-    
-    // 测试 4: 站点成员统计
-    try {
-      const statsResult = await callWixAPI('/members/v1/members/stats', 'GET');
-      tests.memberStats = { success: true, data: statsResult };
-    } catch (error) {
-      tests.memberStats = { success: false, error: error.message };
-    }
-    
-    res.json({
-      success: true,
-      tests: tests,
-      message: '具体 Members API 端点测试完成'
-    });
-    
-  } catch (error) {
-    res.json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// 测试 Data API 中的 Members 数据集合
-app.get('/api/test-data-members', async (req, res) => {
-  try {
-    console.log('🔍 测试 Data API 中的 Members 数据');
-    
-    // 尝试不同的数据集合名称
-    const collections = ['Members', 'SiteMembers', 'Memberships', 'Users'];
-    const results = {};
-    
-    for (const collection of collections) {
-      try {
-        const result = await callWixAPI('/wix-data/v2/items/query', 'POST', {
-          dataCollectionId: collection,
-          query: {
-            paging: { limit: 3 }
-          }
-        });
-        
-        results[collection] = {
-          exists: true,
-          count: result.items ? result.items.length : 0,
-          sample: result.items ? result.items.slice(0, 2) : []
-        };
-      } catch (error) {
-        results[collection] = {
-          exists: false,
-          error: error.message
-        };
-      }
-    }
-    
-    res.json({
-      success: true,
-      dataCollections: results,
-      message: 'Data API Members 测试完成'
-    });
-    
-  } catch (error) {
-    res.json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// ==================== WIX OAuth PKCE 流程 ====================
-
-// 生成随机字符串
-function generateRandomString(length) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
-
-// 启动 PKCE OAuth 流程
-app.get('/api/wix-oauth-pkce', (req, res) => {
-  const codeVerifier = generateRandomString(128);
-  const state = generateRandomString(16);
-  
-  // 保存用于验证（在实际应用中应该用session）
-  res.cookie('oauth_code_verifier', codeVerifier, { httpOnly: true });
-  res.cookie('oauth_state', state, { httpOnly: true });
-  
-  const authUrl = `https://www.wix.com/installer/oauth2/authorize?client_id=54186d51-7e8a-483d-b2bd-854aa1ba75ad&redirect_uri=${encodeURIComponent('https://juice-game-server2-production.up.railway.app/auth-callback')}&response_type=code&scope=members:read&state=${state}`;
-  
-  res.json({
-    success: true,
-    authUrl: authUrl,
-    codeVerifier: codeVerifier,
-    state: state,
-    message: 'PKCE OAuth 流程已启动'
-  });
-});
-
-// 处理 OAuth 回调（简化版）
-app.get('/auth-callback-final', (req, res) => {
-  const { code, error, state } = req.query;
-  
-  console.log('🎯 OAuth 回调最终版:', { code: code ? '有代码' : '无代码', error, state });
-  
-  if (error) {
-    return res.send(`
-      <html>
-        <head><title>登录失败</title></head>
-        <body style="font-family: Arial; text-align: center; padding: 50px;">
-          <h2 style="color: red;">❌ Wix 登录失败</h2>
-          <p>错误: ${error}</p>
-          <button onclick="window.close()" style="padding: 10px 20px; background: #ff6b6b; color: white; border: none; border-radius: 5px; cursor: pointer;">关闭窗口</button>
-        </body>
-      </html>
-    `);
-  }
-  
-  if (code) {
-    res.send(`
-      <html>
-        <head><title>登录成功</title></head>
-        <body style="font-family: Arial; text-align: center; padding: 50px;">
-          <h2 style="color: green;">✅ 授权成功！</h2>
-          <p>正在处理您的登录信息...</p>
-          <script>
-            // 将授权代码发送回主窗口
-            setTimeout(() => {
-              if (window.opener && !window.opener.closed) {
-                window.opener.postMessage({
-                  type: 'wix-oauth-success',
-                  code: '${code}',
-                  state: '${state || ''}'
-                }, '*');
-                
-                // 给主窗口一些时间处理，然后关闭
-                setTimeout(() => {
-                  window.close();
-                }, 1000);
-              } else {
-                document.body.innerHTML = '<h2>⚠️ 请返回原窗口</h2><p>主窗口已关闭，请返回游戏页面重试。</p><button onclick="window.close()">关闭</button>';
-              }
-            }, 500);
-          </script>
-        </body>
-      </html>
-    `);
-  } else {
-    res.send(`
-      <html>
-        <body style="font-family: Arial; text-align: center; padding: 50px;">
-          <h2 style="color: red;">❌ 缺少授权代码</h2>
-          <button onclick="window.close()">关闭</button>
-        </body>
-      </html>
-    `);
-  }
-});
-
-// 使用授权代码获取用户信息
-app.post('/api/wix-user-info', async (req, res) => {
-  const { code } = req.body;
-  
-  if (!code) {
-    return res.json({ success: false, error: '缺少授权代码' });
-  }
-  
-  try {
-    console.log('🔍 使用 OAuth code 获取用户信息:', code.substring(0, 20) + '...');
-    
-    // 方法1: 直接使用 code 作为 Bearer token（某些配置支持）
-    let userResponse = await fetch('https://www.wixapis.com/members/v1/members/current', {
-      headers: {
-        'Authorization': `Bearer ${code}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    // 如果方法1失败，尝试方法2: 使用 code 作为 Basic auth
-    if (!userResponse.ok) {
-      userResponse = await fetch('https://www.wixapis.com/members/v1/members/current', {
-        headers: {
-          'Authorization': `Basic ${Buffer.from(code + ':').toString('base64')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-    }
-    
-    // 如果方法2失败，尝试方法3: 直接传递 code
-    if (!userResponse.ok) {
-      userResponse = await fetch('https://www.wixapis.com/members/v1/members/current', {
-        headers: {
-          'Authorization': code,
-          'Content-Type': 'application/json'
-        }
-      });
-    }
-    
-    if (userResponse.ok) {
-      const userData = await userResponse.json();
-      
-      if (userData.member) {
-        console.log('✅ 获取到 Wix 用户信息:', userData.member.loginEmail);
-        
-        return res.json({
-          success: true,
-          user: {
-            id: userData.member.id,
-            email: userData.member.loginEmail,
-            name: userData.member.contact?.firstName || userData.member.loginEmail.split('@')[0],
-            fullName: (userData.member.contact?.firstName || '') + ' ' + (userData.member.contact?.lastName || ''),
-            profilePhoto: userData.member.profile?.photo,
-            slug: userData.member.slug,
-            status: userData.member.status,
-            wixData: userData.member
-          },
-          message: 'Wix 用户登录成功！'
-        });
-      }
-    }
-    
-    // 如果所有方法都失败
-    const errorText = await userResponse.text();
-    console.error('❌ 获取用户信息失败:', userResponse.status, errorText);
-    
-    res.json({
-      success: false,
-      error: `无法获取用户信息 (${userResponse.status})`,
-      details: errorText,
-      requiresFullOAuth: true
-    });
-    
-  } catch (error) {
-    console.error('获取用户信息异常:', error);
-    res.json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-// 增强的 OAuth 回调处理
-app.get('/auth-callback', (req, res) => {
-  const { code, error, error_description, state, scope } = req.query;
-  
-  console.log('🔐 OAuth 回调详细参数:', {
-    code: code ? '有代码' : '无代码',
-    error: error || '无错误',
-    error_description: error_description || '无错误描述',
-    state: state || '无state',
-    scope: scope || '无scope',
-    fullQuery: req.query
-  });
-  
-  if (error) {
-    return res.send(`
-      <html>
-        <head><title>登录失败</title></head>
-        <body style="font-family: Arial; text-align: center; padding: 50px;">
-          <h2 style="color: red;">❌ Wix 登录失败</h2>
-          <p><strong>错误:</strong> ${error}</p>
-          <p><strong>描述:</strong> ${error_description || '无详细描述'}</p>
-          <p><strong>State:</strong> ${state || '无'}</p>
-          <button onclick="window.close()" style="padding: 10px 20px; background: #ff6b6b; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px;">
-            关闭窗口
-          </button>
-        </body>
-      </html>
-    `);
-  }
-  
-  if (code) {
-    res.send(`
-      <html>
-        <head><title>登录成功</title></head>
-        <body style="font-family: Arial; text-align: center; padding: 50px;">
-          <h2 style="color: green;">✅ 授权成功！</h2>
-          <p><strong>代码长度:</strong> ${code.length} 字符</p>
-          <p><strong>State:</strong> ${state || '无'}</p>
-          <p>正在处理您的登录信息...</p>
-          <script>
-            console.log('🎯 OAuth 回调收到代码:', '${code.substring(0, 20)}...');
-            setTimeout(() => {
-              if (window.opener && !window.opener.closed) {
-                window.opener.postMessage({
-                  type: 'wix-oauth-success',
-                  code: '${code}',
-                  state: '${state || ''}'
-                }, '*');
-                console.log('✅ 代码已发送到主窗口');
-                
-                setTimeout(() => {
-                  window.close();
-                }, 1000);
-              } else {
-                document.body.innerHTML = '<h2>⚠️ 请返回原窗口</h2><p>主窗口已关闭，请返回游戏页面重试。</p><button onclick="window.close()">关闭</button>';
-              }
-            }, 500);
-          </script>
-        </body>
-      </html>
-    `);
-  } else {
-    res.send(`
-      <html>
-        <head><title>登录问题</title></head>
-        <body style="font-family: Arial; text-align: center; padding: 50px;">
-          <h2 style="color: orange;">⚠️ 登录未完成</h2>
-          <p><strong>可能的原因:</strong></p>
-          <ul style="text-align: left; display: inline-block; margin: 20px;">
-            <li>用户取消了登录</li>
-            <li>权限被拒绝</li>
-            <li>Wix App 配置问题</li>
-          </ul>
-          <p><strong>收到的参数:</strong></p>
-          <p>Code: ${code ? '有' : '无'}</p>
-          <p>Error: ${error || '无'}</p>
-          <p>State: ${state || '无'}</p>
-          <button onclick="window.close()" style="padding: 10px 20px; background: #ff6b6b; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px;">
-            关闭窗口
-          </button>
-          <button onclick="window.history.back()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px;">
-            返回重试
-          </button>
-        </body>
-      </html>
-    `);
-  }
-});
-
-// 游戏大厅路由
+// 游戏大厅
 app.get('/lobby', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -684,11 +266,7 @@ app.get('/lobby', (req, res) => {
     <head>
         <title>游戏大厅 - 舞蹈学校</title>
         <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
             body {
                 font-family: 'Arial', sans-serif;
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -696,20 +274,9 @@ app.get('/lobby', (req, res) => {
                 min-height: 100vh;
                 padding: 20px;
             }
-            .container {
-                max-width: 1200px;
-                margin: 0 auto;
-            }
-            .header {
-                text-align: center;
-                margin-bottom: 40px;
-                padding: 20px;
-            }
-            .header h1 {
-                font-size: 3em;
-                margin-bottom: 10px;
-                text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-            }
+            .container { max-width: 1200px; margin: 0 auto; }
+            .header { text-align: center; margin-bottom: 40px; padding: 20px; }
+            .header h1 { font-size: 3em; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
             .user-info {
                 background: rgba(255,255,255,0.1);
                 padding: 20px;
@@ -738,20 +305,9 @@ app.get('/lobby', (req, res) => {
                 background: rgba(255,255,255,0.15);
                 border-color: #ff6b6b;
             }
-            .game-icon {
-                font-size: 4em;
-                margin-bottom: 20px;
-            }
-            .game-title {
-                font-size: 1.5em;
-                font-weight: bold;
-                margin-bottom: 10px;
-            }
-            .game-description {
-                opacity: 0.8;
-                margin-bottom: 20px;
-                line-height: 1.5;
-            }
+            .game-icon { font-size: 4em; margin-bottom: 20px; }
+            .game-title { font-size: 1.5em; font-weight: bold; margin-bottom: 10px; }
+            .game-description { opacity: 0.8; margin-bottom: 20px; line-height: 1.5; }
             .btn {
                 padding: 12px 30px;
                 background: #ff6b6b;
@@ -764,23 +320,11 @@ app.get('/lobby', (req, res) => {
                 display: inline-block;
                 transition: all 0.3s ease;
             }
-            .btn:hover {
-                background: #ff5252;
-                transform: scale(1.05);
-            }
-            .btn-back {
-                background: #6c757d;
-            }
-            .btn-back:hover {
-                background: #5a6268;
-            }
-            .coming-soon {
-                opacity: 0.6;
-            }
-            .coming-soon .btn {
-                background: #6c757d;
-                cursor: not-allowed;
-            }
+            .btn:hover { background: #ff5252; transform: scale(1.05); }
+            .btn-back { background: #6c757d; }
+            .btn-back:hover { background: #5a6268; }
+            .coming-soon { opacity: 0.6; }
+            .coming-soon .btn { background: #6c757d; cursor: not-allowed; }
         </style>
     </head>
     <body>
@@ -791,11 +335,13 @@ app.get('/lobby', (req, res) => {
             </div>
 
             <div class="user-info">
-                <div id="userWelcome">欢迎来到游戏大厅！</div>
+                <div id="userWelcome">欢迎来到游戏大厅！请先登录。</div>
+                <div style="margin-top: 10px;">
+                    <button onclick="simulateLogin()" class="btn">测试登录</button>
+                </div>
             </div>
 
             <div class="games-grid">
-                <!-- 体感榨汁机游戏 -->
                 <div class="game-card" onclick="startGame('juice-maker')">
                     <div class="game-icon">🍹</div>
                     <div class="game-title">体感榨汁机</div>
@@ -806,7 +352,6 @@ app.get('/lobby', (req, res) => {
                     <button class="btn">开始游戏</button>
                 </div>
 
-                <!-- 节奏舞蹈游戏（即将推出） -->
                 <div class="game-card coming-soon">
                     <div class="game-icon">💃</div>
                     <div class="game-title">节奏舞蹈</div>
@@ -817,7 +362,6 @@ app.get('/lobby', (req, res) => {
                     <button class="btn">即将推出</button>
                 </div>
 
-                <!-- 音乐记忆游戏（即将推出） -->
                 <div class="game-card coming-soon">
                     <div class="game-icon">🎵</div>
                     <div class="game-title">音乐记忆</div>
@@ -835,12 +379,16 @@ app.get('/lobby', (req, res) => {
         </div>
 
         <script>
-            // 显示用户信息
-            const userData = localStorage.getItem('game_user');
-            if (userData) {
-                const user = JSON.parse(userData);
+            function simulateLogin() {
+                const testUser = {
+                    name: '测试玩家',
+                    email: 'test@example.com',
+                    id: 'test-' + Date.now()
+                };
+                localStorage.setItem('game_user', JSON.stringify(testUser));
+                localStorage.setItem('game_logged_in', 'true');
                 document.getElementById('userWelcome').textContent = 
-                    `欢迎 ${user.name} 来到游戏大厅！`;
+                    '欢迎 ' + testUser.name + ' 来到游戏大厅！';
             }
 
             function startGame(gameType) {
@@ -849,10 +397,12 @@ app.get('/lobby', (req, res) => {
                 }
             }
 
-            // 检查登录状态
-            if (!localStorage.getItem('game_logged_in')) {
-                alert('请先登录！');
-                window.location.href = '/';
+            // 检查是否有已登录用户
+            const userData = localStorage.getItem('game_user');
+            if (userData) {
+                const user = JSON.parse(userData);
+                document.getElementById('userWelcome').textContent = 
+                    '欢迎 ' + user.name + ' 来到游戏大厅！';
             }
         </script>
     </body>
@@ -868,11 +418,7 @@ app.get('/game/juice-maker', (req, res) => {
     <head>
         <title>体感榨汁机 - 游戏中</title>
         <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
             body {
                 font-family: 'Arial', sans-serif;
                 background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
@@ -880,19 +426,9 @@ app.get('/game/juice-maker', (req, res) => {
                 min-height: 100vh;
                 padding: 20px;
             }
-            .game-container {
-                max-width: 800px;
-                margin: 0 auto;
-                text-align: center;
-            }
-            .header {
-                margin-bottom: 30px;
-            }
-            .header h1 {
-                font-size: 2.5em;
-                margin-bottom: 10px;
-                text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-            }
+            .game-container { max-width: 800px; margin: 0 auto; text-align: center; }
+            .header { margin-bottom: 30px; }
+            .header h1 { font-size: 2.5em; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
             .game-area {
                 background: rgba(255,255,255,0.1);
                 padding: 40px;
@@ -934,9 +470,7 @@ app.get('/game/juice-maker', (req, res) => {
                 font-weight: bold;
                 color: #ffeaa7;
             }
-            .controls {
-                margin: 30px 0;
-            }
+            .controls { margin: 30px 0; }
             .btn {
                 padding: 15px 30px;
                 background: #00b894;
@@ -950,13 +484,8 @@ app.get('/game/juice-maker', (req, res) => {
                 display: inline-block;
                 transition: all 0.3s ease;
             }
-            .btn:hover {
-                background: #00a085;
-                transform: scale(1.05);
-            }
-            .btn-back {
-                background: #6c5ce7;
-            }
+            .btn:hover { background: #00a085; transform: scale(1.05); }
+            .btn-back { background: #6c5ce7; }
             .instructions {
                 background: rgba(255,255,255,0.1);
                 padding: 20px;
@@ -1020,6 +549,7 @@ app.get('/game/juice-maker', (req, res) => {
             let score = 0;
             let timeLeft = 60;
             let gameTimer;
+            let shakeInterval;
 
             function startGame() {
                 if (gameActive) return;
@@ -1036,12 +566,15 @@ app.get('/game/juice-maker', (req, res) => {
             function resetGame() {
                 gameActive = false;
                 clearInterval(gameTimer);
+                clearInterval(shakeInterval);
                 score = 0;
                 timeLeft = 60;
+                document.getElementById('juiceLevel').style.height = '0%';
                 updateDisplay();
             }
 
             function startTimer() {
+                clearInterval(gameTimer);
                 gameTimer = setInterval(() => {
                     timeLeft--;
                     updateDisplay();
@@ -1053,26 +586,53 @@ app.get('/game/juice-maker', (req, res) => {
             }
 
             function setupMotionDetection() {
-                // 简化的体感检测 - 实际应该使用 DeviceMotion API
-                let shakeCount = 0;
-                const shakeInterval = setInterval(() => {
-                    if (!gameActive) {
-                        clearInterval(shakeInterval);
-                        return;
+                clearInterval(shakeInterval);
+                
+                // 使用 DeviceMotion API 检测摇晃
+                if (window.DeviceMotionEvent) {
+                    let lastShake = Date.now();
+                    
+                    window.addEventListener('devicemotion', handleMotion);
+                    
+                    // 同时设置备用计时器
+                    shakeInterval = setInterval(() => {
+                        if (!gameActive) {
+                            clearInterval(shakeInterval);
+                            window.removeEventListener('devicemotion', handleMotion);
+                        }
+                    }, 1000);
+                } else {
+                    // 备用方案：点击增加分数
+                    document.addEventListener('click', handleClick);
+                }
+            }
+
+            function handleMotion(event) {
+                if (!gameActive) return;
+                
+                const acceleration = event.accelerationIncludingGravity;
+                const shakeThreshold = 15;
+                
+                if (acceleration) {
+                    const totalForce = Math.abs(acceleration.x) + Math.abs(acceleration.y) + Math.abs(acceleration.z);
+                    
+                    if (totalForce > shakeThreshold && Date.now() - lastShake > 300) {
+                        addScore(10);
+                        lastShake = Date.now();
                     }
-                    
-                    // 模拟摇晃效果
-                    score += Math.floor(Math.random() * 10) + 5;
-                    const juiceLevel = Math.min(100, (score / 500) * 100);
-                    
-                    document.getElementById('juiceLevel').style.height = juiceLevel + '%';
-                    updateDisplay();
-                    
-                    shakeCount++;
-                    if (shakeCount > 100) {
-                        clearInterval(shakeInterval);
-                    }
-                }, 500);
+                }
+            }
+
+            function handleClick() {
+                if (!gameActive) return;
+                addScore(5);
+            }
+
+            function addScore(points) {
+                score += points;
+                const juiceLevel = Math.min(100, (score / 500) * 100);
+                document.getElementById('juiceLevel').style.height = juiceLevel + '%';
+                updateDisplay();
             }
 
             function updateDisplay() {
@@ -1086,13 +646,18 @@ app.get('/game/juice-maker', (req, res) => {
             function endGame() {
                 gameActive = false;
                 clearInterval(gameTimer);
+                clearInterval(shakeInterval);
                 
-                const bestScore = localStorage.getItem('juice_maker_best_score') || 0;
+                const bestScore = parseInt(localStorage.getItem('juice_maker_best_score') || 0);
                 if (score > bestScore) {
                     localStorage.setItem('juice_maker_best_score', score);
                 }
                 
-                alert(`游戏结束！你的得分: ${score}`);
+                alert('游戏结束！你的得分: ' + score);
+                
+                // 清理事件监听器
+                window.removeEventListener('devicemotion', handleMotion);
+                document.removeEventListener('click', handleClick);
             }
 
             // 初始化显示
@@ -1101,4 +666,24 @@ app.get('/game/juice-maker', (req, res) => {
     </body>
     </html>
   `);
+});
+
+// ==================== 服务器启动 ====================
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log('=================================');
+  console.log('🎮 体感榨汁机游戏服务器已启动!');
+  console.log(`📍 端口: ${PORT}`);
+  console.log(`🌐 健康检查: http://localhost:${PORT}/health`);
+  console.log('=================================');
+});
+
+// 全局错误处理
+process.on('unhandledRejection', (error) => {
+  console.error('未处理的 Promise 拒绝:', error);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('未捕获的异常:', error);
 });
