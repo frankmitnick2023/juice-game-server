@@ -1,4 +1,4 @@
-// server.js - 终极游戏平台版
+// server.js - 终极游戏平台修复版
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
@@ -17,44 +17,44 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'funx-ultra-stable-secret-key-2024',
   resave: false,
   saveUninitialized: true,
-  cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 } // 24小时
+  cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
 }));
 
-// 内存存储 - 使用Map防止内存泄漏
+// 内存存储
 const users = new Map();
 const games = new Map();
 let userCount = 0;
 
-// 预置一些游戏
+// 预置游戏
 const defaultGames = [
   {
     id: 1,
-    name: "数字猜谜",
-    description: "猜一个1-100之间的数字",
+    name: "Number Guess",
+    description: "Guess a number between 1-100",
     type: "puzzle",
     difficulty: "easy",
     icon: "🔢"
   },
   {
     id: 2, 
-    name: "记忆翻牌",
-    description: "匹配相同的卡片",
+    name: "Memory Cards",
+    description: "Match identical cards",
     type: "memory",
     difficulty: "medium",
     icon: "🎴"
   },
   {
     id: 3,
-    name: "快速点击",
-    description: "在时间内点击尽可能多的目标",
+    name: "Quick Click",
+    description: "Click targets as fast as you can",
     type: "action", 
     difficulty: "easy",
     icon: "🎯"
   },
   {
     id: 4,
-    name: "单词拼写",
-    description:根据提示拼写单词",
+    name: "Word Spell",
+    description: "Spell words based on hints",
     type: "education",
     difficulty: "medium",
     icon: "📝"
@@ -63,7 +63,7 @@ const defaultGames = [
 
 defaultGames.forEach(game => games.set(game.id, game));
 
-// 主页 - 完整的游戏平台
+// 主页
 app.get('/', (req, res) => {
   const user = req.session.user;
   
@@ -76,7 +76,7 @@ app.get('/', (req, res) => {
       <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { 
-              font-family: 'Arial', sans-serif;
+              font-family: Arial, sans-serif;
               background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
               color: white;
               min-height: 100vh;
@@ -151,64 +151,63 @@ app.get('/', (req, res) => {
           <div class="logo">🎮 FunX Games</div>
           <div class="user-info">
               ${user ? `
-                  <span>欢迎, ${user.name}!</span>
-                  <span>等级 ${user.level} | XP: ${user.xp}</span>
-                  <a href="/logout" class="btn">退出</a>
+                  <span>Welcome, ${user.name}!</span>
+                  <span>Level ${user.level} | XP: ${user.xp}</span>
+                  <a href="/logout" class="btn">Logout</a>
               ` : `
-                  <a href="/login" class="btn">登录</a>
-                  <a href="/register" class="btn">注册</a>
+                  <a href="/login" class="btn">Login</a>
+                  <a href="/register" class="btn">Register</a>
               `}
           </div>
       </div>
 
       <div class="container">
           <div class="hero">
-              <h1>欢迎来到 FunX 游戏平台</h1>
-              <p>发现精彩游戏，赢取奖励和成就</p>
+              <h1>Welcome to FunX Gaming Platform</h1>
+              <p>Discover amazing games, earn rewards and achievements</p>
           </div>
 
           ${user ? `
               <div class="stats">
                   <div class="stat-card">
-                      <h3>🏆 等级</h3>
+                      <h3>🏆 Level</h3>
                       <p>${user.level}</p>
                   </div>
                   <div class="stat-card">
-                      <h3>⭐ 经验值</h3>
+                      <h3>⭐ XP</h3>
                       <p>${user.xp}</p>
                   </div>
                   <div class="stat-card">
-                      <h3>🪙 金币</h3>
+                      <h3>🪙 Coins</h3>
                       <p>${user.coins || 0}</p>
                   </div>
                   <div class="stat-card">
-                      <h3>🎯 游戏次数</h3>
+                      <h3>🎯 Games Played</h3>
                       <p>${user.gamesPlayed || 0}</p>
                   </div>
               </div>
 
-              <h2>热门游戏</h2>
+              <h2>Popular Games</h2>
               <div class="games-grid">
                   ${Array.from(games.values()).map(game => `
                       <div class="game-card" onclick="location.href='/game/${game.id}'">
                           <div class="game-icon">${game.icon}</div>
                           <h3>${game.name}</h3>
                           <p>${game.description}</p>
-                          <p><small>难度: ${game.difficulty}</small></p>
+                          <p><small>Difficulty: ${game.difficulty}</small></p>
                       </div>
                   `).join('')}
               </div>
           ` : `
               <div style="text-align: center; padding: 4rem 0;">
-                  <h2>请登录开始游戏</h2>
-                  <p style="margin: 2rem 0;">登录后即可体验所有精彩游戏</p>
-                  <a href="/login" class="btn" style="padding: 15px 30px; font-size: 1.1rem;">立即登录</a>
+                  <h2>Please login to start playing</h2>
+                  <p style="margin: 2rem 0;">Login to experience all amazing games</p>
+                  <a href="/login" class="btn" style="padding: 15px 30px; font-size: 1.1rem;">Login Now</a>
               </div>
           `}
       </div>
 
       <script>
-          // 自动重定向如果未登录
           ${!user ? `
               setTimeout(() => {
                   if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/register')) {
@@ -232,7 +231,7 @@ app.get('/login', (req, res) => {
   <!DOCTYPE html>
   <html>
   <head>
-      <title>登录 - FunX</title>
+      <title>Login - FunX</title>
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
           body { 
@@ -279,18 +278,18 @@ app.get('/login', (req, res) => {
   </head>
   <body>
       <div class="container">
-          <a href="/" class="back">← 返回首页</a>
-          <h2>登录 FunX</h2>
-          <p>登录您的游戏账户</p>
+          <a href="/" class="back">← Back to Home</a>
+          <h2>Login to FunX</h2>
+          <p>Login to your gaming account</p>
           
           <div id="message"></div>
           
-          <input type="email" id="email" placeholder="邮箱" value="test@funx.com">
-          <input type="password" id="password" placeholder="密码" value="123456">
-          <button onclick="login()">登录</button>
+          <input type="email" id="email" placeholder="Email" value="test@funx.com">
+          <input type="password" id="password" placeholder="Password" value="123456">
+          <button onclick="login()">Login</button>
           
           <p style="text-align: center; margin-top: 20px;">
-              没有账户? <a href="/register" style="color: #ff6b6b;">立即注册</a>
+              No account? <a href="/register" style="color: #ff6b6b;">Register now</a>
           </p>
       </div>
 
@@ -301,7 +300,7 @@ app.get('/login', (req, res) => {
               const message = document.getElementById('message');
               
               if (!email || !password) {
-                  showMessage('请输入邮箱和密码', 'error');
+                  showMessage('Please enter email and password', 'error');
                   return;
               }
 
@@ -315,15 +314,15 @@ app.get('/login', (req, res) => {
                   const data = await response.json();
                   
                   if (data.success) {
-                      showMessage('登录成功! 跳转中...', 'success');
+                      showMessage('Login successful! Redirecting...', 'success');
                       setTimeout(() => {
                           window.location.href = '/';
                       }, 1000);
                   } else {
-                      showMessage('登录失败: ' + data.error, 'error');
+                      showMessage('Login failed: ' + data.error, 'error');
                   }
               } catch (error) {
-                  showMessage('网络错误，请重试', 'error');
+                  showMessage('Network error, please try again', 'error');
               }
           }
 
@@ -348,7 +347,7 @@ app.get('/register', (req, res) => {
   <!DOCTYPE html>
   <html>
   <head>
-      <title>注册 - FunX</title>
+      <title>Register - FunX</title>
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
           body { 
@@ -395,19 +394,19 @@ app.get('/register', (req, res) => {
   </head>
   <body>
       <div class="container">
-          <a href="/" class="back">← 返回首页</a>
-          <h2>注册 FunX</h2>
-          <p>创建您的游戏账户</p>
+          <a href="/" class="back">← Back to Home</a>
+          <h2>Register for FunX</h2>
+          <p>Create your gaming account</p>
           
           <div id="message"></div>
           
-          <input type="text" id="name" placeholder="用户名" value="测试用户">
-          <input type="email" id="email" placeholder="邮箱" value="test@funx.com">
-          <input type="password" id="password" placeholder="密码" value="123456">
-          <button onclick="register()">注册</button>
+          <input type="text" id="name" placeholder="Username" value="Test User">
+          <input type="email" id="email" placeholder="Email" value="test@funx.com">
+          <input type="password" id="password" placeholder="Password" value="123456">
+          <button onclick="register()">Register</button>
           
           <p style="text-align: center; margin-top: 20px;">
-              已有账户? <a href="/login" style="color: #ff6b6b;">立即登录</a>
+              Have an account? <a href="/login" style="color: #ff6b6b;">Login now</a>
           </p>
       </div>
 
@@ -419,12 +418,12 @@ app.get('/register', (req, res) => {
               const message = document.getElementById('message');
               
               if (!name || !email || !password) {
-                  showMessage('请填写所有字段', 'error');
+                  showMessage('Please fill all fields', 'error');
                   return;
               }
 
               if (password.length < 6) {
-                  showMessage('密码至少6位', 'error');
+                  showMessage('Password must be at least 6 characters', 'error');
                   return;
               }
 
@@ -438,15 +437,15 @@ app.get('/register', (req, res) => {
                   const data = await response.json();
                   
                   if (data.success) {
-                      showMessage('注册成功! 自动登录中...', 'success');
+                      showMessage('Registration successful! Auto-login...', 'success');
                       setTimeout(() => {
                           window.location.href = '/';
                       }, 1500);
                   } else {
-                      showMessage('注册失败: ' + data.error, 'error');
+                      showMessage('Registration failed: ' + data.error, 'error');
                   }
               } catch (error) {
-                  showMessage('网络错误，请重试', 'error');
+                  showMessage('Network error, please try again', 'error');
               }
           }
 
@@ -478,17 +477,17 @@ app.get('/game/:id', (req, res) => {
   let gameHTML = '';
   
   switch(gameId) {
-    case 1: // 数字猜谜
+    case 1: // Number Guess
       gameHTML = `
         <div style="text-align: center;">
-          <h2>🔢 数字猜谜</h2>
-          <p>猜一个1-100之间的数字，你有7次机会！</p>
+          <h2>🔢 Number Guess</h2>
+          <p>Guess a number between 1-100, you have 7 attempts!</p>
           <div style="margin: 2rem 0;">
-            <input type="number" id="guess" min="1" max="100" placeholder="输入你的猜测" style="padding: 10px; font-size: 1.2rem;">
-            <button onclick="makeGuess()" style="padding: 10px 20px; margin-left: 10px;">猜!</button>
+            <input type="number" id="guess" min="1" max="100" placeholder="Enter your guess" style="padding: 10px; font-size: 1.2rem;">
+            <button onclick="makeGuess()" style="padding: 10px 20px; margin-left: 10px;">Guess!</button>
           </div>
           <div id="result" style="min-height: 100px;"></div>
-          <div id="attempts">剩余尝试次数: 7</div>
+          <div id="attempts">Attempts left: 7</div>
         </div>
         <script>
           let targetNumber = Math.floor(Math.random() * 100) + 1;
@@ -496,33 +495,33 @@ app.get('/game/:id', (req, res) => {
           
           function makeGuess() {
             if (attemptsLeft <= 0) {
-              showResult('游戏结束! 数字是: ' + targetNumber, 'error');
+              showResult('Game over! The number was: ' + targetNumber, 'error');
               return;
             }
             
             const guess = parseInt(document.getElementById('guess').value);
             if (!guess || guess < 1 || guess > 100) {
-              showResult('请输入1-100之间的数字', 'error');
+              showResult('Please enter a number between 1-100', 'error');
               return;
             }
             
             attemptsLeft--;
-            document.getElementById('attempts').textContent = '剩余尝试次数: ' + attemptsLeft;
+            document.getElementById('attempts').textContent = 'Attempts left: ' + attemptsLeft;
             
             if (guess === targetNumber) {
-              showResult('🎉 恭喜! 你猜对了!', 'success');
+              showResult('🎉 Congratulations! You guessed it!', 'success');
               submitGameResult(true, 100);
             } else if (guess < targetNumber) {
-              showResult('📈 太小了! 再试一次', 'info');
+              showResult('📈 Too low! Try again', 'info');
             } else {
-              showResult('📉 太大了! 再试一次', 'info');
+              showResult('📉 Too high! Try again', 'info');
             }
             
             document.getElementById('guess').value = '';
             document.getElementById('guess').focus();
             
             if (attemptsLeft === 0 && guess !== targetNumber) {
-              showResult('😔 游戏结束! 数字是: ' + targetNumber, 'error');
+              showResult('😔 Game over! The number was: ' + targetNumber, 'error');
               submitGameResult(false, 0);
             }
           }
@@ -537,13 +536,13 @@ app.get('/game/:id', (req, res) => {
       `;
       break;
       
-    case 2: // 记忆翻牌
+    case 2: // Memory Cards
       gameHTML = `
         <div style="text-align: center;">
-          <h2>🎴 记忆翻牌</h2>
-          <p>点击卡片找到所有匹配的对子!</p>
+          <h2>🎴 Memory Cards</h2>
+          <p>Click cards to find all matching pairs!</p>
           <div id="memory-game" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 400px; margin: 2rem auto;"></div>
-          <div id="game-info">匹配对子: 0/8</div>
+          <div id="game-info">Matched pairs: 0/8</div>
         </div>
         <script>
           const cards = ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼'];
@@ -597,12 +596,12 @@ app.get('/game/:id', (req, res) => {
             
             if (card1.emoji === card2.emoji) {
               matchedPairs++;
-              document.getElementById('game-info').textContent = \`匹配对子: \${matchedPairs}/8\`;
+              document.getElementById('game-info').textContent = \`Matched pairs: \${matchedPairs}/8\`;
               flippedCards = [];
               
               if (matchedPairs === 8) {
                 setTimeout(() => {
-                  showResult('🎉 恭喜! 你完成了游戏!', 'success');
+                  showResult('🎉 Congratulations! You completed the game!', 'success');
                   submitGameResult(true, 150);
                 }, 500);
               }
@@ -623,7 +622,7 @@ app.get('/game/:id', (req, res) => {
       break;
       
     default:
-      gameHTML = `<p>游戏开发中...</p>`;
+      gameHTML = `<p>Game under development...</p>`;
   }
   
   res.send(`
@@ -679,9 +678,9 @@ app.get('/game/:id', (req, res) => {
   </head>
   <body>
       <div class="header">
-          <a href="/" class="btn">← 返回首页</a>
+          <a href="/" class="btn">← Back to Home</a>
           <h1>${game.icon} ${game.name}</h1>
-          <div>玩家: ${user.name}</div>
+          <div>Player: ${user.name}</div>
       </div>
       
       <div class="game-container">
@@ -701,7 +700,7 @@ app.get('/game/:id', (req, res) => {
                       })
                   });
               } catch (error) {
-                  console.log('结果提交失败');
+                  console.log('Result submission failed');
               }
           }
           
@@ -714,19 +713,19 @@ app.get('/game/:id', (req, res) => {
   `);
 });
 
-// API 路由
+// API Routes
 app.post('/api/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
     
     if (!name || !email || !password) {
-      return res.json({ success: false, error: '请填写所有字段' });
+      return res.json({ success: false, error: 'Please fill all fields' });
     }
     
-    // 检查邮箱是否已存在
+    // Check if email exists
     for (let user of users.values()) {
       if (user.email === email) {
-        return res.json({ success: false, error: '邮箱已存在' });
+        return res.json({ success: false, error: 'Email already exists' });
       }
     }
     
@@ -748,13 +747,20 @@ app.post('/api/register', async (req, res) => {
     
     users.set(user.id, user);
     
-    // 自动登录
-    req.session.user = { id: user.id, name: user.name, email: user.email, level: user.level, xp: user.xp, coins: user.coins };
+    // Auto login
+    req.session.user = { 
+      id: user.id, 
+      name: user.name, 
+      email: user.email, 
+      level: user.level, 
+      xp: user.xp, 
+      coins: user.coins 
+    };
     
     res.json({ success: true, user: req.session.user });
     
   } catch (error) {
-    res.json({ success: false, error: '注册失败' });
+    res.json({ success: false, error: 'Registration failed' });
   }
 });
 
@@ -763,10 +769,10 @@ app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     
     if (!email || !password) {
-      return res.json({ success: false, error: '请输入邮箱和密码' });
+      return res.json({ success: false, error: 'Please enter email and password' });
     }
     
-    // 查找用户
+    // Find user
     let userFound = null;
     for (let user of users.values()) {
       if (user.email === email) {
@@ -776,15 +782,15 @@ app.post('/api/login', async (req, res) => {
     }
     
     if (!userFound) {
-      return res.json({ success: false, error: '用户不存在' });
+      return res.json({ success: false, error: 'User not found' });
     }
     
     const validPassword = await bcrypt.compare(password, userFound.password);
     if (!validPassword) {
-      return res.json({ success: false, error: '密码错误' });
+      return res.json({ success: false, error: 'Invalid password' });
     }
     
-    // 创建会话
+    // Create session
     req.session.user = { 
       id: userFound.id, 
       name: userFound.name, 
@@ -798,7 +804,7 @@ app.post('/api/login', async (req, res) => {
     res.json({ success: true, user: req.session.user });
     
   } catch (error) {
-    res.json({ success: false, error: '登录失败' });
+    res.json({ success: false, error: 'Login failed' });
   }
 });
 
@@ -806,7 +812,7 @@ app.post('/api/game/result', (req, res) => {
   try {
     const user = req.session.user;
     if (!user) {
-      return res.json({ success: false, error: '未登录' });
+      return res.json({ success: false, error: 'Not logged in' });
     }
     
     const { gameId, win, score } = req.body;
@@ -819,15 +825,15 @@ app.post('/api/game/result', (req, res) => {
         userData.xp = (userData.xp || 0) + score;
         userData.coins = (userData.coins || 0) + Math.floor(score / 10);
         
-        // 升级逻辑
+        // Level up logic
         const newLevel = Math.floor(userData.xp / 100) + 1;
         if (newLevel > userData.level) {
           userData.level = newLevel;
-          userData.coins += newLevel * 50; // 升级奖励
+          userData.coins += newLevel * 50; // Level up bonus
         }
       }
       
-      // 更新会话
+      // Update session
       req.session.user = {
         id: userData.id,
         name: userData.name,
@@ -842,7 +848,7 @@ app.post('/api/game/result', (req, res) => {
     res.json({ success: true, user: req.session.user });
     
   } catch (error) {
-    res.json({ success: false, error: '结果提交失败' });
+    res.json({ success: false, error: 'Result submission failed' });
   }
 });
 
@@ -851,7 +857,7 @@ app.get('/logout', (req, res) => {
   res.redirect('/');
 });
 
-// 健康检查
+// Health check
 app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok',
@@ -861,22 +867,22 @@ app.get('/health', (req, res) => {
   });
 });
 
-// 错误处理
+// Error handling
 process.on('uncaughtException', (error) => {
-  console.log('⚠️  Exception caught:', error.message);
+  console.log('⚠️ Exception caught:', error.message);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.log('⚠️  Rejection handled at:', promise);
+  console.log('⚠️ Rejection handled at:', promise);
 });
 
-// 启动服务器
+// Start server
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('=================================');
   console.log('🎮 FUNX GAMING PLATFORM');
   console.log(`📍 Port: ${PORT}`);
   console.log(`🌐 URL: http://0.0.0.0:${PORT}`);
-  console.log('✅ Games: 数字猜谜, 记忆翻牌, 更多...');
+  console.log('✅ Games: Number Guess, Memory Cards, More...');
   console.log('✅ Login System: ENABLED');
   console.log('=================================');
 });
