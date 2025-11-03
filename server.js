@@ -133,6 +133,25 @@ app.set('trust proxy', 1);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+app.get('/admin/dbcheck', async (req, res) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i,'');
+  if (!token || token !== (process.env.ADMIN_KEY || '')) return res.status(403).json({ ok:false });
+
+  try {
+    const dbinfo = await q('select current_database() db, inet_server_addr() ip, inet_server_port() port');
+    const ver = await q('select version()');
+    const cnt = await q('select count(*)::int as users from users');
+    res.json({
+      ok: true,
+      database: dbinfo.rows[0],
+      version: ver.rows[0].version,
+      users: cnt.rows[0].users
+    });
+  } catch (e) {
+    res.status(500).json({ ok:false, error: String(e) });
+  }
+});
+
 app.use('/games', express.static(path.join(__dirname, 'games')));
 if (fs.existsSync(path.join(__dirname, 'public'))) {
   app.use(express.static(path.join(__dirname, 'public')));
