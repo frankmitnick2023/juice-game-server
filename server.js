@@ -82,6 +82,37 @@ function ensureSendGrid() {
   }
 }
 
+app.get('/admin/dbcheck', async (req, res) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!token || token !== (process.env.ADMIN_KEY || '')) {
+    return res.status(403).json({ ok: false, error: 'Forbidden' });
+  }
+
+  try {
+    const { Pool } = require('pg');
+    // 每次检查都新建一个 pool，这样不依赖上层变量
+    const tempPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+    });
+
+    const dbinfo = await tempPool.query('select current_database() as db, inet_server_addr() as ip, inet_server_port() as port');
+    const cnt = await tempPool.query('select count(*)::int as users from users');
+    await tempPool.end();
+
+    res.json({
+      ok: true,
+      db: dbinfo.rows[0].db,
+      ip: dbinfo.rows[0].ip,
+      port: dbinfo.rows[0].port,
+      user_count: cnt.rows[0].users
+    });
+  } catch (e) {
+    console.error('dbcheck error', e);
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
 // 群发邮件（简单合并投递）
 app.post('/admin/send-email', express.json({limit:'200kb'}), async (req, res) => {
   if (!requireAdmin(req, res)) return;
