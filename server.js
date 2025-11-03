@@ -13,6 +13,8 @@ const fs = require('fs');
 const path = require('path');
 const initSqlJs = require('sql.js');
 
+async function q(text, params) { return pool.query(text, params); }
+
 const app = express();
 const PORT = process.env.PORT || 8080;
 
