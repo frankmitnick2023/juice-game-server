@@ -1,7 +1,7 @@
 /**
- * FunX / Juice Game Server — SQLite edition
- * - Users stored in /app/data/users.db (fallback to ./data/users.db)
- * - Same API as before: /api/register, /api/login, /api/me, /api/games, /api/logout
+ * FunX / Juice Game Server — sqlite3 edition (Railway-friendly)
+ * - Users stored in SQLite file: /app/data/users.db (fallback: ./data/users.db)
+ * - Same API: /api/register, /api/login, /api/me, /api/games, /api/logout
  * - Games auto-scan from /games with optional game.json
  */
 
@@ -11,52 +11,60 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database(DB_PATH);
-
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-/* ------------------------ Data directory & DB ------------------------ */
+/* ------------------------ Data dir & SQLite (sqlite3) ------------------------ */
 // Prefer /app/data on Railway, else ./data
 function detectDataDir() {
   const preferred = '/app/data';
-  try {
-    if (fs.existsSync(preferred)) return preferred;
-  } catch {}
+  try { if (fs.existsSync(preferred)) return preferred; } catch {}
   return path.join(__dirname, 'data');
 }
 const DATA_DIR = process.env.DATA_DIR || detectDataDir();
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 const DB_PATH = path.join(DATA_DIR, 'users.db');
-const db = new Database(DB_PATH);
-db.run('CREATE TABLE IF NOT EXISTS users (...)');
-db.get('SELECT * FROM users WHERE email=?', [email], (err,row)=>{ ... });
+const db = new sqlite3.Database(DB_PATH);
 
-// Schema
-db.exec(`
-  PRAGMA journal_mode = WAL;
-  PRAGMA synchronous = NORMAL;
-  CREATE TABLE IF NOT EXISTS users (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    name          TEXT NOT NULL,
-    email         TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    level         INTEGER NOT NULL DEFAULT 1,
-    coins         INTEGER NOT NULL DEFAULT 0,
-    verified      INTEGER NOT NULL DEFAULT 0,
-    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-`);
+// Init schema
+db.serialize(() => {
+  db.run("PRAGMA journal_mode=WAL;");
+  db.run("PRAGMA synchronous=NORMAL;");
+  db.run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      name          TEXT NOT NULL,
+      email         TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      level         INTEGER NOT NULL DEFAULT 1,
+      coins         INTEGER NOT NULL DEFAULT 0,
+      verified      INTEGER NOT NULL DEFAULT 0,
+      created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+});
 
-// Prepared statements
-const stmts = {
-  findByEmail: db.prepare('SELECT id, name, email, password_hash, level, coins, verified FROM users WHERE lower(email)=lower(?)'),
-  insertUser:  db.prepare('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)'),
-  getById:     db.prepare('SELECT id, name, email, level, coins, verified FROM users WHERE id=?'),
-  updateStats: db.prepare('UPDATE users SET level = ?, coins = ? WHERE id = ?')
-};
+// Tiny promisified helpers
+function dbGet(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => (err ? reject(err) : resolve(row)));
+  });
+}
+function dbAll(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => (err ? reject(err) : resolve(rows)));
+  });
+}
+function dbRun(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function (err) {
+      if (err) return reject(err);
+      resolve({ lastID: this.lastID, changes: this.changes });
+    });
+  });
+}
 
 /* ------------------------ Express setup ------------------------ */
 app.set('trust proxy', 1); // behind Railway proxy
@@ -105,23 +113,19 @@ app.post('/api/register', async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({ ok: false, error: 'Email and password are required.' });
     }
-    const exists = stmts.findByEmail.get(email);
+    const exists = await dbGet('SELECT id FROM users WHERE lower(email)=lower(?)', [email]);
     if (exists) return res.status(409).json({ ok: false, error: 'Email already registered.' });
 
     const hash = await bcrypt.hash(String(password), 10);
-    let userId;
-    const tx = db.transaction(() => {
-      const info = stmts.insertUser.run(name || email.split('@')[0], email, hash);
-      userId = info.lastInsertRowid;
-    });
-    tx();
-
-    const user = stmts.getById.get(userId);
+    const info = await dbRun(
+      'INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)',
+      [name || email.split('@')[0], email, hash]
+    );
+    const user = await dbGet('SELECT id, name, email, level, coins, verified FROM users WHERE id=?', [info.lastID]);
     req.session.user = user;
     res.json({ ok: true, redirect: '/' });
   } catch (e) {
     console.error('Register error:', e);
-    // Unique constraint?
     if (String(e).includes('UNIQUE')) {
       return res.status(409).json({ ok: false, error: 'Email already registered.' });
     }
@@ -132,7 +136,10 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   try {
     const { email = '', password = '' } = req.body || {};
-    const row = stmts.findByEmail.get(email);
+    const row = await dbGet(
+      'SELECT id, name, email, password_hash, level, coins, verified FROM users WHERE lower(email)=lower(?)',
+      [email]
+    );
     if (!row) return res.status(401).json({ ok: false, error: 'Invalid email or password.' });
 
     const ok = await bcrypt.compare(String(password), row.password_hash);
@@ -148,9 +155,7 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.post('/api/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.json({ ok: true, redirect: '/' });
-  });
+  req.session.destroy(() => res.json({ ok: true, redirect: '/' }));
 });
 
 /* ------------------------ Games scanning ------------------------ */
@@ -168,8 +173,7 @@ function loadGames() {
   const gamesDir = path.join(__dirname, 'games');
   if (!fs.existsSync(gamesDir)) {
     fs.mkdirSync(gamesDir, { recursive: true });
-    games = map;
-    return;
+    games = map; return;
   }
 
   const folders = fs
@@ -199,18 +203,14 @@ function loadGames() {
       const anyHtml = fs.readdirSync(dir).find(f => /\.html?$/i.test(f)) || null;
       if (anyHtml) entryFile = anyHtml;
     }
-    if (!entryFile) {
-      console.warn(`⚠️ Skip ${folder}: no HTML entry found`);
-      return;
-    }
+    if (!entryFile) { console.warn(`⚠️ Skip ${folder}: no HTML entry found`); return; }
 
     const displayName = (meta.name && String(meta.name).trim())
       ? String(meta.name).trim()
       : folder.replace(/[-_]/g, ' ').replace(/\b\w/g, m => m.toUpperCase());
 
     const cfg = {
-      id,
-      folder,
+      id, folder,
       name: displayName,
       description: meta.description || `A fun game: ${displayName}`,
       icon: meta.icon || '🎮',
@@ -228,13 +228,12 @@ loadGames();
 app.get('/api/games', (req, res) => {
   if (!req.session.user) return res.status(401).json({ ok: false, error: 'Unauthorized' });
   loadGames();
-  res.json({ ok: true, items: Array.from(games.values()).map(g => ({
-    id: g.id,
-    name: g.name,
-    description: g.description,
-    icon: g.icon,
-    category: g.category
-  })) });
+  res.json({
+    ok: true,
+    items: Array.from(games.values()).map(g => ({
+      id: g.id, name: g.name, description: g.description, icon: g.icon, category: g.category
+    }))
+  });
 });
 
 app.get('/play/:id', (req, res) => {
@@ -243,13 +242,10 @@ app.get('/play/:id', (req, res) => {
 
   const gameId = parseInt(req.params.id, 10);
   const game = games.get(gameId);
-  if (!game) {
-    console.warn(`❌ /play/${gameId}: game not found`);
-    return res.redirect('/');
-  }
+  if (!game) { console.warn(`❌ /play/${gameId}: game not found`); return res.redirect('/'); }
+
   const dir = path.join(__dirname, 'games', game.folder);
   const file = path.join(dir, game.entryFile);
-
   if (fs.existsSync(file)) return res.sendFile(file);
   console.warn(`❌ Missing entry file: ${path.relative(__dirname, file)} — fallback to static path`);
   if (fs.existsSync(dir)) return res.redirect(`/games/${encodeURIComponent(game.folder)}/${encodeURIComponent(game.entryFile)}`);
