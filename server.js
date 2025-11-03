@@ -1,8 +1,9 @@
 /**
- * FunX / Juice Game Server — sqlite3 edition (Railway-friendly)
- * - Users stored in SQLite file: /app/data/users.db (fallback: ./data/users.db)
- * - Same API: /api/register, /api/login, /api/me, /api/games, /api/logout
- * - Games auto-scan from /games with optional game.json
+ * FunX / Juice Game Server — sql.js (WASM) edition
+ * - 无原生模块，避免 ELF 报错；Railway/Hobby 完全兼容
+ * - 数据库存储为二进制文件：/app/data/users.sqlite（回退到 ./data/users.sqlite）
+ * - API 与之前保持一致：
+ *   /api/register, /api/login, /api/me, /api/games, /api/logout, /play/:id
  */
 
 const express = require('express');
@@ -10,13 +11,12 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
+const initSqlJs = require('sql.js');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-/* ------------------------ Data dir & SQLite (sqlite3) ------------------------ */
-// Prefer /app/data on Railway, else ./data
+/* ------------------------ Data dir & DB file ------------------------ */
 function detectDataDir() {
   const preferred = '/app/data';
   try { if (fs.existsSync(preferred)) return preferred; } catch {}
@@ -25,60 +25,60 @@ function detectDataDir() {
 const DATA_DIR = process.env.DATA_DIR || detectDataDir();
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const DB_PATH = path.join(DATA_DIR, 'users.db');
-const db = new sqlite3.Database(DB_PATH);
+const DB_FILE = path.join(DATA_DIR, 'users.sqlite');
 
-// Init schema
-db.serialize(() => {
-  db.run("PRAGMA journal_mode=WAL;");
-  db.run("PRAGMA synchronous=NORMAL;");
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      name          TEXT NOT NULL,
-      email         TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL,
-      level         INTEGER NOT NULL DEFAULT 1,
-      coins         INTEGER NOT NULL DEFAULT 0,
-      verified      INTEGER NOT NULL DEFAULT 0,
-      created_at    TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
-});
+// sql.js 相关（懒加载）
+let SQL = null;     // sql.js 模块
+let db = null;      // 数据库实例
 
-// Tiny promisified helpers
-function dbGet(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => (err ? reject(err) : resolve(row)));
-  });
-}
-function dbAll(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => (err ? reject(err) : resolve(rows)));
-  });
-}
-function dbRun(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function (err) {
-      if (err) return reject(err);
-      resolve({ lastID: this.lastID, changes: this.changes });
+async function getDB() {
+  if (!SQL) {
+    SQL = await initSqlJs({
+      // 可选：自定义 wasm 路径；若不设置，sql.js 会用包内置路径
+      // locateFile: (file) => `/${file}`
     });
-  });
+  }
+  if (!db) {
+    if (fs.existsSync(DB_FILE)) {
+      const filebuffer = fs.readFileSync(DB_FILE);
+      db = new SQL.Database(filebuffer);
+    } else {
+      db = new SQL.Database();
+      // 初始化表结构
+      db.run(`
+        CREATE TABLE IF NOT EXISTS users (
+          id            INTEGER PRIMARY KEY AUTOINCREMENT,
+          name          TEXT NOT NULL,
+          email         TEXT NOT NULL UNIQUE,
+          password_hash TEXT NOT NULL,
+          level         INTEGER NOT NULL DEFAULT 1,
+          coins         INTEGER NOT NULL DEFAULT 0,
+          verified      INTEGER NOT NULL DEFAULT 0,
+          created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+      `);
+      await saveDB();
+    }
+  }
+  return db;
+}
+
+async function saveDB() {
+  if (!db) return;
+  const data = db.export();             // Uint8Array
+  fs.writeFileSync(DB_FILE, Buffer.from(data));
 }
 
 /* ------------------------ Express setup ------------------------ */
-app.set('trust proxy', 1); // behind Railway proxy
-
+app.set('trust proxy', 1);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Static
 app.use('/games', express.static(path.join(__dirname, 'games')));
 if (fs.existsSync(path.join(__dirname, 'public'))) {
   app.use(express.static(path.join(__dirname, 'public')));
 }
 
-// Sessions
 app.use(session({
   secret: process.env.SESSION_SECRET || 'funx-ultra-stable-secret-key-2024',
   resave: false,
@@ -100,8 +100,31 @@ app.get('/', sendIndex);
 app.get('/login', sendIndex);
 app.get('/register', sendIndex);
 
-/* ------------------------ Users API (SQLite) ------------------------ */
-app.get('/api/me', (req, res) => {
+/* ------------------------ Helpers (sql.js) ------------------------ */
+function getOne(sql, params = []) {
+  const stmt = db.prepare(sql);
+  stmt.bind(params);
+  const row = stmt.step() ? stmt.getAsObject() : null;
+  stmt.free();
+  return row;
+}
+function getAll(sql, params = []) {
+  const stmt = db.prepare(sql);
+  stmt.bind(params);
+  const rows = [];
+  while (stmt.step()) rows.push(stmt.getAsObject());
+  stmt.free();
+  return rows;
+}
+function run(sql, params = []) {
+  const stmt = db.prepare(sql);
+  stmt.bind(params);
+  stmt.step();
+  stmt.free();
+}
+
+/* ------------------------ Users API ------------------------ */
+app.get('/api/me', async (req, res) => {
   const u = req.session.user;
   if (!u) return res.status(401).json({ ok: false, user: null });
   res.json({ ok: true, user: u });
@@ -113,15 +136,16 @@ app.post('/api/register', async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({ ok: false, error: 'Email and password are required.' });
     }
-    const exists = await dbGet('SELECT id FROM users WHERE lower(email)=lower(?)', [email]);
+    await getDB();
+    const exists = getOne('SELECT id FROM users WHERE lower(email)=lower(?)', [email]);
     if (exists) return res.status(409).json({ ok: false, error: 'Email already registered.' });
 
     const hash = await bcrypt.hash(String(password), 10);
-    const info = await dbRun(
-      'INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)',
-      [name || email.split('@')[0], email, hash]
-    );
-    const user = await dbGet('SELECT id, name, email, level, coins, verified FROM users WHERE id=?', [info.lastID]);
+    // 插入（注意 sql.js 的 ? 绑定）
+    run('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)', [name || email.split('@')[0], email, hash]);
+    await saveDB();
+
+    const user = getOne('SELECT id, name, email, level, coins, verified FROM users WHERE lower(email)=lower(?)', [email]);
     req.session.user = user;
     res.json({ ok: true, redirect: '/' });
   } catch (e) {
@@ -136,11 +160,9 @@ app.post('/api/register', async (req, res) => {
 app.post('/api/login', async (req, res) => {
   try {
     const { email = '', password = '' } = req.body || {};
-    const row = await dbGet(
-      'SELECT id, name, email, password_hash, level, coins, verified FROM users WHERE lower(email)=lower(?)',
-      [email]
-    );
-    if (!row) return res.status(401).json({ ok: false, error: 'Invalid email or password.' });
+    await getDB();
+    const row = getOne('SELECT id, name, email, password_hash, level, coins, verified FROM users WHERE lower(email)=lower(?)', [email]);
+    if (!row || !row.password_hash) return res.status(401).json({ ok: false, error: 'Invalid email or password.' });
 
     const ok = await bcrypt.compare(String(password), row.password_hash);
     if (!ok) return res.status(401).json({ ok: false, error: 'Invalid email or password.' });
@@ -225,7 +247,7 @@ function loadGames() {
 }
 loadGames();
 
-app.get('/api/games', (req, res) => {
+app.get('/api/games', async (req, res) => {
   if (!req.session.user) return res.status(401).json({ ok: false, error: 'Unauthorized' });
   loadGames();
   res.json({
@@ -256,8 +278,9 @@ app.get('/play/:id', (req, res) => {
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 
 /* ------------------------ Start ------------------------ */
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
+  await getDB();
   console.log(`✅ Server listening on :${PORT}`);
   console.log(`🗂  Data dir: ${DATA_DIR}`);
-  console.log(`🗄  SQLite:  ${DB_PATH}`);
+  console.log(`🗄  SQLite (sql.js): ${DB_FILE}`);
 });
