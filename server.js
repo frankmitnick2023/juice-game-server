@@ -1,9 +1,9 @@
 /**
- * FunX / Juice Game Server — sql.js (WASM) edition
- * - 无原生模块，避免 ELF 报错；Railway/Hobby 完全兼容
- * - 数据库存储为二进制文件：/app/data/users.sqlite（回退到 ./data/users.sqlite）
- * - API 与之前保持一致：
- *   /api/register, /api/login, /api/me, /api/games, /api/logout, /play/:id
+ * Juice Game Server — PostgreSQL Edition
+ * - 使用 pg 模块，连接 Railway PostgreSQL（持久化）
+ * - 本地开发支持 .env.local 覆盖 DATABASE_URL
+ * - 所有 API 完全兼容原 sql.js 版本
+ * - 重新部署不会丢失用户数据
  */
 
 const express = require('express');
@@ -11,60 +11,42 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
-const initSqlJs = require('sql.js');
-
-async function q(text, params) { return pool.query(text, params); }
+const { Pool } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-/* ------------------------ Data dir & DB file ------------------------ */
-function detectDataDir() {
-  const preferred = '/app/data';
-  try { if (fs.existsSync(preferred)) return preferred; } catch {}
-  return path.join(__dirname, 'data');
-}
-const DATA_DIR = process.env.DATA_DIR || detectDataDir();
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+// --------------------- PostgreSQL Pool ---------------------
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/juice_game',
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
 
-const DB_FILE = path.join(DATA_DIR, 'users.sqlite');
-
-// sql.js 相关（懒加载）
-let SQL = null;     // sql.js 模块
-let db = null;      // 数据库实例
-
-async function getDB() {
-  if (!SQL) {
-    SQL = await initSqlJs({
-      // 可选：自定义 wasm 路径；若不设置，sql.js 会用包内置路径
-      // locateFile: (file) => `/${file}`
-    });
+// 启动时确保表存在
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id            SERIAL PRIMARY KEY,
+        name          TEXT,
+        email         TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        level         INTEGER NOT NULL DEFAULT 1,
+        coins         INTEGER NOT NULL DEFAULT 0,
+        verified      INTEGER NOT NULL DEFAULT 0,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    console.log('PostgreSQL table "users" ready');
+  } catch (err) {
+    console.error('Failed to create users table:', err.message);
   }
-  if (!db) {
-    if (fs.existsSync(DB_FILE)) {
-      const filebuffer = fs.readFileSync(DB_FILE);
-      db = new SQL.Database(filebuffer);
-    } else {
-      db = new SQL.Database();
-      // 初始化表结构
-      db.run(`
-        CREATE TABLE IF NOT EXISTS users (
-          id            INTEGER PRIMARY KEY AUTOINCREMENT,
-          name          TEXT NOT NULL,
-          email         TEXT NOT NULL UNIQUE,
-          password_hash TEXT NOT NULL,
-          level         INTEGER NOT NULL DEFAULT 1,
-          coins         INTEGER NOT NULL DEFAULT 0,
-          verified      INTEGER NOT NULL DEFAULT 0,
-          created_at    TEXT NOT NULL DEFAULT (datetime('now'))
-        );
-      `);
-      await saveDB();
-    }
-  }
-  return db;
-}
+})();
 
+// --------------------- Helpers ---------------------
 function requireAdmin(req, res) {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   if (!token || token !== (process.env.ADMIN_KEY || '')) {
@@ -76,122 +58,19 @@ function requireAdmin(req, res) {
 
 let sgMail = null;
 function ensureSendGrid() {
-  if (!sgMail) {
+  if (!sgMail && process.env.SENDGRID_API_KEY) {
     sgMail = require('@sendgrid/mail');
-    sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
   }
 }
 
-app.get('/admin/dbcheck', async (req, res) => {
-  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  if (!token || token !== (process.env.ADMIN_KEY || '')) {
-    return res.status(403).json({ ok: false, error: 'Forbidden' });
-  }
-
-  try {
-    const { Pool } = require('pg');
-    // 每次检查都新建一个 pool，这样不依赖上层变量
-    const tempPool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
-    });
-
-    const dbinfo = await tempPool.query('select current_database() as db, inet_server_addr() as ip, inet_server_port() as port');
-    const cnt = await tempPool.query('select count(*)::int as users from users');
-    await tempPool.end();
-
-    res.json({
-      ok: true,
-      db: dbinfo.rows[0].db,
-      ip: dbinfo.rows[0].ip,
-      port: dbinfo.rows[0].port,
-      user_count: cnt.rows[0].users
-    });
-  } catch (e) {
-    console.error('dbcheck error', e);
-    res.status(500).json({ ok: false, error: String(e) });
-  }
-});
-
-// 群发邮件（简单合并投递）
-app.post('/admin/send-email', express.json({limit:'200kb'}), async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-  if (!process.env.SENDGRID_API_KEY) {
-    return res.status(400).json({ ok: false, error: 'SENDGRID_API_KEY not set' });
-  }
-  ensureSendGrid();
-  await getDB();
-
-  const { subject = '', html = '', filter = 'all' } = req.body || {};
-  if (!subject || !html) {
-    return res.status(400).json({ ok: false, error: 'subject and html are required' });
-  }
-
-  // 你也可以在这里按分组筛选（比如 verified=1 / level>=2 等）
-  let rows = [];
-  if (filter === 'verified') {
-    rows = getAll('SELECT email FROM users WHERE verified=1');
-  } else {
-    rows = getAll('SELECT email FROM users');
-  }
-  const emails = rows.map(r => r.email).filter(Boolean);
-
-  if (!emails.length) return res.json({ ok: false, sent: 0, error: 'no recipients' });
-
-  const msg = {
-    to: emails,
-    from: process.env.MAIL_FROM || 'no-reply@example.com',
-    subject,
-    html
-  };
-
-  try {
-    // sendMultiple 会自动按收件人数组批量发送
-    await sgMail.sendMultiple(msg);
-    res.json({ ok: true, sent: emails.length });
-  } catch (e) {
-    console.error('SendGrid error:', e?.response?.body || e);
-    res.status(500).json({ ok: false, error: 'send failed' });
-  }
-});
-
-async function saveDB() {
-  if (!db) return;
-  const data = db.export();             // Uint8Array
-  fs.writeFileSync(DB_FILE, Buffer.from(data));
-}
-
-/* ------------------------ Express setup ------------------------ */
+// --------------------- Express Setup ---------------------
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-app.get('/admin/dbcheck', async (req, res) => {
-  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i,'');
-  if (!token || token !== (process.env.ADMIN_KEY || '')) return res.status(403).json({ ok:false });
-
-  try {
-    const dbinfo = await q('select current_database() db, inet_server_addr() ip, inet_server_port() port');
-    const ver = await q('select version()');
-    const cnt = await q('select count(*)::int as users from users');
-    res.json({
-      ok: true,
-      database: dbinfo.rows[0],
-      version: ver.rows[0].version,
-      users: cnt.rows[0].users
-    });
-  } catch (e) {
-    res.status(500).json({ ok:false, error: String(e) });
-  }
-});
-
-app.use('/games', express.static(path.join(__dirname, 'games')));
-if (fs.existsSync(path.join(__dirname, 'public'))) {
-  app.use(express.static(path.join(__dirname, 'public')));
-}
-
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'funx-ultra-stable-secret-key-2024',
+  secret: process.env.SESSION_SECRET || 'funx-ultra-stable-secret-key-2025',
   resave: false,
   saveUninitialized: false,
   proxy: true,
@@ -203,7 +82,13 @@ app.use(session({
   }
 }));
 
-/* ------------------------ SPA entry ------------------------ */
+// Static files
+app.use('/games', express.static(path.join(__dirname, 'games')));
+if (fs.existsSync(path.join(__dirname, 'public'))) {
+  app.use(express.static(path.join(__dirname, 'public')));
+}
+
+// SPA entry
 function sendIndex(req, res) {
   res.sendFile(path.join(__dirname, 'index.html'));
 }
@@ -211,74 +96,180 @@ app.get('/', sendIndex);
 app.get('/login', sendIndex);
 app.get('/register', sendIndex);
 
-/* ------------------------ Helpers (sql.js) ------------------------ */
-function getOne(sql, params = []) {
-  const stmt = db.prepare(sql);
-  stmt.bind(params);
-  const row = stmt.step() ? stmt.getAsObject() : null;
-  stmt.free();
-  return row;
-}
-function getAll(sql, params = []) {
-  const stmt = db.prepare(sql);
-  stmt.bind(params);
-  const rows = [];
-  while (stmt.step()) rows.push(stmt.getAsObject());
-  stmt.free();
-  return rows;
-}
-function run(sql, params = []) {
-  const stmt = db.prepare(sql);
-  stmt.bind(params);
-  stmt.step();
-  stmt.free();
-}
+// --------------------- Admin: DB Check ---------------------
+app.get('/admin/dbcheck', async (req, res) => {
+  if (!requireAdmin(req, res)) return;
 
-/* ------------------------ Users API ------------------------ */
-app.get('/api/me', async (req, res) => {
-  const u = req.session.user;
-  if (!u) return res.status(401).json({ ok: false, user: null });
-  res.json({ ok: true, user: u });
+  try {
+    const info = await pool.query(`
+      SELECT 
+        current_database() AS db,
+        current_user AS "user",
+        current_schema() AS schema,
+        inet_server_addr() AS ip,
+        inet_server_port() AS port
+    `);
+    const tables = await pool.query(`
+      SELECT table_schema, table_name 
+      FROM information_schema.tables 
+      WHERE table_name = 'users'
+    `);
+    let userCount = 0;
+    try {
+      const cnt = await pool.query('SELECT COUNT(*)::int AS n FROM users');
+      userCount = cnt.rows[0].n;
+    } catch (e) {
+      console.error('Count users failed:', e);
+    }
+
+    res.json({
+      ok: true,
+      connection: info.rows[0],
+      users_table_found: tables.rows,
+      user_count: userCount
+    });
+  } catch (e) {
+    console.error('dbcheck error:', e);
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
+// --------------------- Admin: Export Users ---------------------
+app.get('/admin/users.json', async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  try {
+    const result = await pool.query(`
+      SELECT id, name, email, level, coins, verified, created_at 
+      FROM users 
+      ORDER BY id DESC
+    `);
+    res.json({ ok: true, count: result.rows.length, users: result.rows });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
+app.get('/admin/export-users.csv', async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  try {
+    const result = await pool.query(`
+      SELECT name, email, level, coins, verified, created_at 
+      FROM users 
+      ORDER BY created_at DESC
+    `);
+    const header = 'name,email,level,coins,verified,created_at';
+    const lines = result.rows.map(r => [
+      (r.name || '').replace(/"/g, '""'),
+      r.email.replace(/"/g, '""'),
+      r.level,
+      r.coins,
+      r.verified,
+      r.created_at
+    ].map(x => `"${x}"`).join(','));
+    const csv = [header, ...lines].join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="users.csv"');
+    res.send(csv);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
+// --------------------- Admin: Send Email ---------------------
+app.post('/admin/send-email', express.json({ limit: '200kb' }), async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  if (!process.env.SENDGRID_API_KEY) {
+    return res.status(400).json({ ok: false, error: 'SENDGRID_API_KEY not set' });
+  }
+  ensureSendGrid();
+
+  const { subject = '', html = '', filter = 'all' } = req.body;
+  if (!subject || !html) {
+    return res.status(400).json({ ok: false, error: 'subject and html required' });
+  }
+
+  let query = 'SELECT email FROM users';
+  if (filter === 'verified') query += ' WHERE verified = 1';
+
+  try {
+    const result = await pool.query(query);
+    const emails = result.rows.map(r => r.email).filter(Boolean);
+    if (!emails.length) return res.json({ ok: true, sent: 0, note: 'no recipients' });
+
+    const msg = {
+      to: emails,
+      from: process.env.MAIL_FROM || 'no-reply@juicegame.co',
+      subject,
+      html
+    };
+    await sgMail.sendMultiple(msg);
+    res.json({ ok: true, sent: emails.length });
+  } catch (e) {
+    console.error('SendGrid error:', e?.response?.body || e);
+    res.status(500).json({ ok: false, error: 'send failed' });
+  }
+});
+
+// --------------------- User API ---------------------
+app.get('/api/me', (req, res) => {
+  if (!req.session.user) return res.status(401).json({ ok: false, user: null });
+  res.json({ ok: true, user: req.session.user });
 });
 
 app.post('/api/register', async (req, res) => {
+  const { name = '', email = '', password = '' } = req.body || {};
+  if (!email || !password) {
+    return res.status(400).json({ ok: false, error: 'Email and password required' });
+  }
+
   try {
-    const { name = '', email = '', password = '' } = req.body || {};
-    if (!email || !password) {
-      return res.status(400).json({ ok: false, error: 'Email and password are required.' });
+    const exists = await pool.query('SELECT 1 FROM users WHERE lower(email) = lower($1)', [email]);
+    if (exists.rows.length > 0) {
+      return res.status(409).json({ ok: false, error: 'Email already registered' });
     }
-    await getDB();
-    const exists = getOne('SELECT id FROM users WHERE lower(email)=lower(?)', [email]);
-    if (exists) return res.status(409).json({ ok: false, error: 'Email already registered.' });
 
     const hash = await bcrypt.hash(String(password), 10);
-    // 插入（注意 sql.js 的 ? 绑定）
-    run('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)', [name || email.split('@')[0], email, hash]);
-    await saveDB();
+    const result = await pool.query(`
+      INSERT INTO users (name, email, password_hash) 
+      VALUES ($1, $2, $3) 
+      RETURNING id, name, email, level, coins, verified
+    `, [name || email.split('@')[0], email, hash]);
 
-    const user = getOne('SELECT id, name, email, level, coins, verified FROM users WHERE lower(email)=lower(?)', [email]);
+    const user = result.rows[0];
     req.session.user = user;
     res.json({ ok: true, redirect: '/' });
   } catch (e) {
     console.error('Register error:', e);
-    if (String(e).includes('UNIQUE')) {
-      return res.status(409).json({ ok: false, error: 'Email already registered.' });
+    if (e.code === '23505') { // UNIQUE violation
+      return res.status(409).json({ ok: false, error: 'Email already registered' });
     }
     res.status(500).json({ ok: false, error: 'Server error' });
   }
 });
 
 app.post('/api/login', async (req, res) => {
+  const { email = '', password = '' } = req.body || {};
   try {
-    const { email = '', password = '' } = req.body || {};
-    await getDB();
-    const row = getOne('SELECT id, name, email, password_hash, level, coins, verified FROM users WHERE lower(email)=lower(?)', [email]);
-    if (!row || !row.password_hash) return res.status(401).json({ ok: false, error: 'Invalid email or password.' });
+    const result = await pool.query(`
+      SELECT id, name, email, password_hash, level, coins, verified 
+      FROM users 
+      WHERE lower(email) = lower($1)
+    `, [email]);
+
+    const row = result.rows[0];
+    if (!row) return res.status(401).json({ ok: false, error: 'Invalid email or password' });
 
     const ok = await bcrypt.compare(String(password), row.password_hash);
-    if (!ok) return res.status(401).json({ ok: false, error: 'Invalid email or password.' });
+    if (!ok) return res.status(401).json({ ok: false, error: 'Invalid email or password' });
 
-    const user = { id: row.id, name: row.name, email: row.email, level: row.level, coins: row.coins, verified: row.verified };
+    const user = {
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      level: row.level,
+      coins: row.coins,
+      verified: row.verified
+    };
     req.session.user = user;
     res.json({ ok: true, redirect: '/' });
   } catch (e) {
@@ -291,13 +282,12 @@ app.post('/api/logout', (req, res) => {
   req.session.destroy(() => res.json({ ok: true, redirect: '/' }));
 });
 
-/* ------------------------ Games scanning ------------------------ */
+// --------------------- Games API ---------------------
 let games = new Map();
 
 function stableIdFromFolder(folder) {
-  const s = String(folder);
   let h = 0;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  for (let i = 0; i < folder.length; i++) h = ((h << 5) - h + folder.charCodeAt(i)) | 0;
   return Math.abs(h);
 }
 
@@ -309,56 +299,43 @@ function loadGames() {
     games = map; return;
   }
 
-  const folders = fs
-    .readdirSync(gamesDir, { withFileTypes: true })
+  const folders = fs.readdirSync(gamesDir, { withFileTypes: true })
     .filter(d => d.isDirectory())
     .map(d => d.name)
-    .sort((a, b) => a.localeCompare(b));
+    .sort();
 
-  folders.forEach(folder => {
+  for (const folder of folders) {
     const id = stableIdFromFolder(folder);
     const dir = path.join(gamesDir, folder);
-
     let meta = {};
     const metaFile = path.join(dir, 'game.json');
     if (fs.existsSync(metaFile)) {
-      try { meta = JSON.parse(fs.readFileSync(metaFile, 'utf8')); }
-      catch (e) { console.warn(`⚠️ Failed to parse ${path.join('games', folder, 'game.json')}:`, e.message); }
+      try { meta = JSON.parse(fs.readFileSync(metaFile, 'utf8')); } catch (e) {}
     }
 
-    let entryFile = meta.entryFile || null;
-    const candidates = ['index.html', 'game.html', 'main.html', `${folder}.html`];
+    let entryFile = meta.entryFile;
     if (!entryFile) {
-      const picked = candidates.find(f => fs.existsSync(path.join(dir, f)));
-      if (picked) entryFile = picked;
+      const candidates = ['index.html', 'game.html', 'main.html', `${folder}.html`];
+      entryFile = candidates.find(f => fs.existsSync(path.join(dir, f))) || null;
     }
     if (!entryFile) {
-      const anyHtml = fs.readdirSync(dir).find(f => /\.html?$/i.test(f)) || null;
-      if (anyHtml) entryFile = anyHtml;
+      const any = fs.readdirSync(dir).find(f => /\.html?$/i.test(f));
+      if (any) entryFile = any;
     }
-    if (!entryFile) { console.warn(`⚠️ Skip ${folder}: no HTML entry found`); return; }
+    if (!entryFile) continue;
 
-    const displayName = (meta.name && String(meta.name).trim())
-      ? String(meta.name).trim()
-      : folder.replace(/[-_]/g, ' ').replace(/\b\w/g, m => m.toUpperCase());
-
-    const cfg = {
-      id, folder,
-      name: displayName,
-      description: meta.description || `A fun game: ${displayName}`,
-      icon: meta.icon || '🎮',
-      category: meta.category || 'General',
-      difficulty: meta.difficulty || 'medium',
+    const displayName = meta.name?.trim() || folder.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    map.set(id, {
+      id, folder, name: displayName, description: meta.description || `A fun game: ${displayName}`,
+      icon: meta.icon || 'game', category: meta.category || 'General', difficulty: meta.difficulty || 'medium',
       entryFile
-    };
-    map.set(id, cfg);
-  });
-
+    });
+  }
   games = map;
 }
 loadGames();
 
-app.get('/api/games', async (req, res) => {
+app.get('/api/games', (req, res) => {
   if (!req.session.user) return res.status(401).json({ ok: false, error: 'Unauthorized' });
   loadGames();
   res.json({
@@ -372,110 +349,19 @@ app.get('/api/games', async (req, res) => {
 app.get('/play/:id', (req, res) => {
   if (!req.session.user) return res.redirect('/login');
   loadGames();
-
   const gameId = parseInt(req.params.id, 10);
   const game = games.get(gameId);
-  if (!game) { console.warn(`❌ /play/${gameId}: game not found`); return res.redirect('/'); }
-
-  const dir = path.join(__dirname, 'games', game.folder);
-  const file = path.join(dir, game.entryFile);
+  if (!game) return res.redirect('/');
+  const file = path.join(__dirname, 'games', game.folder, game.entryFile);
   if (fs.existsSync(file)) return res.sendFile(file);
-  console.warn(`❌ Missing entry file: ${path.relative(__dirname, file)} — fallback to static path`);
-  if (fs.existsSync(dir)) return res.redirect(`/games/${encodeURIComponent(game.folder)}/${encodeURIComponent(game.entryFile)}`);
-  return res.status(404).send('Game not found');
+  return res.redirect(`/games/${encodeURIComponent(game.folder)}/${encodeURIComponent(game.entryFile)}`);
 });
 
-/* ------------------------ Health ------------------------ */
+// --------------------- Health ---------------------
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 
-/* ------------------------ Start ------------------------ */
-app.listen(PORT, async () => {
-  await getDB();
-  console.log(`Server listening on :${PORT}`);
-  console.log(`Data dir: ${DATA_DIR}`);
-  console.log(`SQLite (sql.js): ${DB_FILE}`);
+// --------------------- Start Server ---------------------
+app.listen(PORT, () => {
+  console.log(`Server running on :${PORT}`);
+  console.log(`DB: ${process.env.DATABASE_URL ? 'Railway PostgreSQL' : 'Local DB'}`);
 });
-
-// 导出 CSV
-app.get('/admin/export-users.csv', async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-  await getDB();
-  const rows = getAll('SELECT name, email, level, coins, verified, created_at FROM users ORDER BY created_at DESC');
-  const header = 'name,email,level,coins,verified,created_at';
-  const lines = rows.map(r => [
-    (r.name || '').replace(/"/g, '""'),
-    (r.email || '').replace(/"/g, '""'),
-    r.level ?? 1,
-    r.coins ?? 0,
-    r.verified ?? 0,
-    r.created_at || ''
-  ].map(x => `"${x}"`).join(','));
-  const csv = [header, ...lines].join('\n');
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', 'attachment; filename="users.csv"');
-  res.send(csv);
-});
-
-// 导出 JSON
-app.get('/admin/users.json', async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-  await getDB();
-  const rows = getAll('SELECT id, name, email, level, coins, verified, created_at FROM users ORDER BY id DESC');
-  res.json({ ok: true, count: rows.length, users: rows });
-});
-
-// 更详细的 DB 自检：核对是否同一库、同一 schema、users 表是否存在
-app.get('/admin/dbcheck', async (req, res) => {
-  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i,'');
-  if (!token || token !== (process.env.ADMIN_KEY || '')) return res.status(403).json({ ok:false });
-
-  try {
-    const { Pool } = require('pg');
-    const url = process.env.DATABASE_URL || '';
-    // 做个指纹方便比对（不暴露密码）
-    const m = url.match(/^postgres(?:ql)?:\/\/([^@]+)@([^/:]+)(?::(\d+))?\/([^?]+)/i);
-    const fingerprint = m ? {
-      host: m[2],
-      port: m[3] || '5432',
-      db:   m[4],
-      user: (m[1] || '').split(':')[0]
-    } : null;
-
-    const p = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false } });
-
-    // 1) 连接信息
-    const info = await p.query(`
-      select current_database() as db,
-             current_user       as user,
-             current_schema     as schema,
-             inet_server_addr() as ip,
-             inet_server_port() as port
-    `);
-
-    // 2) 是否存在 users 表（在哪个 schema）
-    const tables = await p.query(`
-      select table_schema, table_name
-      from information_schema.tables
-      where table_name='users'
-      order by table_schema
-    `);
-
-    // 3) 分别统计 public.users 与当前 schema.users
-    let cntPublic = null, cntCurrent = null, errPublic = null, errCurrent = null;
-    try { cntPublic  = (await p.query(`select count(*)::int as n from public.users`)).rows[0].n; } catch(e){ errPublic = String(e); }
-    try { cntCurrent = (await p.query(`select count(*)::int as n from users`)).rows[0].n; } catch(e){ errCurrent = String(e); }
-
-    await p.end();
-    res.json({
-      ok: true,
-      env_fingerprint: fingerprint,   // 你现在服务所用的 DATABASE_URL 指纹
-      conn_info: info.rows[0],        // 真实连到的库/用户/IP/端口/schema
-      users_table_found: tables.rows, // 看看表在哪个 schema
-      counts: { public_users: cntPublic, current_schema_users: cntCurrent },
-      errors: { public_users: errPublic, current_schema_users: errCurrent }
-    });
-  } catch (e) {
-    res.status(500).json({ ok:false, error: String(e) });
-  }
-});
-
