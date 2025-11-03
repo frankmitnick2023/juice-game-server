@@ -63,6 +63,65 @@ async function getDB() {
   return db;
 }
 
+function requireAdmin(req, res) {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!token || token !== (process.env.ADMIN_KEY || '')) {
+    res.status(403).json({ ok: false, error: 'Forbidden' });
+    return false;
+  }
+  return true;
+}
+
+let sgMail = null;
+function ensureSendGrid() {
+  if (!sgMail) {
+    sgMail = require('@sendgrid/mail');
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
+  }
+}
+
+// 群发邮件（简单合并投递）
+app.post('/admin/send-email', express.json({limit:'200kb'}), async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  if (!process.env.SENDGRID_API_KEY) {
+    return res.status(400).json({ ok: false, error: 'SENDGRID_API_KEY not set' });
+  }
+  ensureSendGrid();
+  await getDB();
+
+  const { subject = '', html = '', filter = 'all' } = req.body || {};
+  if (!subject || !html) {
+    return res.status(400).json({ ok: false, error: 'subject and html are required' });
+  }
+
+  // 你也可以在这里按分组筛选（比如 verified=1 / level>=2 等）
+  let rows = [];
+  if (filter === 'verified') {
+    rows = getAll('SELECT email FROM users WHERE verified=1');
+  } else {
+    rows = getAll('SELECT email FROM users');
+  }
+  const emails = rows.map(r => r.email).filter(Boolean);
+
+  if (!emails.length) return res.json({ ok: false, sent: 0, error: 'no recipients' });
+
+  const msg = {
+    to: emails,
+    from: process.env.MAIL_FROM || 'no-reply@example.com',
+    subject,
+    html
+  };
+
+  try {
+    // sendMultiple 会自动按收件人数组批量发送
+    await sgMail.sendMultiple(msg);
+    res.json({ ok: true, sent: emails.length });
+  } catch (e) {
+    console.error('SendGrid error:', e?.response?.body || e);
+    res.status(500).json({ ok: false, error: 'send failed' });
+  }
+});
+
 async function saveDB() {
   if (!db) return;
   const data = db.export();             // Uint8Array
@@ -283,4 +342,32 @@ app.listen(PORT, async () => {
   console.log(`✅ Server listening on :${PORT}`);
   console.log(`🗂  Data dir: ${DATA_DIR}`);
   console.log(`🗄  SQLite (sql.js): ${DB_FILE}`);
+});
+
+// 导出 CSV
+app.get('/admin/export-users.csv', async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  await getDB();
+  const rows = getAll('SELECT name, email, level, coins, verified, created_at FROM users ORDER BY created_at DESC');
+  const header = 'name,email,level,coins,verified,created_at';
+  const lines = rows.map(r => [
+    (r.name || '').replace(/"/g, '""'),
+    (r.email || '').replace(/"/g, '""'),
+    r.level ?? 1,
+    r.coins ?? 0,
+    r.verified ?? 0,
+    r.created_at || ''
+  ].map(x => `"${x}"`).join(','));
+  const csv = [header, ...lines].join('\n');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="users.csv"');
+  res.send(csv);
+});
+
+// 导出 JSON
+app.get('/admin/users.json', async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  await getDB();
+  const rows = getAll('SELECT id, name, email, level, coins, verified, created_at FROM users ORDER BY id DESC');
+  res.json({ ok: true, count: rows.length, users: rows });
 });
