@@ -391,9 +391,9 @@ app.get('/healthz', (req, res) => res.json({ ok: true }));
 /* ------------------------ Start ------------------------ */
 app.listen(PORT, async () => {
   await getDB();
-  console.log(`✅ Server listening on :${PORT}`);
-  console.log(`🗂  Data dir: ${DATA_DIR}`);
-  console.log(`🗄  SQLite (sql.js): ${DB_FILE}`);
+  console.log(`Server listening on :${PORT}`);
+  console.log(`Data dir: ${DATA_DIR}`);
+  console.log(`SQLite (sql.js): ${DB_FILE}`);
 });
 
 // 导出 CSV
@@ -423,3 +423,59 @@ app.get('/admin/users.json', async (req, res) => {
   const rows = getAll('SELECT id, name, email, level, coins, verified, created_at FROM users ORDER BY id DESC');
   res.json({ ok: true, count: rows.length, users: rows });
 });
+
+// 更详细的 DB 自检：核对是否同一库、同一 schema、users 表是否存在
+app.get('/admin/dbcheck', async (req, res) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i,'');
+  if (!token || token !== (process.env.ADMIN_KEY || '')) return res.status(403).json({ ok:false });
+
+  try {
+    const { Pool } = require('pg');
+    const url = process.env.DATABASE_URL || '';
+    // 做个指纹方便比对（不暴露密码）
+    const m = url.match(/^postgres(?:ql)?:\/\/([^@]+)@([^/:]+)(?::(\d+))?\/([^?]+)/i);
+    const fingerprint = m ? {
+      host: m[2],
+      port: m[3] || '5432',
+      db:   m[4],
+      user: (m[1] || '').split(':')[0]
+    } : null;
+
+    const p = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false } });
+
+    // 1) 连接信息
+    const info = await p.query(`
+      select current_database() as db,
+             current_user       as user,
+             current_schema     as schema,
+             inet_server_addr() as ip,
+             inet_server_port() as port
+    `);
+
+    // 2) 是否存在 users 表（在哪个 schema）
+    const tables = await p.query(`
+      select table_schema, table_name
+      from information_schema.tables
+      where table_name='users'
+      order by table_schema
+    `);
+
+    // 3) 分别统计 public.users 与当前 schema.users
+    let cntPublic = null, cntCurrent = null, errPublic = null, errCurrent = null;
+    try { cntPublic  = (await p.query(`select count(*)::int as n from public.users`)).rows[0].n; } catch(e){ errPublic = String(e); }
+    try { cntCurrent = (await p.query(`select count(*)::int as n from users`)).rows[0].n; } catch(e){ errCurrent = String(e); }
+
+    await p.end();
+    res.json({
+      ok: true,
+      env_fingerprint: fingerprint,   // 你现在服务所用的 DATABASE_URL 指纹
+      conn_info: info.rows[0],        // 真实连到的库/用户/IP/端口/schema
+      users_table_found: tables.rows, // 看看表在哪个 schema
+      counts: { public_users: cntPublic, current_schema_users: cntCurrent },
+      errors: { public_users: errPublic, current_schema_users: errCurrent }
+    });
+  } catch (e) {
+    res.status(500).json({ ok:false, error: String(e) });
+  }
+});
+
