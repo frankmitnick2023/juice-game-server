@@ -342,24 +342,61 @@
     function openSignup(){ document.getElementById('signupDlg').showModal(); }
     function openForgot(){ document.getElementById('forgotDlg').showModal(); }
 
-    async function submitSignup(ev){
-      ev.preventDefault();
-      const name = document.getElementById('r_name').value.trim();
-      const email = document.getElementById('r_email').value.trim();
-      const pwd = document.getElementById('r_pwd').value;
-      const err = document.getElementById('r_err'); err.textContent='';
-      try{
-        const data = await apiRegister(name,email,pwd);
-        if(!data.ok) throw new Error(data.error || 'Register failed');
-        document.getElementById('signupDlg').close();
-        // 注册后直接登录态已建立（后端设置了 session）
-        currentUser = await apiMe();
-        await enterArenaAnimation();
-        await renderDashboard();
-      }catch(e){
-        err.textContent = e.message || 'Server error';
-      }
-    }
+   async function submitSignup(ev){
+  ev.preventDefault();
+  const name = document.getElementById('r_name').value.trim();
+  const email = document.getElementById('r_email').value.trim();
+  const pwd = document.getElementById('r_pwd').value;
+  const err = document.getElementById('r_err'); 
+  err.textContent='';
+  
+  // 基本验证
+  if (!email || !pwd) {
+    err.textContent = 'Email and password are required';
+    return;
+  }
+  
+  try {
+    console.log('Sending registration request...');
+    const data = await apiRegister(name,email,pwd);
+    console.log('Registration response:', data);
+    
+    if(!data.ok) throw new Error(data.error || 'Register failed');
+    
+    document.getElementById('signupDlg').close();
+    // 注册后直接登录态已建立（后端设置了 session）
+    currentUser = await apiMe();
+    await enterArenaAnimation();
+    await renderDashboard();
+  } catch(e) {
+    console.error('Registration error:', e);
+    err.textContent = e.message || 'Server error - check console for details';
+  }
+}
+  
+  // 基本验证
+  if (!email || !pwd) {
+    err.textContent = 'Email and password are required';
+    return;
+  }
+  
+  try {
+    console.log('Sending registration request...');
+    const data = await apiRegister(name,email,pwd);
+    console.log('Registration response:', data);
+    
+    if(!data.ok) throw new Error(data.error || 'Register failed');
+    
+    document.getElementById('signupDlg').close();
+    // 注册后直接登录态已建立（后端设置了 session）
+    currentUser = await apiMe();
+    await enterArenaAnimation();
+    await renderDashboard();
+  } catch(e) {
+    console.error('Registration error:', e);
+    err.textContent = e.message || 'Server error - check console for details';
+  }
+}
 
     // 进入竞技场动画：按钮点击→舱门亮起→过渡到仪表盘
     async function enterArenaAnimation(skipBtnBounce){

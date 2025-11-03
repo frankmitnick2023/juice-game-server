@@ -327,3 +327,26 @@ app.listen(PORT, async () => {
   await initDB();
   console.log(`Server listening on :${PORT}`);
 });
+
+// 添加数据库连接测试端点
+app.get('/api/db-status', async (req, res) => {
+  try {
+    const result = await q('SELECT NOW() as time, version() as version');
+    const userCount = await q('SELECT COUNT(*)::int as count FROM public.users');
+    
+    res.json({ 
+      ok: true, 
+      database: 'connected',
+      currentTime: result.rows[0].time,
+      version: result.rows[0].version,
+      userCount: userCount.rows[0].count
+    });
+  } catch (error) {
+    console.error('Database status check failed:', error);
+    res.status(500).json({ 
+      ok: false, 
+      database: 'disconnected',
+      error: error.message 
+    });
+  }
+});
