@@ -10,24 +10,24 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/juice_game',
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+  idleTimeoutMillis: 30000,      // 30s idle 超时
+  connectionTimeoutMillis: 10000, // 10s 连接超时
+  max: 20,                       // 最大连接
+  keepAlive: true,               // 保持连接
+  keepAliveInitialDelayMillis: 10000  // 10s 后开始 keepalive
 });
 
-(async () => {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      name TEXT,
-      total_time INTEGER DEFAULT 0,
-      level INTEGER DEFAULT 1,
-      coins INTEGER DEFAULT 100,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-})();
+// 连接事件监听（日志化）
+pool.on('connect', () => console.log('✅ DB Connected'));
+pool.on('error', (err) => {
+  console.error('❌ DB Error:', err.code, err.message);
+  // 可选：重启 pool
+  pool.end().then(() => {
+    // 重新初始化 pool
+  });
+});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
