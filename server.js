@@ -9,7 +9,33 @@
 
 const express = require('express');
 const session = require('express-session');
-const pgSession = require('connect-pg-simple')(session);
+// 用下面这段（加在 require 们下面）
+let pgSessionFactory = null;
+try {
+  pgSessionFactory = require('connect-pg-simple')(session);
+} catch (e) {
+  console.warn('[SESSION] connect-pg-simple not installed, using MemoryStore (DEV ONLY)');
+}
+
+// 会话中使用（把你现有的 app.use(session({...})) 的 store 部分改成如下）:
+const store = pgSessionFactory
+  ? new pgSessionFactory({
+      pool,
+      tableName: 'user_sessions',
+      schemaName: 'public',
+      createTableIfMissing: true
+    })
+  : undefined; // 未安装则使用默认内存存储（开发用）
+
+app.use(session({
+  store,
+  secret: process.env.SESSION_SECRET || 'funx-ultra-stable-secret-key-2024',
+  resave: false,
+  saveUninitialized: false,
+  proxy: true,
+  cookie: { secure: 'auto', sameSite: 'lax', httpOnly: true, maxAge: 24*60*60*1000 }
+}));
+
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const fs = require('fs');
