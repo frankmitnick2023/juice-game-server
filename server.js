@@ -8,7 +8,7 @@ try {
   console.warn('connect-pg-simple not available, using memory store');
 }
 const { Pool } = require('pg');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
 const app = express();
