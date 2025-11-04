@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Games Library</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    body { margin: 0; padding: 24px; background: #0b0f15; color: #e6edf3; }
+    .container { max-width: 980px; margin: 0 auto; }
+    h1 { margin: 0 0 16px; font-size: 28px; }
+    p.muted { color: #9db1c7; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+    .card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 16px; }
+    .row { display: flex; align-items: center; gap: 10px; }
+    a.btn { display: inline-block; padding: 10px 14px; border-radius: 10px; border: 1px solid #334155; color: white; text-decoration: none; }
+    a.btn:hover { background: #1f2a44; }
+    input[type="search"] { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #334155; outline: none; background: #0b1220; color: #e6edf3; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎮 Games Library</h1>
+    <p class="muted">把你的游戏文件放到 <code>/games</code> 文件夹即可自动出现：</p>
+    <ul class="muted">
+      <li><code>/games/&lt;slug&gt;/index.html</code> （推荐）</li>
+      <li><code>/games/&lt;name&gt;.html</code> （单文件游戏）</li>
+    </ul>
+
+    <div class="row" style="margin: 12px 0 20px;">
+      <input id="q" type="search" placeholder="Search games..." />
+    </div>
+
+    <div id="list" class="grid"></div>
+  </div>
+
+  <script>
+    const $ = (s) => document.querySelector(s);
+    const list = $('#list');
+    const q = $('#q');
+
+    function render(games) {
+      list.innerHTML = '';
+      for (const g of games) {
+        const div = document.createElement('div');
+        div.className = 'card';
+        div.innerHTML = `
+          <div class="row" style="justify-content: space-between;">
+            <div>
+              <div style="font-weight:600; font-size:16px;">${g.title}</div>
+              <div class="muted">${g.type === 'folder' ? 'folder' : 'file'}</div>
+            </div>
+            <div>
+              <a class="btn" href="${g.url}" target="_blank" rel="noreferrer">Play ▶</a>
+            </div>
+          </div>
+        `;
+        list.appendChild(div);
+      }
+    }
+
+    async function load() {
+      const r = await fetch('/api/games');
+      const data = await r.json();
+      if (!data.ok) {
+        list.innerHTML = '<div class="card">Failed to load games list.</div>';
+        return;
+      }
+      const games = data.games || [];
+      render(games);
+
+      q.addEventListener('input', () => {
+        const k = q.value.trim().toLowerCase();
+        render(games.filter(g => g.title.toLowerCase().includes(k) || g.id.toLowerCase().includes(k)));
+      });
+    }
+    load();
+  </script>
+</body>
+</html>
