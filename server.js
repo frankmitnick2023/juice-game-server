@@ -17,6 +17,50 @@ let sgMail = null;
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+const connStr = process.env.DATABASE_URL;
+if (!connStr) {
+  console.error('Missing DATABASE_URL');
+  process.exit(1);
+}
+
+let ssl = false;
+try {
+  const u = new URL(connStr);
+  const isInternal = /\.railway\.internal$/i.test(u.hostname);
+  const wantsSSL  = /sslmode=require/i.test(connStr);
+  ssl = wantsSSL ? { rejectUnauthorized: false } : (isInternal ? false : { rejectUnauthorized: false });
+} catch (e) {
+  // 回退策略：如果字符串里包含 sslmode=require 就开 SSL
+  ssl = /sslmode=require/i.test(connStr) ? { rejectUnauthorized: false } : false;
+}
+
+const pool = new Pool({
+  connectionString: connStr,
+  ssl,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+});
+
+pool.on('connect', (client) => {
+  const { host, port, database, user } = client.connectionParameters || {};
+  console.log('[DB] connected host=%s port=%s db=%s user=%s', host, port, database, user);
+});
+
+async function initDB() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users(
+      id SERIAL PRIMARY KEY,
+      name TEXT,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT now()
+    );
+  `);
+  console.log('[DB] schema ensured');
+}
+initDB();
+
 /* ------------------------ PostgreSQL ------------------------ */
 if (!process.env.DATABASE_URL) {
   console.warn('[WARN] DATABASE_URL is not set. Please add it in Railway -> Variables.');
