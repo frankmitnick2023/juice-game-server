@@ -1,143 +1,104 @@
-// server.js — with games directory scanning & listing
-const express = require('express');
-const session = require('express-session');
-const { Pool } = require('pg');
-const path = require('path');
-const fs = require('fs');
+// ==========================
+// Juice Game Server (MVP)
+// ==========================
+import express from "express";
+import bodyParser from "body-parser";
+import bcrypt from "bcrypt";
+import pkg from "pg";
+import dotenv from "dotenv";
+import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 
-const PORT = process.env.PORT || 3000;
-const DATABASE_URL = process.env.DATABASE_URL;
-const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
-const isProd = process.env.NODE_ENV === 'production';
+dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
-app.set('trust proxy', 1);
+const PORT = process.env.PORT || 8080;
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// ---------- PostgreSQL ----------
+const { Pool } = pkg;
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+});
 
-// ---------- Optional: Postgres session store ----------
-let pool = null;
-if (DATABASE_URL) pool = new Pool({ connectionString: DATABASE_URL });
+// ---------- Middlewares ----------
+app.use(cors());
+app.use(bodyParser.json());
+app.use(express.static(path.join(__dirname, "public")));
+app.use("/games", express.static(path.join(__dirname, "games")));
 
-let StoreCtor = null;
-try {
-  StoreCtor = require('connect-pg-simple')(session);
-} catch {
-  console.log('[SESSION] connect-pg-simple not installed, using MemoryStore (DEV ONLY)');
+// ---------- 初始化数据库 ----------
+async function initDB() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      level INT DEFAULT 1,
+      coins INT DEFAULT 0,
+      total_time INT DEFAULT 0
+    );
+  `);
+  console.log("✅ Database initialized");
 }
+initDB();
 
-app.use(session({
-  store: (StoreCtor && pool) ? new StoreCtor({ pool, tableName: 'session' }) : undefined,
-  name: 'sid',
-  secret: SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: isProd,
-    maxAge: 1000 * 60 * 60 * 24 * 7
-  }
-}));
+// ---------- 注册 ----------
+app.post("/api/register", async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: "Missing fields" });
 
-// ---------- Minimal demo users (in-memory) ----------
-const users = new Map();
-
-app.post('/api/register', (req, res) => {
-  const { name, email, password } = req.body || {};
-  if (!email || !password) return res.status(400).json({ ok:false, error:'Email & password required' });
-  if (users.has(email)) return res.status(409).json({ ok:false, error:'User already exists' });
-  users.set(email, { name:name||'', email, password });
-  req.session.user = { email, name:name||'' };
-  res.json({ ok:true });
-});
-
-app.post('/api/login', (req, res) => {
-  const { email, password } = req.body || {};
-  const u = users.get(email);
-  if (!u || u.password !== password) return res.status(401).json({ ok:false, error:'Invalid credentials' });
-  req.session.user = { email: u.email, name: u.name };
-  res.json({ ok:true });
-});
-
-app.post('/api/logout', (req, res) => {
-  req.session.destroy(() => res.json({ ok:true }));
-});
-
-app.get('/api/me', (req, res) => {
-  if (!req.session.user) return res.status(401).json({ ok:false });
-  res.json({ ok:true, ...req.session.user });
-});
-
-app.get('/healthz', (_req, res) => res.json({ ok:true }));
-
-// ---------- Games scanning ----------
-// Conventions supported:
-// 1) ./games/<slug>/index.html   (recommended)
-// 2) ./games/*.html              (single-file games in root)
-const GAMES_DIR = path.join(__dirname, 'games');
-
-function findGames() {
-  const results = [];
-  if (!fs.existsSync(GAMES_DIR)) return results;
-
-  // 2) html files in /games root
-  const rootEntries = fs.readdirSync(GAMES_DIR, { withFileTypes: true });
-  for (const ent of rootEntries) {
-    if (ent.isFile() && ent.name.toLowerCase().endsWith('.html')) {
-      const slug = ent.name.replace(/\.html$/i, '');
-      results.push({
-        id: slug,
-        title: slug,
-        url: `/games/${ent.name}`,
-        type: 'file'
-      });
-    }
-  }
-
-  // 1) folders with index.html
-  for (const ent of rootEntries) {
-    if (ent.isDirectory()) {
-      const idx = path.join(GAMES_DIR, ent.name, 'index.html');
-      if (fs.existsSync(idx)) {
-        results.push({
-          id: ent.name,
-          title: ent.name,
-          url: `/games/${ent.name}/`,
-          type: 'folder'
-        });
-      }
-    }
-  }
-
-  // sort by id for stability
-  results.sort((a,b) => a.id.localeCompare(b.id));
-  return results;
-}
-
-// List games as JSON
-app.get('/api/games', (_req, res) => {
   try {
-    const games = findGames();
-    res.json({ ok:true, games });
-  } catch (e) {
-    res.status(500).json({ ok:false, error: e.message });
+    const hashed = await bcrypt.hash(password, 10);
+    const result = await pool.query(
+      "INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email",
+      [email, hashed]
+    );
+    res.json({ success: true, user: result.rows[0] });
+  } catch (err) {
+    if (err.code === "23505") {
+      res.status(400).json({ error: "Email already registered" });
+    } else {
+      console.error(err);
+      res.status(500).json({ error: "Server error" });
+    }
   }
 });
 
-// ---------- Static hosting ----------
-// Serve public UI
-app.use(express.static(path.join(__dirname, 'public')));
-// Serve games assets (JS, images, etc.)
-app.use('/games', express.static(GAMES_DIR, { fallthrough: false }));
+// ---------- 登录 ----------
+app.post("/api/login", async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    if (result.rows.length === 0) return res.status(401).json({ error: "Invalid credentials" });
 
-// SPA fallback for non-API routes (kept after static)
-app.get(/^\/(?!api)(?!games)(?!healthz).*/, (_req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    const user = result.rows[0];
+    const match = await bcrypt.compare(password, user.password_hash);
+    if (!match) return res.status(401).json({ error: "Invalid credentials" });
+
+    res.json({ success: true, user: { id: user.id, email: user.email, level: user.level, coins: user.coins } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
-app.listen(PORT, () => {
-  console.log(`✅ Server running on :${PORT}`);
-  console.log(`[games] directory: ${GAMES_DIR}`);
+// ---------- 获取游戏列表 ----------
+import fs from "fs";
+app.get("/api/games", (req, res) => {
+  const manifestPath = path.join(__dirname, "games", "game-manifest.json");
+  if (!fs.existsSync(manifestPath)) return res.json([]);
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+  res.json(manifest.games);
 });
+
+// ---------- 播放页面 ----------
+app.get("/play/:id", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "play.html"));
+});
+
+// ---------- 启动 ----------
+app.listen(PORT, () => console.log(`🚀 Juice Game server running on port ${PORT}`));
