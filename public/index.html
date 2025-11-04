@@ -1,124 +1,89 @@
-<!-- public/index.html - 修复登录后跳转 -->
+<!-- public/index.html -->
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Juice Game - Login</title>
+  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Juice Game - Login</title>
   <style>
-    body { font-family: sans-serif; margin: 0; padding: 40px; background: linear-gradient(135deg, #6c5ce7, #a29bfe); color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .container { background: rgba(255,255,255,0.1); padding: 40px; border-radius: 16px; width: 100%; max-width: 400px; backdrop-filter: blur(10px); }
-    h1 { text-align: center; margin-bottom: 30px; }
-    input { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 8px; font-size: 16px; }
-    button { width: 100%; padding: 14px; margin: 10px 0; background: #fff; color: #6c5ce7; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; }
-    button:hover { background: #f0f0f0; }
-    button:disabled { opacity: 0.6; cursor: not-allowed; }
-    .toggle { text-align: center; margin-top: 20px; }
-    .toggle a { color: white; text-decoration: underline; cursor: pointer; }
-    .message { text-align: center; margin-top: 15px; color: #ff6b6b; font-size: 0.9em; min-height: 1.2em; }
+    body{font-family:Arial;background:linear-gradient(135deg,#ff9a56,#ff6b35);margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}
+    .card{background:white;border-radius:12px;padding:2rem;width:100%;max-width:400px;box-shadow:0 10px 30px rgba(0,0,0,0.2)}
+    h1{text-align:center;color:#ff6b35;margin-bottom:1.5rem}
+    input{display:block;width:100%;padding:0.8rem;margin:0.5rem 0;border:1px solid #ddd;border-radius:6px;font-size:1rem}
+    button{width:100%;padding:0.9rem;background:#ff6b35;color:white;border:none;border-radius:6px;font-size:1rem;margin-top:1rem;cursor:pointer}
+    button:hover{background:#e55a2b}
+    .switch{text-align:center;margin-top:1rem}
+    .switch a{color:#ff6b35;text-decoration:none}
+    .error{color:red;text-align:center;margin:1rem 0}
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1 id="form-title">Login</h1>
-    <form id="auth-form">
-      <input type="email" id="email" placeholder="Email" required>
-      <input type="password" id="password" placeholder="Password" required>
-      <input type="text" id="name" placeholder="Name (optional)" style="display:none;">
-      <button type="submit" id="submit-btn">Login</button>
-    </form>
-    <div class="message" id="message"></div>
-    <div class="toggle">
-      <a id="toggle-link">Need an account? Register</a>
+  <div class="card">
+    <h1 id="title">Login</h1>
+    <div id="error" class="error" style="display:none"></div>
+    <input type="email" id="email" placeholder="Email" required>
+    <input type="password" id="password" placeholder="Password" required>
+    <button id="submit">Login</button>
+    <div class="switch">
+      <span id="switchText">No account? </span><a href="#" id="switchLink">Register</a>
     </div>
   </div>
-
   <script>
-    const urlParams = new URLSearchParams(window.location.search);
-    const redirect = urlParams.get('redirect') || '/games.html';
+    const isLogin = location.search.includes('register') ? false : true;
+    const title = document.getElementById('title');
+    const submit = document.getElementById('submit');
+    const switchLink = document.getElementById('switchLink');
+    const switchText = document.getElementById('switchText');
+    const error = document.getElementById('error');
 
-    const form = document.getElementById('auth-form');
-    const title = document.getElementById('form-title');
-    const submitBtn = document.getElementById('submit-btn');
-    const toggleLink = document.getElementById('toggle-link');
-    const nameInput = document.getElementById('name');
-    const messageEl = document.getElementById('message');
-    let isRegister = false;
+    function setMode(login) {
+      title.textContent = login ? 'Login' : 'Register';
+      submit.textContent = login ? 'Login' : 'Register';
+      switchText.textContent = login ? 'No account? ' : 'Have account? ';
+      switchLink.textContent = login ? 'Register' : 'Login';
+      switchLink.href = login ? '?register' : '/';
+    }
+    setMode(isLogin);
 
-    toggleLink.onclick = () => {
-      isRegister = !isRegister;
-      if (isRegister) {
-        title.textContent = 'Register';
-        submitBtn.textContent = 'Create Account';
-        toggleLink.textContent = 'Have an account? Login';
-        nameInput.style.display = 'block';
-      } else {
-        title.textContent = 'Login';
-        submitBtn.textContent = 'Login';
-        toggleLink.textContent = 'Need an account? Register';
-        nameInput.style.display = 'none';
-      }
-      messageEl.textContent = '';
-    };
-
-    form.onsubmit = async (e) => {
+    switchLink.addEventListener('click', e => {
       e.preventDefault();
-      messageEl.textContent = '';
-      submitBtn.disabled = true;
-      submitBtn.textContent = isRegister ? 'Creating...' : 'Logging in...';
+      setMode(!isLogin);
+    });
 
+    submit.addEventListener('click', async () => {
+      error.style.display = 'none';
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      const name = document.getElementById('name').value.trim();
-      const endpoint = isRegister ? '/api/register' : '/api/login';
-      const body = isRegister ? { email, password, name } : { email, password };
+      if (!email || !password) return showError('Fill all fields');
 
-      console.log(`Sending ${isRegister ? 'REGISTER' : 'LOGIN'}:`, { email, password: '***' });
-
+      const endpoint = isLogin ? '/api/login' : '/api/register';
       try {
         const res = await fetch(endpoint, {
           method: 'POST',
-          credentials: 'include',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache'
-          },
-          body: JSON.stringify(body)
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({email, password})
         });
-
         const data = await res.json();
-        console.log('Auth response:', data);
-
-        if (data.ok) {
-          console.log('Auth success, session ID:', data.sessionId);
-          // 强制刷新页面
-          window.location.href = redirect;
-        } else {
-          messageEl.textContent = data.error || 'Authentication failed';
-          submitBtn.disabled = false;
-          submitBtn.textContent = isRegister ? 'Create Account' : 'Login';
-        }
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        const redirect = new URLSearchParams(location.search).get('redirect');
+        location.href = redirect || '/games.html';
       } catch (e) {
-        console.error('Network error:', e);
-        messageEl.textContent = 'Network error';
-        submitBtn.disabled = false;
-        submitBtn.textContent = isRegister ? 'Create Account' : 'Login';
+        showError(e.message);
       }
-    };
+    });
 
-    // 检查登录状态
-    fetch('/api/me', { 
-      credentials: 'include',
-      headers: { 'Cache-Control': 'no-cache' }
-    })
-      .then(r => r.json())
-      .then(data => {
-        console.log('ME check:', data);
-        if (data.user) {
-          console.log('Already logged in, redirecting to:', redirect);
-          window.location.href = redirect;
-        }
-      })
-      .catch(err => console.error('ME fetch error:', err));
+    function showError(msg) {
+      error.textContent = msg;
+      error.style.display = 'block';
+    }
+
+    // Auto login if session exists
+    fetch('/api/me').then(r => r.json()).then(data => {
+      if (data.id) {
+        const redirect = new URLSearchParams(location.search).get('redirect');
+        location.href = redirect || '/games.html';
+      }
+    }).catch(() => {});
   </script>
 </body>
 </html>

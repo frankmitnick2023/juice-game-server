@@ -1,128 +1,72 @@
-<!-- public/games.html - 修复登录检查 -->
+<!-- public/games.html -->
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Juice Game - Games</title>
+  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Juice Game - Lobby</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f8f9fa; min-height: 100vh; }
-    .header { text-align: center; margin: 20px 0 40px; }
-    .header h1 { margin: 0; font-size: 2.2em; color: #2d3436; }
-    .header p { color: #636e72; margin: 8px 0 0; }
-    .logout { position: absolute; top: 20px; right: 20px; color: #636e72; text-decoration: none; font-size: 0.9em; }
-    .logout:hover { text-decoration: underline; }
-    .game-grid { display: grid; gap: 24px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); max-width: 1200px; margin: 0 auto; }
-    .game-card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); transition: transform 0.2s, box-shadow 0.2s; }
-    .game-card:hover { transform: translateY(-4px); box-shadow: 0 8px 30px rgba(0,0,0,0.15); }
-    .thumb { height: 180px; background: linear-gradient(135deg, #a29bfe, #6c5ce7); display: flex; align-items: center; justify-content: center; color: white; font-size: 3em; font-weight: bold; }
-    .info { padding: 20px; }
-    .title { margin: 0 0 8px; font-size: 1.3em; color: #2d3436; }
-    .desc { margin: 0 0 16px; color: #636e72; font-size: 0.95em; line-height: 1.5; }
-    .play-btn { width: 100%; padding: 12px; background: #6c5ce7; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 1em; cursor: pointer; transition: background 0.2s; }
-    .play-btn:hover { background: #5a4fcf; }
-    .error { text-align: center; color: #e74c3c; margin: 40px 0; font-size: 1.1em; }
-    .loading { text-align: center; color: #636e72; margin: 40px 0; }
+    body{font-family:Arial;margin:0;background:#f9f9f9}
+    .header{background:#ff6b35;color:white;padding:1rem;text-align:center;position:relative}
+    .logout{position:absolute;right:1rem;top:1rem;color:white;text-decoration:none;font-size:0.9rem}
+    .user-info{position:absolute;left:1rem;top:1rem;color:white;font-size:0.9rem}
+    .container{max-width:1000px;margin:2rem auto;padding:0 1rem}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.5rem}
+    .game-card{background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.1);transition:transform 0.2s}
+    .game-card:hover{transform:translateY(-4px)}
+    .thumb{height:160px;background:#eee;display:flex;align-items:center;justify-content:center;color:#999;font-size:0.9rem}
+    .thumb img{width:100%;height:100%;object-fit:cover}
+    .info{padding:1rem}
+    .title{font-weight:bold;font-size:1.2rem;margin-bottom:0.5rem}
+    .desc{color:#555;font-size:0.9rem;margin-bottom:1rem}
+    .play-btn{display:block;width:100%;background:#ff6b35;color:white;text-align:center;padding:0.7rem;border:none;border-radius:6px;text-decoration:none}
+    .play-btn:hover{background:#e55a2b}
+    .platform{margin-top:0.5rem;font-size:0.8rem;color:#ff6b35}
+    .loading{text-align:center;padding:2rem;color:#666}
   </style>
 </head>
 <body>
   <div class="header">
-    <h1>Juice Game</h1>
-    <p>Select a game to play</p>
+    <div class="user-info" id="userInfo"></div>
+    <h1>Juice Game Lobby</h1>
+    <a href="#" id="logout" class="logout">Logout</a>
   </div>
-  <a href="/" class="logout">Logout</a>
-  <div id="loading" class="loading">Loading games...</div>
-  <div id="games" class="game-grid" style="display:none;"></div>
-  <div id="error" class="error" style="display:none;"></div>
-
+  <div class="container">
+    <div id="loading" class="loading">Loading games...</div>
+    <div id="grid" class="grid" style="display:none"></div>
+  </div>
   <script>
-    let authChecked = false;
-    let gamesLoaded = false;
+    document.getElementById('logout').addEventListener('click', e => {
+      e.preventDefault();
+      fetch('/api/logout', {method: 'POST'}).then(() => location.href = '/');
+    });
 
-    async function checkAuth() {
-      if (authChecked) return true;
-      authChecked = true;
-      
-      try {
-        const r = await fetch('/api/me', { 
-          credentials: 'include',
-          headers: { 'Cache-Control': 'no-cache' }
-        });
-        const data = await r.json();
-        console.log('GAMES PAGE AUTH CHECK:', data);
-        if (!data.user) {
-          console.log('Not logged in, redirecting to login');
-          window.location.href = '/';
-          return false;
-        }
-        return true;
-      } catch (e) {
-        console.error('Auth failed:', e);
-        document.getElementById('loading').textContent = 'Auth failed, redirecting...';
-        setTimeout(() => { window.location.href = '/'; }, 1000);
-        return false;
-      }
-    }
+    fetch('/api/me').then(r => r.json()).then(user => {
+      if (!user.id) return location.href = '/';
+      document.getElementById('userInfo').textContent = `${user.email} | Level ${user.level} | ${user.coins} coins`;
+    }).catch(() => location.href = '/');
 
-    async function loadGames() {
-      if (gamesLoaded) return;
-      gamesLoaded = true;
-
-      const container = document.getElementById('games');
-      const loading = document.getElementById('loading');
-      const errorEl = document.getElementById('error');
-
-      try {
-        const r = await fetch('/api/games', { 
-          credentials: 'include',
-          headers: { 'Cache-Control': 'no-cache' }
-        });
-        const data = await r.json();
-        console.log('Games API response:', data);
-
-        loading.style.display = 'none';
-
-        if (!data.ok || !data.games || data.games.length === 0) {
-          errorEl.textContent = 'No games available';
-          errorEl.style.display = 'block';
-          return;
-        }
-
-        container.style.display = 'grid';
-        data.games.forEach(game => {
-          const card = document.createElement('div');
-          card.className = 'game-card';
-          card.innerHTML = `
-            <div class="thumb">${(game.title || '')[0] || '?'}</div>
-            <div class="info">
-              <h3 class="title">${game.title || 'Unknown Game'}</h3>
-              <p class="desc">${game.description || 'No description'}</p>
-              <button class="play-btn" data-id="${game.id}">Play Now</button>
-            </div>
-          `;
-          container.appendChild(card);
-        });
-
-        container.addEventListener('click', (e) => {
-          if (e.target.classList.contains('play-btn')) {
-            const id = e.target.getAttribute('data-id');
-            window.location.href = '/play/' + id;
-          }
-        });
-
-      } catch (err) {
-        console.error('Load games failed:', err);
-        loading.style.display = 'none';
-        errorEl.textContent = 'Failed to load games';
-        errorEl.style.display = 'block';
-      }
-    }
-
-    (async () => {
-      const authed = await checkAuth();
-      if (authed) {
-        await loadGames();
-      }
-    })();
+    fetch('/api/games').then(r => r.json()).then(games => {
+      document.getElementById('loading').style.display = 'none';
+      const grid = document.getElementById('grid');
+      grid.style.display = 'grid';
+      games.forEach(game => {
+        const card = document.createElement('div');
+        card.className = 'game-card';
+        card.innerHTML = `
+          <div class="thumb">
+            ${game.thumbnail ? `<img src="${game.thumbnail}" alt="">` : 'No Image'}
+          </div>
+          <div class="info">
+            <div class="title">${game.title}</div>
+            <div class="desc">${game.description || 'No description'}</div>
+            <div class="platform">${game.platform === 'mobile' ? '📱 Mobile' : game.platform === 'pc' ? '💻 PC' : '🌐 Both'}</div>
+            <a href="/play/${game.id}" class="play-btn">Play Now</a>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    });
   </script>
 </body>
 </html>
