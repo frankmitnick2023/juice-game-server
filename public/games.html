@@ -5,7 +5,7 @@
   <title>Juice Game - Games</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f8f9fa; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f8f9fa; min-height: 100vh; }
     .header { text-align: center; margin: 20px 0 40px; }
     .header h1 { margin: 0; font-size: 2.2em; color: #2d3436; }
     .header p { color: #636e72; margin: 8px 0 0; }
@@ -20,6 +20,7 @@
     .desc { margin: 0 0 16px; color: #636e72; font-size: 0.95em; line-height: 1.5; }
     .play-btn { width: 100%; padding: 12px; background: #6c5ce7; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 1em; cursor: pointer; transition: background 0.2s; }
     .play-btn:hover { background: #5a4fcf; }
+    .error { text-align: center; color: #e74c3c; margin: 40px 0; font-size: 1.1em; }
   </style>
 </head>
 <body>
@@ -29,29 +30,76 @@
   </div>
   <a href="/" class="logout">Logout</a>
   <div id="games" class="game-grid"></div>
+  <div id="error" class="error" style="display:none;"></div>
 
   <script>
-    fetch('/api/me').then(r => r.json()).then(data => {
-      if (!data.user) window.location = '/';
-    });
+    let isLoading = false;
 
-    fetch('/api/games').then(r => r.json()).then(data => {
+    // 登录检查 - 防止无限重定向
+    async function checkAuth() {
+      if (isLoading) return;
+      isLoading = true;
+      try {
+        const r = await fetch('/api/me');
+        const data = await r.json();
+        if (!data.user) {
+          window.location = '/';
+        }
+      } catch (e) {
+        console.error('Auth check failed:', e);
+      } finally {
+        isLoading = false;
+      }
+    }
+
+    // 加载游戏列表
+    async function loadGames() {
+      if (isLoading) return;
+      isLoading = true;
       const container = document.getElementById('games');
-      data.games.forEach(game => {
-        const card = document.createElement('div');
-        card.className = 'game-card';
-        card.innerHTML = `
-          <div class="thumb">${game.title[0]}</div>
-          <div class="info">
-            <h3 class="title">${game.title || 'Unknown'}</h3>
-            <p class="desc">${game.description || 'No description'}</p>
-            <button class="play-btn" onclick="location.href='/play/${game.id}'">Play Now</button>
-          </div>
-        `;
-        container.appendChild(card);
-      });
-    }).catch(() => {
-      document.getElementById('games').innerHTML = '<p style="text-align:center;color:#e74c3c;">Failed to load games</p>';
+      const errorEl = document.getElementById('error');
+
+      try {
+        const r = await fetch('/api/games');
+        const data = await r.json();
+
+        if (!data.ok || !data.games || data.games.length === 0) {
+          errorEl.textContent = 'No games available';
+          errorEl.style.display = 'block';
+          return;
+        }
+
+        container.innerHTML = '';
+        data.games.forEach(game => {
+          const card = document.createElement('div');
+          card.className = 'game-card';
+          card.innerHTML = `
+            <div class="thumb">${(game.title || '')[0] || '?'}</div>
+            <div class="info">
+              <h3 class="title">${game.title || 'Unknown Game'}</h3>
+              <p class="desc">${game.description || 'No description'}</p>
+              <button class="play-btn" onclick="playGame('${game.id}')">Play Now</button>
+            </div>
+          `;
+          container.appendChild(card);
+        });
+      } catch (err) {
+        console.error('Failed to load games:', err);
+        errorEl.textContent = 'Failed to load games';
+        errorEl.style.display = 'block';
+      } finally {
+        isLoading = false;
+      }
+    }
+
+    function playGame(id) {
+      if (isLoading) return;
+      window.location.href = '/play/' + id;
+    }
+
+    // 初始化
+    checkAuth().then(() => {
+      loadGames();
     });
   </script>
 </body>

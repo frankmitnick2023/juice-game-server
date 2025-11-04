@@ -1,4 +1,4 @@
-// server.js - 修复 /api/games 崩溃问题
+// server.js - 修复无限刷新问题
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
@@ -101,12 +101,12 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Me
+// Me - 防止无限重定向
 app.get('/api/me', (req, res) => {
   res.json({ ok: true, user: req.session.user || null });
 });
 
-// 游戏列表 API - 修复崩溃，添加容错
+// 游戏列表 API
 app.get('/api/games', (req, res) => {
   const gamesDir = path.join(__dirname, 'games');
   const games = [];
@@ -213,9 +213,14 @@ app.get('/play/:id', (req, res) => {
   res.send(html);
 });
 
-// Fallback
+// Fallback - 防止无限刷新
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  const filePath = path.join(__dirname, 'public', req.path);
+  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+    res.sendFile(filePath);
+  } else {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
 });
 
 app.listen(PORT, '0.0.0.0', () => {
