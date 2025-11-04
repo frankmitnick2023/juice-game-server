@@ -13,7 +13,10 @@ const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
 // 3) 先创建 app，再做任何 app.use
 const app = express();
 app.set('trust proxy', 1); // Railway/反向代理后拿正确的 secure cookie
-
+app.use(express.static(path.join(__dirname, 'public')));
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 app.use(express.json());
 
 // 4) 准备 Postgres（如果没有 DATABASE_URL，也允许先跑起来）
