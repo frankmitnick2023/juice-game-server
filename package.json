@@ -1,7 +1,7 @@
-// package.json
 {
   "name": "juice-game-server",
   "version": "1.0.0",
+  "description": "Juice Game Server",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
