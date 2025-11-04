@@ -1,4 +1,4 @@
-// server.js - 修复登录失败问题
+// server.js - 终极修复：登录失败 + 详细日志 + Session 持久化
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
@@ -48,16 +48,26 @@ pool.on('error', (err) => console.error('DB Pool Error:', err.message));
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Session - 关键修复：使用内存存储 + 持久化
+const MemoryStore = require('memorystore')(session);
+const sessionStore = new MemoryStore({
+  checkPeriod: 86400000 // 每天清理过期
+});
+
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'juice-secret-2025',
+  secret: process.env.SESSION_SECRET || 'juice-secret-2025-secure',
   resave: false,
   saveUninitialized: false,
+  store: sessionStore,
   cookie: { 
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
-    maxAge: 7 * 24 * 60 * 60 * 1000
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    sameSite: 'lax'
   }
 }));
+
 app.use(express.static('public', { 
   maxAge: '1d',
   setHeaders: (res, path) => {
@@ -73,40 +83,48 @@ app.get('/healthz', (req, res) => res.json({ ok: true }));
 
 // Register
 app.post('/api/register', async (req, res) => {
-  console.log('Register attempt:', req.body.email);
+  console.log('REGISTER REQUEST:', req.body);
   const { email, password, name } = req.body;
-  if (!email || !password) return res.json({ ok: false, error: 'Missing fields' });
+  if (!email || !password) return res.json({ ok: false, error: 'Missing email or password' });
 
   try {
-    const exists = await pool.query('SELECT 1 FROM users WHERE email = $1', [email]);
-    if (exists.rows.length > 0) return res.json({ ok: false, error: 'Email exists' });
+    const exists = await pool.query('SELECT 1 FROM users WHERE email = $1', [email.trim().toLowerCase()]);
+    if (exists.rows.length > 0) {
+      console.log('Register failed: email exists');
+      return res.json({ ok: false, error: 'Email already exists' });
+    }
 
-    const hash = await bcrypt.hash(password, 10);
+    const hash = await bcrypt.hash(password, 12);
     const result = await pool.query(
       'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email',
-      [email, hash, name || null]
+      [email.trim().toLowerCase(), hash, name?.trim() || null]
     );
-    req.session.user = result.rows[0];
-    console.log('Registered:', email);
-    res.json({ ok: true });
+
+    const user = result.rows[0];
+    req.session.user = { id: user.id, email: user.email };
+    req.session.save(err => {
+      if (err) console.error('Session save error:', err);
+      console.log('REGISTER SUCCESS:', user.email, 'Session ID:', req.session.id);
+      res.json({ ok: true });
+    });
   } catch (e) {
-    console.error('Register error:', e);
+    console.error('Register DB error:', e);
     res.json({ ok: false, error: 'Server error' });
   }
 });
 
-// Login - 修复：返回更详细日志
+// Login
 app.post('/api/login', async (req, res) => {
-  console.log('Login attempt:', req.body.email);
+  console.log('LOGIN REQUEST:', req.body);
   const { email, password } = req.body;
-  if (!email || !password) return res.json({ ok: false, error: 'Missing fields' });
+  if (!email || !password) return res.json({ ok: false, error: 'Missing email or password' });
 
   try {
-    const result = await pool.query('SELECT id, email, password_hash FROM users WHERE email = $1', [email]);
-    console.log('DB query result:', result.rows.length > 0 ? 'User found' : 'No user');
+    const result = await pool.query('SELECT id, email, password_hash FROM users WHERE email = $1', [email.trim().toLowerCase()]);
+    console.log('DB lookup:', result.rows.length > 0 ? 'User found' : 'No user');
 
     if (result.rows.length === 0) {
-      return res.json({ ok: false, error: 'Invalid credentials' });
+      return res.json({ ok: false, error: 'Invalid email or password' });
     }
 
     const user = result.rows[0];
@@ -114,24 +132,30 @@ app.post('/api/login', async (req, res) => {
     console.log('Password match:', match);
 
     if (!match) {
-      return res.json({ ok: false, error: 'Invalid credentials' });
+      return res.json({ ok: false, error: 'Invalid email or password' });
     }
 
     req.session.user = { id: user.id, email: user.email };
-    console.log('Login success:', email, 'Session:', req.session.id);
-    res.json({ ok: true });
+    req.session.save(err => {
+      if (err) {
+        console.error('Session save error:', err);
+        return res.json({ ok: false, error: 'Session error' });
+      }
+      console.log('LOGIN SUCCESS:', user.email, 'Session ID:', req.session.id);
+      res.json({ ok: true });
+    });
   } catch (e) {
-    console.error('Login error:', e);
+    console.error('Login DB error:', e);
     res.json({ ok: false, error: 'Server error' });
   }
 });
 
-// Me
+// Me - 添加详细日志
 app.get('/api/me', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
-  console.log('Session check:', req.session.user ? 'Logged in' : 'Not logged in');
+  console.log('ME CHECK:', req.session.user ? `Logged in as ${req.session.user.email}` : 'Not logged in');
   res.json({ ok: true, user: req.session.user || null });
 });
 
@@ -171,7 +195,6 @@ app.get('/api/games', (req, res) => {
       }
     });
 
-    // 添加 demo-game.html
     const demoPath = path.join(gamesDir, 'demo-game.html');
     if (fs.existsSync(demoPath)) {
       games.unshift({
@@ -195,25 +218,24 @@ app.get('/api/games', (req, res) => {
 
 // 播放页面
 app.get('/play/:id', (req, res) => {
-  const { id } = req.params;
   if (!req.session.user) {
-    return res.redirect('/?redirect=/play/' + id);
+    return res.redirect('/?redirect=/play/' + req.params.id);
   }
 
   let gameUrl = '';
   let gameTitle = 'Unknown';
 
-  if (id === 'demo') {
+  if (req.params.id === 'demo') {
     gameUrl = '/games/demo-game.html';
     gameTitle = 'Demo Game';
   } else {
-    const gameJsonPath = path.join(__dirname, 'games', id, 'game.json');
-    const indexPath = path.join(__dirname, 'games', id, 'index.html');
+    const gameJsonPath = path.join(__dirname, 'games', req.params.id, 'game.json');
+    const indexPath = path.join(__dirname, 'games', req.params.id, 'index.html');
     if (fs.existsSync(gameJsonPath) && fs.existsSync(indexPath)) {
       try {
         const game = JSON.parse(fs.readFileSync(gameJsonPath, 'utf8'));
-        gameTitle = game.title || id;
-        gameUrl = `/games/${id}/index.html`;
+        gameTitle = game.title || req.params.id;
+        gameUrl = `/games/${req.params.id}/index.html`;
       } catch (e) {
         return res.status(500).send('Game config error');
       }
@@ -263,4 +285,5 @@ app.get('*', (req, res, next) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on :${PORT}`);
+  console.log(`Session store initialized: ${sessionStore.size()} sessions`);
 });

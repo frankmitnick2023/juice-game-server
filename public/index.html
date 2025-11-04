@@ -1,4 +1,4 @@
-<!-- public/index.html - 修复登录跳转 -->
+<!-- public/index.html - 修复登录流程 -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -11,9 +11,10 @@
     input { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 8px; font-size: 16px; }
     button { width: 100%; padding: 14px; margin: 10px 0; background: #fff; color: #6c5ce7; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; }
     button:hover { background: #f0f0f0; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
     .toggle { text-align: center; margin-top: 20px; }
     .toggle a { color: white; text-decoration: underline; cursor: pointer; }
-    .message { text-align: center; margin-top: 15px; color: #ff6b6b; font-size: 0.9em; }
+    .message { text-align: center; margin-top: 15px; color: #ff6b6b; font-size: 0.9em; min-height: 1.2em; }
   </style>
 </head>
 <body>
@@ -71,27 +72,44 @@
       const endpoint = isRegister ? '/api/register' : '/api/login';
       const body = isRegister ? { email, password, name } : { email, password };
 
+      console.log(`Sending ${isRegister ? 'REGISTER' : 'LOGIN'}:`, { email, password: '***' });
+
       try {
         const res = await fetch(endpoint, {
           method: 'POST',
           credentials: 'include',
           headers: { 
             'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache'
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
           },
           body: JSON.stringify(body)
         });
-        const data = await res.json();
-        
+
+        const text = await res.text();
+        console.log('Response text:', text);
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          console.error('Invalid JSON:', text);
+          messageEl.textContent = 'Server error: Invalid response';
+          submitBtn.disabled = false;
+          submitBtn.textContent = isRegister ? 'Create Account' : 'Login';
+          return;
+        }
+
         if (data.ok) {
+          console.log('Auth success, redirecting to:', redirect);
           window.location = redirect;
         } else {
-          messageEl.textContent = data.error || 'Operation failed';
+          messageEl.textContent = data.error || 'Authentication failed';
+          submitBtn.disabled = false;
+          submitBtn.textContent = isRegister ? 'Create Account' : 'Login';
         }
       } catch (e) {
-        messageEl.textContent = 'Network error, please try again';
-        console.error('Auth error:', e);
-      } finally {
+        console.error('Network error:', e);
+        messageEl.textContent = 'Network error, please check connection';
         submitBtn.disabled = false;
         submitBtn.textContent = isRegister ? 'Create Account' : 'Login';
       }
@@ -102,13 +120,20 @@
       credentials: 'include',
       headers: { 'Cache-Control': 'no-cache' }
     })
-      .then(r => r.json())
-      .then(data => {
-        if (data.user) {
-          window.location = redirect;
+      .then(r => r.text())
+      .then(text => {
+        console.log('ME response:', text);
+        try {
+          const data = JSON.parse(text);
+          if (data.user) {
+            console.log('Already logged in, redirecting...');
+            window.location = redirect;
+          }
+        } catch (e) {
+          console.error('ME parse error:', text);
         }
       })
-      .catch(() => {});
+      .catch(err => console.error('ME fetch error:', err));
   </script>
 </body>
 </html>
