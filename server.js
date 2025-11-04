@@ -11,18 +11,21 @@ const PORT = process.env.PORT || 8080;
 // Pool with timeout
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: 10,
+  ssl: { rejectUnauthorized: false },
+  max: 5,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000
+  connectionTimeoutMillis: 10000,
+  queryTimeout: 15000
 });
 
-pool.on('connect', () => console.log('DB Connected (Private URL)'));
+pool.on('connect', () => console.log('DB Connected (Public URL)'));
 pool.on('error', (err) => console.error('DB Pool Error:', err.message));
 
 // 建表
 (async () => {
   try {
+    await pool.query('SELECT 1'); // 测试连接
+    console.log('DB Connection Test OK');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -37,7 +40,7 @@ pool.on('error', (err) => console.error('DB Pool Error:', err.message));
     `);
     console.log('Users table ensured');
   } catch (e) {
-    console.error('Table error:', e.message);
+    console.error('DB Setup Failed:', e.message);
   }
 })();
 
