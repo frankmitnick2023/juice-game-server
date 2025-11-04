@@ -1,4 +1,4 @@
-// server.js - 修复：移除 memorystore，使用默认内存 + 强制保存
+// server.js - 终极修复：登录后被踢回登录页
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
@@ -49,8 +49,9 @@ pool.on('error', (err) => console.error('DB Pool Error:', err.message));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session - 移除 memorystore，使用默认内存 + 强制保存
+// Session - 关键修复：添加 name + 强制保存 + 详细日志
 app.use(session({
+  name: 'juice.sid',
   secret: process.env.SESSION_SECRET || 'juice-secret-2025-secure',
   resave: false,
   saveUninitialized: false,
@@ -58,9 +59,18 @@ app.use(session({
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
     maxAge: 7 * 24 * 60 * 60 * 1000,
-    sameSite: 'lax'
+    sameSite: 'lax',
+    path: '/'
   }
 }));
+
+// 强制设置 cookie
+app.use((req, res, next) => {
+  if (req.session && req.session.user) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  }
+  next();
+});
 
 app.use(express.static('public', { 
   maxAge: '1d',
@@ -96,15 +106,13 @@ app.post('/api/register', async (req, res) => {
 
     const user = result.rows[0];
     req.session.user = { id: user.id, email: user.email };
-    
-    // 强制保存 session
     req.session.save((err) => {
       if (err) {
         console.error('Session save failed:', err);
         return res.json({ ok: false, error: 'Session error' });
       }
       console.log('REGISTER SUCCESS:', user.email, 'Session ID:', req.session.id);
-      res.json({ ok: true });
+      res.json({ ok: true, sessionId: req.session.id });
     });
   } catch (e) {
     console.error('Register DB error:', e);
@@ -135,15 +143,13 @@ app.post('/api/login', async (req, res) => {
     }
 
     req.session.user = { id: user.id, email: user.email };
-    
-    // 强制保存 session
     req.session.save((err) => {
       if (err) {
         console.error('Session save failed:', err);
         return res.json({ ok: false, error: 'Session error' });
       }
       console.log('LOGIN SUCCESS:', user.email, 'Session ID:', req.session.id);
-      res.json({ ok: true });
+      res.json({ ok: true, sessionId: req.session.id });
     });
   } catch (e) {
     console.error('Login DB error:', e);
@@ -151,13 +157,17 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Me
+// Me - 关键修复：返回 session ID
 app.get('/api/me', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
-  console.log('ME CHECK:', req.session.user ? `Logged in as ${req.session.user.email}` : 'Not logged in');
-  res.json({ ok: true, user: req.session.user || null });
+  console.log('ME CHECK:', req.session.user ? `Logged in as ${req.session.user.email}` : 'Not logged in', 'Session ID:', req.session.id);
+  res.json({ 
+    ok: true, 
+    user: req.session.user || null,
+    sessionId: req.session.id || null
+  });
 });
 
 // 游戏列表 API
@@ -220,6 +230,7 @@ app.get('/api/games', (req, res) => {
 // 播放页面
 app.get('/play/:id', (req, res) => {
   if (!req.session.user) {
+    console.log('PLAY: No session, redirect to login');
     return res.redirect('/?redirect=/play/' + req.params.id);
   }
 
@@ -269,6 +280,7 @@ app.get('/play/:id', (req, res) => {
 
 // 游戏列表页
 app.get('/games.html', (req, res) => {
+  console.log('GAMES.HTML ACCESS:', req.session.user ? 'Logged in' : 'Not logged in');
   res.sendFile(path.join(__dirname, 'public', 'games.html'));
 });
 

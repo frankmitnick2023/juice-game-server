@@ -1,4 +1,4 @@
-<!-- public/index.html - 修复登录流程 -->
+<!-- public/index.html - 修复登录后跳转 -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -80,28 +80,18 @@
           credentials: 'include',
           headers: { 
             'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
+            'Cache-Control': 'no-cache'
           },
           body: JSON.stringify(body)
         });
 
-        const text = await res.text();
-        console.log('Response text:', text);
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch (e) {
-          console.error('Invalid JSON:', text);
-          messageEl.textContent = 'Server error: Invalid response';
-          submitBtn.disabled = false;
-          submitBtn.textContent = isRegister ? 'Create Account' : 'Login';
-          return;
-        }
+        const data = await res.json();
+        console.log('Auth response:', data);
 
         if (data.ok) {
-          console.log('Auth success, redirecting to:', redirect);
-          window.location = redirect;
+          console.log('Auth success, session ID:', data.sessionId);
+          // 强制刷新页面
+          window.location.href = redirect;
         } else {
           messageEl.textContent = data.error || 'Authentication failed';
           submitBtn.disabled = false;
@@ -109,7 +99,7 @@
         }
       } catch (e) {
         console.error('Network error:', e);
-        messageEl.textContent = 'Network error, please check connection';
+        messageEl.textContent = 'Network error';
         submitBtn.disabled = false;
         submitBtn.textContent = isRegister ? 'Create Account' : 'Login';
       }
@@ -120,17 +110,12 @@
       credentials: 'include',
       headers: { 'Cache-Control': 'no-cache' }
     })
-      .then(r => r.text())
-      .then(text => {
-        console.log('ME response:', text);
-        try {
-          const data = JSON.parse(text);
-          if (data.user) {
-            console.log('Already logged in, redirecting...');
-            window.location = redirect;
-          }
-        } catch (e) {
-          console.error('ME parse error:', text);
+      .then(r => r.json())
+      .then(data => {
+        console.log('ME check:', data);
+        if (data.user) {
+          console.log('Already logged in, redirecting to:', redirect);
+          window.location.href = redirect;
         }
       })
       .catch(err => console.error('ME fetch error:', err));
