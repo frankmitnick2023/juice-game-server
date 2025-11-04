@@ -11,16 +11,14 @@ const PORT = process.env.PORT || 8080;
 // Pool with timeout
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,  // 5s 连接超时
-  query_timeout: 10000,          // 10s 查询超时
-  keepAlive: true
+  connectionTimeoutMillis: 5000
 });
 
-pool.on('connect', () => console.log('DB Connected'));
-pool.on('error', (err) => console.error('DB Error:', err.message));
+pool.on('connect', () => console.log('DB Connected (Private URL)'));
+pool.on('error', (err) => console.error('DB Pool Error:', err.message));
 
 // 建表
 (async () => {
@@ -37,7 +35,7 @@ pool.on('error', (err) => console.error('DB Error:', err.message));
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `);
-    console.log('Users table ready');
+    console.log('Users table ensured');
   } catch (e) {
     console.error('Table error:', e.message);
   }
