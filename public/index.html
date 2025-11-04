@@ -1,4 +1,4 @@
-<!-- public/index.html - 修复登录后跳转 -->
+<!-- public/index.html -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -81,7 +81,6 @@
       }
     };
 
-    // 检查登录状态
     fetch('/api/me', { credentials: 'include' })
       .then(r => r.json())
       .then(data => {

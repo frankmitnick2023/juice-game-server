@@ -35,13 +35,11 @@
   <div id="error" class="error" style="display:none;"></div>
 
   <script>
-    // 防止重复请求
     let authChecked = false;
     let gamesLoaded = false;
 
-    // 登录检查
     async function checkAuth() {
-      if (authChecked) return;
+      if (authChecked) return true;
       authChecked = true;
       
       try {
@@ -63,7 +61,6 @@
       }
     }
 
-    // 加载游戏
     async function loadGames() {
       if (gamesLoaded) return;
       gamesLoaded = true;
@@ -102,7 +99,6 @@
           container.appendChild(card);
         });
 
-        // 事件委托
         container.addEventListener('click', (e) => {
           if (e.target.classList.contains('play-btn')) {
             const id = e.target.getAttribute('data-id');
@@ -118,7 +114,6 @@
       }
     }
 
-    // 初始化
     (async () => {
       const authed = await checkAuth();
       if (authed) {

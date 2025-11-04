@@ -1,4 +1,4 @@
-// server.js - 终极修复：防止无限刷新
+// server.js - 修复语法错误 + 防止无限刷新
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
@@ -66,7 +66,7 @@ app.use(express.static('public', {
     }
   }
 }));
-app.use('/games', express.static('games', { max | maxAge: '1d' }));
+app.use('/games', express.static('games', { maxAge: '1d' }));
 
 // Health
 app.get('/healthz', (req, res) => res.json({ ok: true }));
@@ -112,7 +112,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Me - 关键修复：添加缓存头 + 防止重定向循环
+// Me
 app.get('/api/me', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -229,18 +229,17 @@ app.get('/play/:id', (req, res) => {
   res.send(html);
 });
 
-// 游戏列表页 - 防止 SPA 路由冲突
+// 游戏列表页
 app.get('/games.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'games.html'));
 });
 
-// Fallback - 防止所有路径都走 SPA
+// Fallback
 app.get('*', (req, res, next) => {
   const filePath = path.join(__dirname, 'public', req.path);
   if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
     return res.sendFile(filePath);
   }
-  // 只有 / 和 /games.html 走 SPA
   if (req.path === '/' || req.path === '/index.html') {
     return res.sendFile(path.join(__dirname, 'public', 'index.html'));
   }
