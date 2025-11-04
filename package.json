@@ -1,24 +1,14 @@
-// games/game-manifest.json
-[
-  {
-    "id": "demo",
-    "title": "Demo Game",
-    "description": "Simple demo game for testing",
-    "url": "/games/demo-game.html",
-    "platform": "any"
+{
+  "name": "juice-game-server",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
   },
-  {
-    "id": "juice-maker-mobile",
-    "title": "Juice Maker Mobile",
-    "description": "Mobile dance game",
-    "url": "/games/juice-maker-mobile/index.html",
-    "platform": "mobile"
-  },
-  {
-    "id": "juice-maker-PC",
-    "title": "Juice Maker PC",
-    "description": "PC dance game with full features",
-    "url": "/games/juice-maker-PC/index.html",
-    "platform": "desktop"
+  "dependencies": {
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "bcryptjs": "^2.4.3",
+    "pg": "^8.12.0"
   }
-]
+}
