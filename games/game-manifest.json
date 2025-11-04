@@ -1,21 +1,19 @@
-[
-  {
-    "id": "demo",
-    "name": "Mediapipe Demo",
-    "entry": "/games/demo-game.html",
-    "platform": "mobile",
-    "description": "基于摄像头动作捕捉的演示游戏"
+{
+  "name": "juice-game-server",
+  "version": "1.0.0",
+  "description": "Juice Game Server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
   },
-  {
-    "id": "mobile",
-    "name": "Juice Maker Mobile",
-    "entry": "/games/juice-maker-mobile/index.html",
-    "platform": "mobile"
+  "dependencies": {
+    "express": "^4.21.1",
+    "express-session": "^1.18.1",
+    "connect-pg-simple": "^10.0.0",
+    "pg": "^8.13.0",
+    "bcrypt": "^5.1.1"
   },
-  {
-    "id": "pc",
-    "name": "Juice Maker PC",
-    "entry": "/games/juice-maker-PC/index.html",
-    "platform": "pc"
+  "engines": {
+    "node": ">=18.0.0"
   }
-]
+}

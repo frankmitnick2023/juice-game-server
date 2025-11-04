@@ -1,11 +1,11 @@
-// server.js （仅修复依赖加载顺序 + 安全降级）
+// server.js
 const express = require('express');
 const session = require('express-session');
 let pgSession;
 try {
   pgSession = require('connect-pg-simple')(session);
 } catch (e) {
-  console.warn('connect-pg-simple not available, falling back to memory store');
+  console.warn('connect-pg-simple not available, using memory store');
 }
 const { Pool } = require('pg');
 const bcrypt = require('bcrypt');
@@ -13,31 +13,25 @@ const path = require('path');
 const fs = require('fs');
 const app = express();
 
-// PostgreSQL 连接池
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// Session 配置 - 降级到内存（Railway 重启会丢失登录，但 MVP 可运行）
-const sessionStore = pgSession ? new pgSession({
-  pool: pool,
-  tableName: 'session'
-}) : new session.MemoryStore();
+const sessionStore = pgSession ? new pgSession({ pool, tableName: 'session' }) : new session.MemoryStore();
 
 app.use(session({
   store: sessionStore,
-  secret: process.env.SESSION_SECRET || 'juice-game-fallback-secret',
+  secret: process.env.SESSION_SECRET || 'fallback-secret',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 24 * 60 * 60 * 1000 }
+  cookie: { maxAge: 86400000 }
 }));
 
 app.use(express.json());
 app.use(express.static('public'));
 app.use('/games', express.static('games'));
 
-// 初始化数据库
 (async () => {
   try {
     await pool.query(`
@@ -69,15 +63,13 @@ app.use('/games', express.static('games'));
       );
     `);
   } catch (err) {
-    console.error('DB init error:', err.message);
+    console.error('DB init failed:', err.message);
   }
 })();
 
-// === 注册 ===
 app.post('/api/register', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Missing fields' });
-
   try {
     const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
@@ -92,7 +84,6 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// === 登录 ===
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -109,41 +100,24 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// === 当前用户 ===
 app.get('/api/me', (req, res) => {
   res.json(req.session.user || { error: 'Not logged in' });
 });
 
-// === 登出 ===
 app.post('/api/logout', (req, res) => {
   req.session.destroy(() => res.json({ success: true }));
 });
 
-// === 游戏扫描 ===
 function scanGames() {
   const games = {};
-
-  // demo
   if (fs.existsSync(path.join(__dirname, 'games', 'demo-game.html'))) {
-    games.demo = {
-      id: 'demo',
-      title: 'Demo Game',
-      description: 'Simple demo',
-      thumbnail: '',
-      platform: 'both',
-      entry: '/games/demo-game.html'
-    };
+    games.demo = { id: 'demo', title: 'Demo Game', description: 'Simple demo', thumbnail: '', platform: 'both', entry: '/games/demo-game.html' };
   }
-
-  // folder games
   ['juice-maker-mobile', 'juice-maker-PC'].forEach(dir => {
-    const dirPath = path.join(__dirname, 'games', dir);
-    const jsonPath = path.join(dirPath, 'game.json');
+    const jsonPath = path.join(__dirname, 'games', dir, 'game.json');
     if (!fs.existsSync(jsonPath)) return;
-
     let meta;
     try { meta = JSON.parse(fs.readFileSync(jsonPath, 'utf8')); } catch { return; }
-
     games[dir] = {
       id: dir,
       title: meta.title || dir,
@@ -153,7 +127,6 @@ function scanGames() {
       entry: `/games/${dir}/index.html`
     };
   });
-
   return Object.values(games);
 }
 
@@ -163,20 +136,13 @@ function getGames() {
   return gameCache;
 }
 
-app.get('/api/games', (req, res) => {
-  res.json(getGames());
-});
+app.get('/api/games', (req, res) => res.json(getGames()));
 
-// === 播放页面 ===
 app.get('/play/:id', async (req, res) => {
   const gameId = req.params.id;
   const game = getGames().find(g => g.id === gameId);
   if (!game) return res.status(404).send('Game not found');
-
-  if (!req.session.user) {
-    return res.redirect(`/?redirect=${encodeURIComponent('/play/' + gameId)}`);
-  }
-
+  if (!req.session.user) return res.redirect(`/?redirect=${encodeURIComponent('/play/' + gameId)}`);
   let scores = [];
   try {
     const r = await pool.query(
@@ -185,7 +151,6 @@ app.get('/play/:id', async (req, res) => {
     );
     scores = r.rows;
   } catch (e) { console.error(e); }
-
   res.send(`<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${game.title}</title>
@@ -217,12 +182,10 @@ app.get('/play/:id', async (req, res) => {
 </body></html>`);
 });
 
-// === 提交分数 ===
 app.post('/api/score', async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: 'Login required' });
   const { gameId, score } = req.body;
   if (!gameId || typeof score !== 'number') return res.status(400).json({ error: 'Invalid' });
-
   try {
     await pool.query('INSERT INTO scores (user_id, game_id, score) VALUES ($1,$2,$3)', [req.session.user.id, gameId, score]);
     res.json({ success: true });
@@ -231,10 +194,7 @@ app.post('/api/score', async (req, res) => {
   }
 });
 
-// === 静态页 ===
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/games.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'games.html')));
 
-// 启动
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server on ${PORT}`));
+app.listen(process.env.PORT || 3000, () => console.log('Server running'));
