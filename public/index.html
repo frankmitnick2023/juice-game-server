@@ -1,4 +1,4 @@
-<!-- public/index.html -->
+<!-- public/index.html - 修复登录跳转 -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -13,6 +13,7 @@
     button:hover { background: #f0f0f0; }
     .toggle { text-align: center; margin-top: 20px; }
     .toggle a { color: white; text-decoration: underline; cursor: pointer; }
+    .message { text-align: center; margin-top: 15px; color: #ff6b6b; font-size: 0.9em; }
   </style>
 </head>
 <body>
@@ -24,6 +25,7 @@
       <input type="text" id="name" placeholder="Name (optional)" style="display:none;">
       <button type="submit" id="submit-btn">Login</button>
     </form>
+    <div class="message" id="message"></div>
     <div class="toggle">
       <a id="toggle-link">Need an account? Register</a>
     </div>
@@ -38,6 +40,7 @@
     const submitBtn = document.getElementById('submit-btn');
     const toggleLink = document.getElementById('toggle-link');
     const nameInput = document.getElementById('name');
+    const messageEl = document.getElementById('message');
     let isRegister = false;
 
     toggleLink.onclick = () => {
@@ -53,13 +56,18 @@
         toggleLink.textContent = 'Need an account? Register';
         nameInput.style.display = 'none';
       }
+      messageEl.textContent = '';
     };
 
     form.onsubmit = async (e) => {
       e.preventDefault();
-      const email = document.getElementById('email').value;
+      messageEl.textContent = '';
+      submitBtn.disabled = true;
+      submitBtn.textContent = isRegister ? 'Creating...' : 'Logging in...';
+
+      const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      const name = document.getElementById('name').value;
+      const name = document.getElementById('name').value.trim();
       const endpoint = isRegister ? '/api/register' : '/api/login';
       const body = isRegister ? { email, password, name } : { email, password };
 
@@ -67,27 +75,40 @@
         const res = await fetch(endpoint, {
           method: 'POST',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache'
+          },
           body: JSON.stringify(body)
         });
         const data = await res.json();
+        
         if (data.ok) {
           window.location = redirect;
         } else {
-          alert(data.error || 'Failed');
+          messageEl.textContent = data.error || 'Operation failed';
         }
       } catch (e) {
-        alert('Network error');
+        messageEl.textContent = 'Network error, please try again';
+        console.error('Auth error:', e);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = isRegister ? 'Create Account' : 'Login';
       }
     };
 
-    fetch('/api/me', { credentials: 'include' })
+    // 检查登录状态
+    fetch('/api/me', { 
+      credentials: 'include',
+      headers: { 'Cache-Control': 'no-cache' }
+    })
       .then(r => r.json())
       .then(data => {
         if (data.user) {
           window.location = redirect;
         }
-      });
+      })
+      .catch(() => {});
   </script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-// server.js - 修复语法错误 + 防止无限刷新
+// server.js - 修复登录失败问题
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
@@ -73,6 +73,7 @@ app.get('/healthz', (req, res) => res.json({ ok: true }));
 
 // Register
 app.post('/api/register', async (req, res) => {
+  console.log('Register attempt:', req.body.email);
   const { email, password, name } = req.body;
   if (!email || !password) return res.json({ ok: false, error: 'Missing fields' });
 
@@ -86,6 +87,7 @@ app.post('/api/register', async (req, res) => {
       [email, hash, name || null]
     );
     req.session.user = result.rows[0];
+    console.log('Registered:', email);
     res.json({ ok: true });
   } catch (e) {
     console.error('Register error:', e);
@@ -93,18 +95,30 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// Login
+// Login - 修复：返回更详细日志
 app.post('/api/login', async (req, res) => {
+  console.log('Login attempt:', req.body.email);
   const { email, password } = req.body;
   if (!email || !password) return res.json({ ok: false, error: 'Missing fields' });
 
   try {
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    const user = result.rows[0];
-    if (!user || !await bcrypt.compare(password, user.password_hash)) {
+    const result = await pool.query('SELECT id, email, password_hash FROM users WHERE email = $1', [email]);
+    console.log('DB query result:', result.rows.length > 0 ? 'User found' : 'No user');
+
+    if (result.rows.length === 0) {
       return res.json({ ok: false, error: 'Invalid credentials' });
     }
+
+    const user = result.rows[0];
+    const match = await bcrypt.compare(password, user.password_hash);
+    console.log('Password match:', match);
+
+    if (!match) {
+      return res.json({ ok: false, error: 'Invalid credentials' });
+    }
+
     req.session.user = { id: user.id, email: user.email };
+    console.log('Login success:', email, 'Session:', req.session.id);
     res.json({ ok: true });
   } catch (e) {
     console.error('Login error:', e);
@@ -117,6 +131,7 @@ app.get('/api/me', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
+  console.log('Session check:', req.session.user ? 'Logged in' : 'Not logged in');
   res.json({ ok: true, user: req.session.user || null });
 });
 
