@@ -44,6 +44,14 @@ app.get('/healthz', (_req, res) => {
 // Map<email, { email, name, password }>
 const users = new Map();
 
+// Serve static files from /public
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Serve index.html for root route
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // --- Auth APIs matching the front-end calls ---
 app.post('/api/register', (req, res) => {
   const { name, email, password } = req.body || {};
