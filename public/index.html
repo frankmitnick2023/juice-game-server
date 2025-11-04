@@ -3,252 +3,158 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Dance Hero · FunX</title>
+  <title>Funx Demo – Railway</title>
   <style>
-    :root{
-      --bg:#0b0f14; --panel:#0f1621; --panel-2:#0d1420; --text:#e6f3ff; --muted:#9db2c7;
-      --accent:#73e4e2; --accent-2:#8166ff; --danger:#ff6b6b; --ok:#2ecc71;
-      --radius:16px; --shadow:0 10px 40px rgba(0,0,0,.45);
-    }
-    html,body{height:100%}
-    body{
-      margin:0;
-      background: radial-gradient(1200px 600px at 30% 40%, rgba(129,102,255,.18), transparent 60%),
-                  radial-gradient(900px 500px at 70% 60%, rgba(115,228,226,.16), transparent 60%),
-                  var(--bg);
-      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-      color:var(--text);
-    }
-    .wrap{
-      max-width: 860px; margin: 32px auto; padding: 28px;
-      border-radius: 24px; background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
-      border:1px solid rgba(255,255,255,.08); box-shadow: var(--shadow), 0 0 80px rgba(129,102,255,.12), 0 0 60px rgba(70,210,205,.08);
-    }
-    .row{display:flex; gap:18px; align-items:center; justify-content:space-between}
-    h1{margin:0 0 8px 0; font-size: 44px; line-height:1.15}
-    .logo{display:flex; align-items:center; gap:10px; font-weight:700; font-size:20px}
-    .bolt{filter:drop-shadow(0 0 16px rgba(255,255,0,.25))}
-    .by{font-weight:600; color:var(--muted); margin-left:4px}
-    .ghost-btn{background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.18); color:var(--text);
-      border-radius: 14px; padding: 12px 16px; cursor: pointer; backdrop-filter: blur(6px);}
-    .ghost-btn:hover{background: rgba(255,255,255,.12)}
-    .content{display:grid; grid-template-columns: 1fr; gap:18px; margin-top:22px}
-    label{display:block; font-size:14px; margin-bottom:8px; color:var(--muted)}
-    input[type="email"], input[type="password"], input[type="text"]{
-      width:100%; padding:16px 18px; border-radius: 14px;
-      border:1px solid rgba(255,255,255,.18); outline:none;
-      background: linear-gradient(180deg, rgba(14,22,33,.9), rgba(11,17,26,.85));
-      color:var(--text); font-size:16px;
-    }
-    input::placeholder{color:#7c8ea3}
-    .btn{width:100%; font-size:18px; font-weight:700; padding:16px 18px; border-radius: 16px; border:none; cursor:pointer; color:white;
-      background: linear-gradient(90deg, var(--accent), var(--accent-2));
-      box-shadow: 0 0 24px rgba(115,228,226,.35), 0 0 24px rgba(129,102,255,.25) inset;}
-    .btn:disabled{opacity:.6; cursor:not-allowed}
-    .link{color:var(--text); opacity:.9; text-decoration:underline; cursor:pointer}
-    .tip{color:var(--muted); font-size:14px}
-    .err{color:var(--danger); font-size:14px; min-height:18px}
-    .ok{color:var(--ok); font-size:14px; min-height:18px}
-    .two-col{display:grid; grid-template-columns: 1fr 1fr; gap:14px}
-    @media (max-width:640px){ .two-col{grid-template-columns:1fr} }
-    dialog{border:none; padding:0; border-radius: 18px; color:var(--text);
-      background: linear-gradient(180deg, rgba(19,27,40,.96), rgba(12,17,26,.96)); box-shadow: var(--shadow); min-width: min(560px, 92vw);}
-    dialog::backdrop{background: rgba(0,10,20,.6); backdrop-filter: blur(2px)}
-    .dlg-head{display:flex; justify-content:space-between; align-items:center; padding:18px 20px; border-bottom:1px solid rgba(255,255,255,.08)}
-    .dlg-body{padding: 18px 20px 22px}
-    .x{background:none; border:none; color:var(--muted); font-size:22px; cursor:pointer}
-    .center{display:flex; align-items:center; justify-content:center}
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    body { margin: 0; padding: 24px; background: #0b0f15; color: #e6edf3; }
+    .container { max-width: 880px; margin: 0 auto; }
+    h1 { margin: 0 0 16px; font-size: 28px; }
+    p.muted { color: #9db1c7; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 20px; }
+    .card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 16px; }
+    label { display: block; font-size: 12px; color: #9db1c7; margin-bottom: 6px; }
+    input { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #334155; outline: none; background: #0b1220; color: #e6edf3; }
+    input:focus { border-color: #60a5fa; }
+    button { padding: 10px 14px; border-radius: 10px; border: 1px solid #334155; background: #0ea5e9; color: white; cursor: pointer; }
+    button.ghost { background: transparent; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .stack { display: grid; gap: 10px; }
+    .ok { color: #10b981; }
+    .err { color: #ef4444; }
+    code { background: #0b1220; padding: 2px 6px; border-radius: 6px; border: 1px solid #1f2937; }
+    footer { margin-top: 32px; color: #9db1c7; font-size: 12px; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="row">
-      <div class="logo">
-        <svg class="bolt" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M13 3L4 14h6l-1 7 9-11h-6l1-7z"/></svg>
-        <div>Dance Hero <span class="by">by FunX</span></div>
+  <div class="container">
+    <h1>🚀 Railway 部署最小可运行 Demo</h1>
+    <p class="muted">后端：Express + Session（内存存储演示）；前端：这页 HTML。<br/>健康检查路径：<code>/healthz</code> 。</p>
+
+    <div class="grid">
+      <div class="card">
+        <h3>1) 健康检查</h3>
+        <div class="row">
+          <button id="btn-health">GET /healthz</button>
+          <span id="health-status"></span>
+        </div>
       </div>
-      <button class="ghost-btn" id="btnCreate">Create account</button>
+
+      <div class="card">
+        <h3>2) 注册</h3>
+        <div class="stack">
+          <div>
+            <label>Name</label>
+            <input id="reg-name" placeholder="Your name" />
+          </div>
+          <div>
+            <label>Email</label>
+            <input id="reg-email" placeholder="you@example.com" />
+          </div>
+          <div>
+            <label>Password</label>
+            <input type="password" id="reg-pass" placeholder="******" />
+          </div>
+          <div class="row">
+            <button id="btn-register">POST /api/register</button>
+            <span id="reg-status"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>3) 登录</h3>
+        <div class="stack">
+          <div>
+            <label>Email</label>
+            <input id="log-email" placeholder="you@example.com" />
+          </div>
+          <div>
+            <label>Password</label>
+            <input type="password" id="log-pass" placeholder="******" />
+          </div>
+          <div class="row">
+            <button id="btn-login">POST /api/login</button>
+            <button class="ghost" id="btn-logout">POST /api/logout</button>
+            <span id="log-status"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>4) 当前用户</h3>
+        <div class="row">
+          <button id="btn-me">GET /api/me</button>
+          <span id="me-status"></span>
+        </div>
+        <pre id="me-json" style="white-space: pre-wrap;"></pre>
+      </div>
     </div>
 
-    <h1>Ready, Dancer?</h1>
-    <p class="tip">Step into your power. Enter the arena to play.</p>
-
-    <form id="loginForm" class="content" novalidate>
-      <div>
-        <label>Email</label>
-        <input id="email" type="email" placeholder="you@example.com" autocomplete="email" required />
-      </div>
-      <div>
-        <label>Password</label>
-        <input id="pwd" type="password" placeholder="••••••••" autocomplete="current-password" required />
-      </div>
-      <button id="btnLogin" class="btn" type="submit">Enter Arena</button>
-      <div class="two-col">
-        <div class="link" id="forgotLink">Forgot password?</div>
-        <div class="tip center">Tip: You can create a test account with any email. Verification can be enabled later.</div>
-      </div>
-      <div id="loginErr" class="err"></div>
-    </form>
+    <footer>
+      提示：Cookie 在生产会 <code>secure=true</code>，请在 Railway 设置 <code>NODE_ENV=production</code> 与 <code>SESSION_SECRET</code>；本地可不设以便调试。
+    </footer>
   </div>
 
-  <!-- Signup Dialog -->
-  <dialog id="signupDlg">
-    <div class="dlg-head">
-      <strong>Create your account</strong>
-      <button class="x" onclick="closeDialog('signupDlg')">×</button>
-    </div>
-    <!-- removed method="dialog" to avoid auto-closing before JS runs -->
-    <form id="signupForm" class="dlg-body" novalidate>
-      <div class="two-col">
-        <div>
-          <label>Name (optional)</label>
-          <input id="r_name" type="text" placeholder="Your name" autocomplete="name" />
-        </div>
-        <div>
-          <label>Email</label>
-          <input id="r_email" type="email" placeholder="you@example.com" autocomplete="email" required />
-        </div>
-      </div>
-      <div style="margin-top:12px">
-        <label>Password</label>
-        <input id="r_pwd" type="password" placeholder="At least 6 characters" autocomplete="new-password" required />
-      </div>
-      <div id="r_err" class="err" style="margin-top:10px"></div>
-      <div style="display:flex; gap:10px; margin-top:4px">
-        <button class="ghost-btn" type="button" onclick="closeDialog('signupDlg')">Cancel</button>
-        <button class="btn" type="submit" id="btnDoSignup">Create</button>
-      </div>
-    </form>
-  </dialog>
-
-  <!-- Forgot Dialog (stub) -->
-  <dialog id="forgotDlg">
-    <div class="dlg-head">
-      <strong>Reset password</strong>
-      <button class="x" onclick="closeDialog('forgotDlg')">×</button>
-    </div>
-    <div class="dlg-body">
-      <p class="tip">This demo does not send emails. You can create a new account instead.</p>
-      <div style="text-align:right"><button class="ghost-btn" onclick="closeDialog('forgotDlg')">OK</button></div>
-    </div>
-  </dialog>
-
   <script>
-    // ---------- Helpers: Dialog open/close with showModal fallback ----------
-    function openDialog(id){
-      const dlg = document.getElementById(id);
-      if (!dlg) return;
-      if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
-    }
-    function closeDialog(id){
-      const dlg = document.getElementById(id);
-      if (!dlg) return;
-      if (dlg.close) dlg.close(); else dlg.removeAttribute('open');
-    }
-    function openSignup(){ openDialog('signupDlg'); }
-    function openForgot(){ openDialog('forgotDlg'); }
+    const $ = (sel) => document.querySelector(sel);
 
-    // ---------- API calls ----------
-    async function apiLogin(email, password){
-      const res = await fetch('/api/login', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ email, password })
+    async function callJSON(url, options = {}) {
+      const res = await fetch(url, {
+        method: options.method || 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        body: options.body ? JSON.stringify(options.body) : undefined,
+        credentials: 'same-origin'
       });
-      return res.json();
-    }
-    async function apiRegister(name, email, password){
-      const res = await fetch('/api/register', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ name, email, password })
-      });
-      return res.json();
-    }
-    async function apiMe(){
-      try{
-        const r = await fetch('/api/me'); if (!r.ok) return null; return r.json();
-      }catch(e){ return null; }
+      const data = await res.json().catch(() => ({}));
+      return { ok: res.ok, status: res.status, data };
     }
 
-    // ---------- UI actions ----------
-    let currentUser = null;
+    $('#btn-health').onclick = async () => {
+      const r = await callJSON('/healthz');
+      $('#health-status').textContent = r.ok ? 'OK' : ('ERR ' + r.status);
+      $('#health-status').className = r.ok ? 'ok' : 'err';
+    };
 
-    async function enterArenaAnimation(){
-      const btn = document.getElementById('btnLogin');
-      const txt = btn.textContent;
-      btn.disabled = true; btn.textContent = 'Entering…';
-      await new Promise(r=>setTimeout(r, 500));
-      btn.textContent = txt; btn.disabled = false;
-    }
+    $('#btn-register').onclick = async () => {
+      const body = {
+        name: $('#reg-name').value.trim(),
+        email: $('#reg-email').value.trim(),
+        password: $('#reg-pass').value
+      };
+      const r = await callJSON('/api/register', { method: 'POST', body });
+      $('#reg-status').textContent = r.ok ? '注册成功' : (r.data?.error || ('ERR ' + r.status));
+      $('#reg-status').className = r.ok ? 'ok' : 'err';
+    };
 
-    async function renderDashboard(){
-      const wrap = document.querySelector('.wrap');
-      const name = (currentUser && (currentUser.name || currentUser.email)) || 'Dancer';
-      wrap.innerHTML = `
-        <div class="row">
-          <div class="logo">
-            <svg class="bolt" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M13 3L4 14h6l-1 7 9-11h-6l1-7z"/></svg>
-            <div>Dance Hero <span class="by">by FunX</span></div>
-          </div>
-          <div class="tip">Signed in as <strong>${name}</strong></div>
-        </div>
-        <h1>Welcome to the Arena</h1>
-        <p class="tip">You are now authenticated. Replace this with your game lobby.</p>
-      `;
-    }
+    $('#btn-login').onclick = async () => {
+      const body = {
+        email: $('#log-email').value.trim(),
+        password: $('#log-pass').value
+      };
+      const r = await callJSON('/api/login', { method: 'POST', body });
+      $('#log-status').textContent = r.ok ? '登录成功' : (r.data?.error || ('ERR ' + r.status));
+      $('#log-status').className = r.ok ? 'ok' : 'err';
+    };
 
-    // ---------- Event wiring ----------
-    document.getElementById('btnCreate').addEventListener('click', openSignup);
-    document.getElementById('forgotLink').addEventListener('click', openForgot);
+    $('#btn-logout').onclick = async () => {
+      const r = await callJSON('/api/logout', { method: 'POST' });
+      $('#log-status').textContent = r.ok ? '已退出' : ('ERR ' + r.status);
+      $('#log-status').className = r.ok ? 'ok' : 'err';
+    };
 
-    document.getElementById('loginForm').addEventListener('submit', async (ev)=>{
-      ev.preventDefault();
-      const email = document.getElementById('email').value.trim();
-      const pwd   = document.getElementById('pwd').value;
-      const errEl = document.getElementById('loginErr');
-      errEl.textContent = '';
-
-      if (!email || !pwd){
-        errEl.textContent = 'Please enter your email and password.';
-        return;
+    $('#btn-me').onclick = async () => {
+      const r = await callJSON('/api/me');
+      const el = $('#me-status');
+      if (r.ok) {
+        el.textContent = 'OK';
+        el.className = 'ok';
+        $('#me-json').textContent = JSON.stringify(r.data, null, 2);
+      } else {
+        el.textContent = '未登录';
+        el.className = 'err';
+        $('#me-json').textContent = JSON.stringify(r.data, null, 2);
       }
-      try{
-        const data = await apiLogin(email, pwd);
-        if (!data || data.ok === false) throw new Error(data?.error || 'Login failed');
-        currentUser = await apiMe();
-        await enterArenaAnimation();
-        await renderDashboard();
-      }catch(e){
-        console.error('Login error:', e);
-        errEl.textContent = e.message || 'Server error';
-      }
-    });
-
-    // Signup
-    document.getElementById('signupForm').addEventListener('submit', submitSignup);
-    async function submitSignup(ev){
-      ev.preventDefault();
-      const name  = document.getElementById('r_name').value.trim();
-      const email = document.getElementById('r_email').value.trim();
-      const pwd   = document.getElementById('r_pwd').value;
-      const errEl = document.getElementById('r_err');
-      errEl.textContent = '';
-
-      if (!email || !pwd){
-        errEl.textContent = 'Email and password are required';
-        return;
-      }
-      try{
-        const data = await apiRegister(name, email, pwd);
-        if (!data || data.ok === false) throw new Error(data?.error || 'Register failed');
-        closeDialog('signupDlg');
-        currentUser = await apiMe();
-        await enterArenaAnimation();
-        await renderDashboard();
-      }catch(e){
-        console.error('Signup error:', e);
-        errEl.textContent = e.message || 'Server error - check console';
-      }
-    }
+    };
   </script>
 </body>
 </html>
