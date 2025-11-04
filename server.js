@@ -1,4 +1,3 @@
-// server.js - 修复版（带日志 + 私有连接 + 建表）
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
@@ -9,21 +8,21 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// 使用私有连接（关键！）
+// Pool with timeout
 const pool = new Pool({
-  connectionString: process.env.DATABASE_PRIVATE_URL || process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
   max: 10,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  connectionTimeoutMillis: 5000,  // 5s 连接超时
+  query_timeout: 10000,          // 10s 查询超时
   keepAlive: true
 });
 
-// 连接事件日志
-pool.on('connect', () => console.log('DB Connected (Private URL)'));
-pool.on('error', (err) => console.error('DB Pool Error:', err.message));
+pool.on('connect', () => console.log('DB Connected'));
+pool.on('error', (err) => console.error('DB Error:', err.message));
 
-// 强制建表
+// 建表
 (async () => {
   try {
     await pool.query(`
@@ -36,23 +35,16 @@ pool.on('error', (err) => console.error('DB Pool Error:', err.message));
         level INTEGER DEFAULT 1,
         coins INTEGER DEFAULT 100,
         created_at TIMESTAMPTZ DEFAULT NOW()
-      );
-      CREATE TABLE IF NOT EXISTS game_sessions (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id),
-        game_id TEXT,
-        duration INTEGER DEFAULT 0,
-        score INTEGER DEFAULT 0,
-        started_at TIMESTAMPTZ DEFAULT NOW()
-      );
+      )
     `);
-    console.log('Tables ensured');
+    console.log('Users table ready');
   } catch (e) {
-    console.error('Table creation failed:', e.message);
+    console.error('Table error:', e.message);
   }
 })();
 
-app.use(express.json());
+// Middleware
+app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
   secret: process.env.SESSION_SECRET || 'juice-secret-2025',
@@ -64,34 +56,87 @@ app.use(session({
 app.use(express.static('public'));
 app.use('/games', express.static('games'));
 
-// 注册 - 精确错误
+// 健康检查（Railway 推荐）
+app.get('/healthz', (req, res) => res.json({ ok: true, timestamp: new Date().toISOString() }));
+
+// 注册 API（加超时 + 日志）
 app.post('/api/register', async (req, res) => {
+  console.log('Register attempt:', req.body.email);  // 日志入口
   const { email, password } = req.body;
-  if (!email || !password) return res.json({ ok: false, error: 'Missing email or password' });
+  if (!email || !password) {
+    console.log('Register fail: missing fields');
+    return res.json({ ok: false, error: 'Missing email or password' });
+  }
+
+  const query = pool.query('SELECT 1 FROM users WHERE email = $1', [email]);  // 先查
+  const timeout = setTimeout(() => {
+    console.log('Register timeout');
+    res.status(408).json({ ok: false, error: 'Request timeout' });
+  }, 10000);
 
   try {
-    // 先查邮箱
-    const exists = await pool.query('SELECT 1 FROM users WHERE email = $1', [email]);
+    const exists = await query;
+    clearTimeout(timeout);
     if (exists.rows.length > 0) {
+      console.log('Register fail: email exists');
       return res.json({ ok: false, error: 'Email already exists' });
     }
 
-    const hash = await bcrypt.hash(password, 10);
+    console.log('Hashing password...');
+    const hash = await bcrypt.hash(password, 10);  // 可能慢
+    console.log('Inserting user...');
     const result = await pool.query(
       'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email',
       [email, hash]
     );
     req.session.user = result.rows[0];
-    console.log('Registered:', email);
+    console.log('Register success:', email);
     res.json({ ok: true });
   } catch (e) {
-    console.error('Register failed:', e.code, e.message);
+    clearTimeout(timeout);
+    console.error('Register error:', e.code || 'unknown', e.message);
     if (e.code === '23505') {
       res.json({ ok: false, error: 'Email already exists' });
-    } else if (e.code === '28P01' || e.code === 'ECONNREFUSED') {
-      res.json({ ok: false, error: 'Database connection failed' });
     } else {
-      res.json({ ok: false, error: 'Server error' });
+      res.status(500).json({ ok: false, error: 'Server error: ' + e.message });
     }
   }
+});
+
+// 登录 API（类似修复）
+app.post('/api/login', async (req, res) => {
+  console.log('Login attempt:', req.body.email);
+  const { email, password } = req.body;
+  const timeout = setTimeout(() => res.status(408).json({ ok: false, error: 'Timeout' }), 10000);
+
+  try {
+    clearTimeout(timeout);
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = result.rows[0];
+    if (!user || !await bcrypt.compare(password, user.password_hash)) {
+      console.log('Login fail: invalid credentials');
+      return res.json({ ok: false, error: 'Invalid credentials' });
+    }
+    req.session.user = { id: user.id, email: user.email };
+    console.log('Login success:', email);
+    res.json({ ok: true });
+  } catch (e) {
+    clearTimeout(timeout);
+    console.error('Login error:', e.message);
+    res.json({ ok: false, error: 'Server error' });
+  }
+});
+
+// Me API
+app.get('/api/me', (req, res) => {
+  res.json({ ok: true, user: req.session.user || null });
+});
+
+// Fallback SPA
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.listen(PORT, '0.0.0.0', () => {  // 绑定 0.0.0.0（Railway 要求）
+  console.log(`Server running on :${PORT}`);
 });
