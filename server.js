@@ -61,8 +61,11 @@ app.get('/healthz', (req, res) => res.json({ ok: true, timestamp: new Date().toI
 
 // 注册 API（加超时 + 日志）
 app.post('/api/register', async (req, res) => {
-  const { email, password, name } = req.body;  // 支持 name
-  if (!email || !password) return res.json({ ok: false, error: 'Missing email or password' });
+  console.log('Register attempt:', req.body.email);
+  const { email, password, name } = req.body;
+  if (!email || !password) {
+    return res.json({ ok: false, error: 'Missing email or password' });
+  }
 
   try {
     const exists = await pool.query('SELECT 1 FROM users WHERE email = $1', [email]);
@@ -72,8 +75,8 @@ app.post('/api/register', async (req, res) => {
 
     const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email, name',
-      [email, hash, name || null]  // name 可为空
+      'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email',
+      [email, hash, name || null]
     );
     req.session.user = result.rows[0];
     console.log('Registered:', email);
