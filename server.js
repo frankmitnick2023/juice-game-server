@@ -1,4 +1,4 @@
-// server.js - 终极修复：登录失败 + 详细日志 + Session 持久化
+// server.js - 修复：移除 memorystore，使用默认内存 + 强制保存
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
@@ -49,17 +49,11 @@ pool.on('error', (err) => console.error('DB Pool Error:', err.message));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session - 关键修复：使用内存存储 + 持久化
-const MemoryStore = require('memorystore')(session);
-const sessionStore = new MemoryStore({
-  checkPeriod: 86400000 // 每天清理过期
-});
-
+// Session - 移除 memorystore，使用默认内存 + 强制保存
 app.use(session({
   secret: process.env.SESSION_SECRET || 'juice-secret-2025-secure',
   resave: false,
   saveUninitialized: false,
-  store: sessionStore,
   cookie: { 
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true,
@@ -102,8 +96,13 @@ app.post('/api/register', async (req, res) => {
 
     const user = result.rows[0];
     req.session.user = { id: user.id, email: user.email };
-    req.session.save(err => {
-      if (err) console.error('Session save error:', err);
+    
+    // 强制保存 session
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save failed:', err);
+        return res.json({ ok: false, error: 'Session error' });
+      }
       console.log('REGISTER SUCCESS:', user.email, 'Session ID:', req.session.id);
       res.json({ ok: true });
     });
@@ -136,9 +135,11 @@ app.post('/api/login', async (req, res) => {
     }
 
     req.session.user = { id: user.id, email: user.email };
-    req.session.save(err => {
+    
+    // 强制保存 session
+    req.session.save((err) => {
       if (err) {
-        console.error('Session save error:', err);
+        console.error('Session save failed:', err);
         return res.json({ ok: false, error: 'Session error' });
       }
       console.log('LOGIN SUCCESS:', user.email, 'Session ID:', req.session.id);
@@ -150,7 +151,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Me - 添加详细日志
+// Me
 app.get('/api/me', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Pragma', 'no-cache');
@@ -285,5 +286,4 @@ app.get('*', (req, res, next) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on :${PORT}`);
-  console.log(`Session store initialized: ${sessionStore.size()} sessions`);
 });
