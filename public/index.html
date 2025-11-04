@@ -1,214 +1,72 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-  <meta charset="utf-8" />
-  <title>FunX • Game Hub Login</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    :root{
-      --bg-0:#090a0f; --bg-1:#111827; --neon-1:#00e5ff; --neon-2:#7b61ff;
-      --txt:#e6f6ff; --muted:#9fb3c8; --error:#ff5470; --card:#0c1120; --r:18px;
-    }
-    *{box-sizing:border-box} html,body{height:100%}
-    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;color:var(--txt);
-      background: radial-gradient(1200px 700px at 50% 100%, #162033 0%, transparent 70%), radial-gradient(900px 500px at 10% -10%, #10162a 0%, transparent 60%), var(--bg-0);}
-    .btn{appearance:none;border:0;cursor:pointer;padding:12px 16px;border-radius:14px;background:#0d1528;color:#dff7ff;font-weight:700;border:1px solid #193055;transition:.08s}
-    .btn.neon{background:linear-gradient(90deg,var(--neon-1),var(--neon-2));color:#021019;border:none}
-    .btn.ghost{background:transparent;color:#cbe8ff;border:1px solid #2a3f66}
-    .input{width:100%;padding:12px 14px;border-radius:12px;background:#0a1224;color:#e5f2ff;border:1px solid #182b55;outline:0}
-    .login-stage{min-height:100dvh;display:grid;place-items:center;padding:24px;position:relative;overflow:hidden}
-    .login-card{width:min(560px,92vw);border-radius:var(--r);background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(0,0,0,.2));
-      border:1px solid #1e2a4a;padding:22px 20px;backdrop-filter:blur(8px);box-shadow:0 0 12px rgba(0,229,255,.25),0 0 48px rgba(123,97,255,.12) inset}
-    .tiny{color:var(--muted);font-size:13px} .title{font-size:28px;font-weight:800;margin:6px 0}
-    .error{color:var(--error);min-height:1.4em;font-size:14px}
-    .dashboard{display:none;min-height:100dvh;padding:18px 18px 72px;max-width:1200px;margin:0 auto}
-    .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
-    .game{background:var(--card);border:1px solid #1e2a4a;border-radius:16px;padding:14px;box-shadow:0 6px 28px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:8px}
-    .badge{background:#0b1328;border:1px solid #20345e;color:#cfe9ff;border-radius:999px;padding:8px 12px;font-size:13px}
-    @media (max-width:520px){.title{font-size:24px}.login-card{padding:18px 16px}}
-  </style>
+<meta charset="UTF-8">
+<title>FUN X ARENA</title>
+<style>
+body{margin:0;font-family:Arial;background:#111;color:#fff;display:flex;justify-content:center;align-items:center;height:100vh}
+.box{width:380px;padding:30px;background:#222;border-radius:12px;text-align:center}
+input{width:100%;padding:10px;margin:8px 0;border:none;border-radius:6px}
+button{width:100%;padding:10px;margin-top:10px;font-size:16px;background:#f7c23e;color:#000;border:none;border-radius:6px;cursor:pointer}
+a{color:#f7c23e;cursor:pointer;display:block;margin-top:10px}
+.hidden{display:none}
+</style>
 </head>
 <body>
 
-  <!-- 登录视图 -->
-  <section id="loginStage" class="login-stage">
-    <div class="login-card" id="loginCard">
-      <div class="brand" style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px">
-        <div style="font-weight:900;letter-spacing:.5px;font-size:20px">⚡ FunX Game Hub</div>
-        <button class="btn ghost" onclick="openSignup()">Create account</button>
-      </div>
-      <h1 class="title">Ready, Dancer?</h1>
-      <p class="tiny">Step into your power. Enter the arena to play.</p>
-      <div class="panel" style="display:grid;gap:10px">
-        <input id="l_email" class="input" placeholder="Email" autocomplete="username" />
-        <input id="l_pwd" class="input" type="password" placeholder="Password" autocomplete="current-password" />
-        <div id="loginErr" class="error"></div>
-        <button class="btn neon" onclick="doLogin()">Enter Arena</button>
-        <button class="btn ghost" onclick="openForgot()">Forgot password?</button>
-      </div>
-    </div>
-  </section>
+<div id="auth" class="box">
+  <h2>WELCOME</h2>
+  <input id="email" placeholder="Email">
+  <input id="password" type="password" placeholder="Password">
+  <button onclick="login()">Login</button>
+  <button onclick="registerUser()">Create Account</button>
+</div>
 
-  <!-- 大厅视图 -->
-  <main id="dashboard" class="dashboard">
-    <div class="nav" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0 18px">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div style="font-weight:900;letter-spacing:.5px">🍹 FunX Game Hub</div>
-        <span id="userBadge" class="badge"></span>
-      </div>
-      <div>
-        <button class="btn ghost" onclick="reloadGames()">Refresh</button>
-        <button class="btn" onclick="doLogout()">Logout</button>
-      </div>
-    </div>
-    <h2 style="margin:8px 0 6px">Available Games</h2>
-    <div id="gamesGrid" class="grid"></div>
-    <div id="gamesErr" class="error"></div>
-    <p class="tiny">Drop new games under <code>/games/&lt;folder&gt;/{index.html,game.json}</code> then refresh.</p>
-  </main>
+<div id="lobby" class="box hidden">
+  <h2>ARENA</h2>
+  <p id="welcome"></p>
+  <button onclick="enterArena()">Enter Arena</button>
+</div>
 
-  <!-- 注册 -->
-  <dialog id="signupDlg">
-    <form method="dialog" style="min-width:min(520px,92vw);background:#0c1120;color:#e6f6ff;border:1px solid #1e2a4a;border-radius:16px;padding:16px">
-      <h3 style="margin:0 0 8px">Create account</h3>
-      <div style="display:grid;gap:10px">
-        <input id="r_name" class="input" placeholder="Your name" autocomplete="name" />
-        <input id="r_email" class="input" placeholder="Email" autocomplete="email" />
-        <input id="r_pwd" class="input" type="password" placeholder="Password" autocomplete="new-password" />
-        <div id="r_err" class="error"></div>
-        <div style="display:flex;justify-content:flex-end;gap:8px">
-          <button class="btn ghost" value="cancel">Cancel</button>
-          <button class="btn neon" onclick="submitSignup(event)">Create</button>
-        </div>
-      </div>
-    </form>
-  </dialog>
+<script>
+async function api(path, data){
+  const r = await fetch(path,{
+    method:data?"POST":"GET",
+    headers:{"Content-Type":"application/json"},
+    body:data?JSON.stringify(data):undefined
+  });
+  return r.json();
+}
 
-  <!-- 忘记密码占位 -->
-  <dialog id="forgotDlg">
-    <form method="dialog" style="min-width:min(520px,92vw);background:#0c1120;color:#e6f6ff;border:1px solid #1e2a4a;border-radius:16px;padding:16px">
-      <h3 style="margin:0 0 8px">Forgot password</h3>
-      <p class="tiny">Reset flow can be enabled later.</p>
-      <div style="display:flex;justify-content:flex-end;gap:8px">
-        <button class="btn" value="close">Close</button>
-      </div>
-    </form>
-  </dialog>
+async function checkMe(){
+  const r = await api('/api/me');
+  if(r.ok){
+    document.getElementById('auth').classList.add('hidden');
+    document.getElementById('lobby').classList.remove('hidden');
+    document.getElementById('welcome').innerText = "Hi " + (r.user.name || r.user.email);
+  }
+}
+checkMe();
 
-  <script>
-    // ---------- API ----------
-    async function apiMe(){ try{
-      const r = await fetch('/api/me',{credentials:'same-origin'}); if(!r.ok) return null;
-      const d = await r.json(); return d.ok ? d.user : null;
-    }catch{return null} }
+async function login(){
+  const email=document.getElementById('email').value;
+  const password=document.getElementById('password').value;
+  const r = await api('/api/login',{email,password});
+  if(r.ok) location.reload();
+  else alert(r.error||"Login failed");
+}
 
-    async function apiLogin(email,password){
-      const r = await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({email,password})});
-      return r.json();
-    }
+async function registerUser(){
+  const email=document.getElementById('email').value;
+  const password=document.getElementById('password').value;
+  const r = await api('/api/register',{email,password});
+  if(r.ok) location.reload();
+  else alert(r.error||"Sign up failed");
+}
 
-    async function apiRegister(name,email,password){
-      const r = await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({name,email,password})});
-      return r.json();
-    }
-
-    async function apiLogout(){ try{ await fetch('/api/logout',{method:'POST',credentials:'same-origin'});}catch{} }
-
-    async function apiGames(){
-      const r = await fetch('/api/games',{credentials:'same-origin'});
-      return r.json();
-    }
-
-    // ---------- UI Flow ----------
-    let currentUser = null;
-
-    function showLogin(){
-      document.getElementById('loginStage').style.display='grid';
-      document.getElementById('dashboard').style.display='none';
-    }
-    function showDashboard(){
-      document.getElementById('loginStage').style.display='none';
-      document.getElementById('dashboard').style.display='block';
-    }
-
-    async function bootstrap(){
-      currentUser = await apiMe();
-      if(currentUser){
-        showDashboard();
-        await renderDashboard();
-      }else{
-        showLogin();
-      }
-    }
-
-    async function doLogin(){
-      const email = document.getElementById('l_email').value.trim();
-      const pwd   = document.getElementById('l_pwd').value;
-      const err   = document.getElementById('loginErr'); err.textContent='';
-      try{
-        const data = await apiLogin(email,pwd);
-        if(!data.ok) throw new Error(data.error || 'Login failed');
-        // 强制刷新进入大厅（避免 Cookie 未立即可用的边缘情况）
-        location.replace('/?lobby=1#lobby');
-      }catch(e){ err.textContent = e.message || 'Server error'; }
-    }
-
-    async function submitSignup(ev){
-      ev.preventDefault();
-      const name  = document.getElementById('r_name').value.trim();
-      const email = document.getElementById('r_email').value.trim();
-      const pwd   = document.getElementById('r_pwd').value;
-      const err   = document.getElementById('r_err'); err.textContent='';
-      try{
-        const data = await apiRegister(name,email,pwd);
-        if(!data.ok) throw new Error(data.error || 'Register failed');
-        location.replace('/?lobby=1#lobby');
-      }catch(e){ err.textContent = e.message || 'Server error'; }
-    }
-
-    async function doLogout(){
-      await apiLogout();
-      currentUser = null;
-      showLogin();
-    }
-
-    function openSignup(){ document.getElementById('signupDlg').showModal(); }
-    function openForgot(){ document.getElementById('forgotDlg').showModal(); }
-
-    async function renderDashboard(){
-      if(!currentUser){ showLogin(); return; }
-      document.getElementById('userBadge').textContent = `${currentUser.name} • Lv.${currentUser.level ?? 1} • ${currentUser.coins ?? 0}💰`;
-      await reloadGames();
-    }
-
-    async function reloadGames(){
-      const grid = document.getElementById('gamesGrid');
-      const err  = document.getElementById('gamesErr');
-      grid.innerHTML=''; err.textContent='';
-      try{
-        const data = await apiGames();
-        if(!data.ok) throw new Error(data.error || 'Failed to load games');
-        if(!data.items || !data.items.length){
-          grid.innerHTML = `<div class="game"><div style="font-weight:800">No games found</div><div class="tiny">Put html games under <code>/games/&lt;folder&gt;/</code> then refresh.</div></div>`;
-          return;
-        }
-        for(const g of data.items){
-          const el = document.createElement('div');
-          el.className = 'game';
-          el.innerHTML = `
-            <div style="font-weight:800">${g.icon || '🎮'} ${escapeHtml(g.name)}</div>
-            <div class="tiny">${escapeHtml(g.description || '')}</div>
-            <div style="margin-top:auto"><button class="btn neon" style="width:100%" onclick="location.href='/play/${g.id}'">Play</button></div>
-          `;
-          grid.appendChild(el);
-        }
-      }catch(e){ err.textContent = e.message || 'Server error'; }
-    }
-
-    function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
-
-    // 启动
-    document.addEventListener('DOMContentLoaded', bootstrap);
-  </script>
+function enterArena(){
+  alert("✅ Arena Coming Soon...");
+}
+</script>
 </body>
 </html>
