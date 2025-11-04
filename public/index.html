@@ -1,116 +1,82 @@
+<!-- public/index.html (login/register page) -->
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Juice Game</title>
+  <title>Juice Game - Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f0f2f5; text-align: center; }
-    .container { max-width: 400px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    input, button { width: 100%; padding: 12px; margin: 8px 0; font-size: 16px; border: 1px solid #ddd; border-radius: 8px; }
-    button { background: #007bff; color: white; cursor: pointer; }
-    button:hover { background: #0056b3; }
-    .hidden { display: none; }
-    #games { margin-top: 20px; }
-    .game-btn { display: block; width: 100%; margin: 10px 0; padding: 15px; background: #28a745; color: white; text-decoration: none; border-radius: 8px; }
-    .game-btn:hover { background: #218838; }
+    body { font-family: sans-serif; margin: 0; padding: 40px; background: linear-gradient(135deg, #6c5ce7, #a29bfe); color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .container { background: rgba(255,255,255,0.1); padding: 40px; border-radius: 16px; width: 100%; max-width: 400px; backdrop-filter: blur(10px); }
+    h1 { text-align: center; margin-bottom: 30px; }
+    input { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 8px; font-size: 16px; }
+    button { width: 100%; padding: 14px; margin: 10px 0; background: #fff; color: #6c5ce7; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; }
+    button:hover { background: #f0f0f0; }
+    .toggle { text-align: center; margin-top: 20px; }
+    .toggle a { color: white; text-decoration: underline; cursor: pointer; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Juice Game</h1>
-
-    <div id="auth">
-      <input id="email" type="email" placeholder="邮箱" />
-      <input id="password" type="password" placeholder="密码" />
-      <button onclick="register()">注册</button>
-      <button onclick="login()">登录</button>
-      <p id="msg" style="color: red; min-height: 24px;"></p>
-    </div>
-
-    <div id="dashboard" class="hidden">
-      <h2>欢迎, <span id="user-name"></span>!</h2>
-      <p>等级: <span id="level">1</span> | 金币: <span id="coins">100</span> | 总时长: <span id="time">0</span>秒</p>
-      <button onclick="logout()">登出</button>
-      <h3>选择游戏</h3>
-      <div id="games"></div>
+    <h1 id="form-title">Login</h1>
+    <form id="auth-form">
+      <input type="email" id="email" placeholder="Email" required>
+      <input type="password" id="password" placeholder="Password" required>
+      <input type="text" id="name" placeholder="Name (optional)" style="display:none;">
+      <button type="submit" id="submit-btn">Login</button>
+    </form>
+    <div class="toggle">
+      <a id="toggle-link">Need an account? Register</a>
     </div>
   </div>
 
   <script>
-    const msg = document.getElementById('msg');
-    const auth = document.getElementById('auth');
-    const dashboard = document.getElementById('dashboard');
+    const form = document.getElementById('auth-form');
+    const title = document.getElementById('form-title');
+    const submitBtn = document.getElementById('submit-btn');
+    const toggleLink = document.getElementById('toggle-link');
+    const nameInput = document.getElementById('name');
+    let isRegister = false;
 
-    async function api(path, data) {
-      const res = await fetch(path, {
+    toggleLink.onclick = () => {
+      isRegister = !isRegister;
+      if (isRegister) {
+        title.textContent = 'Register';
+        submitBtn.textContent = 'Create Account';
+        toggleLink.textContent = 'Have an account? Login';
+        nameInput.style.display = 'block';
+      } else {
+        title.textContent = 'Login';
+        submitBtn.textContent = 'Login';
+        toggleLink.textContent = 'Need an account? Register';
+        nameInput.style.display = 'none';
+      }
+    };
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const name = document.getElementById('name').value;
+      const endpoint = isRegister ? '/api/register' : '/api/login';
+      const body = isRegister ? { email, password, name } : { email, password };
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+        body: JSON.stringify(body)
       });
-      return res.json();
-    }
+      const data = await res.json();
+      if (data.ok) {
+        window.location = '/games.html';
+      } else {
+        alert(data.error || 'Failed');
+      }
+    };
 
-    async function register() {
-      const email = document.getElementById('email').value;
-      const password = document.getElementById('password').value;
-      const r = await api('/api/register', { email, password });
-      msg.textContent = r.ok ? '注册成功！正在登录...' : r.error;
-      if (r.ok) setTimeout(login, 500);
-    }
-
-    async function login() {
-      const email = document.getElementById('email').value;
-      const password = document.getElementById('password').value;
-      const r = await api('/api/login', { email, password });
-      msg.textContent = r.ok ? '登录成功！' : r.error;
-      if (r.ok) loadDashboard();
-    }
-
-    async function loadDashboard() {
-      const me = await (await fetch('/api/me')).json();
-      if (!me.user) return;
-      auth.classList.add('hidden');
-      dashboard.classList.remove('hidden');
-      document.getElementById('user-name').textContent = me.user.name || me.user.email;
-      document.getElementById('level').textContent = me.user.level;
-      document.getElementById('coins').textContent = me.user.coins;
-      document.getElementById('time').textContent = me.user.total_time;
-
-      const gamesRes = await fetch('/api/games');
-      const gamesData = await gamesRes.json();
-      const container = document.getElementById('games');
-      container.innerHTML = '';
-      gamesData.games.forEach(g => {
-        const a = document.createElement('a');
-        a.href = g.entry;
-        a.className = 'game-btn';
-        a.textContent = `${g.name} (${g.platform})`;
-        a.onclick = (e) => {
-          e.preventDefault();
-          startGame(g.id, g.entry);
-        };
-        container.appendChild(a);
-      });
-    }
-
-    function startGame(gameId, entry) {
-      api('/api/game/start', { game_id: gameId }).then(r => {
-        if (r.ok) {
-          sessionStorage.setItem('session_id', r.session_id);
-          sessionStorage.setItem('game_start', Date.now());
-          window.location = entry;
-        }
-      });
-    }
-
-    function logout() {
-      fetch('/api/logout');
-      location.reload();
-    }
-
-    // Auto login check
-    fetch('/api/me').then(r => r.json()).then(d => { if (d.user) loadDashboard(); });
+    // Auto redirect if logged in
+    fetch('/api/me').then(r => r.json()).then(data => {
+      if (data.user) window.location = '/games.html';
+    });
   </script>
 </body>
 </html>

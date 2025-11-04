@@ -1,2 +1,56 @@
+<!-- public/games.html -->
 <!DOCTYPE html>
-<html><head><title>游戏大厅</title><meta name="viewport" content="width=device-width,initial-scale=1"/><style>body{background:#f4f4f4;margin:0;padding:20px;font-family:Arial}.game-card{background:white;margin:10px;padding:20px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.1);text-align:center}</style></head><body><h1>游戏大厅</h1><div id="games"></div><script>fetch('/api/games').then(r=>r.json()).then(d=>{const c=document.getElementById('games');d.games.forEach(g=>{const div=document.createElement('div');div.className='game-card';div.innerHTML=`<h3>${g.name}</h3><p>${g.description||''}</p><a href="${g.entry}" style="color:#007bff">开始游戏 →</a>`;c.appendChild(div);})});</script></body></html>
+<html>
+<head>
+  <title>Juice Game - Games</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: sans-serif; margin: 0; padding: 20px; background: #f0f0f0; }
+    .header { text-align: center; margin-bottom: 30px; }
+    .game-grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+    .game-card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .game-thumb { height: 160px; background: #ddd; }
+    .game-info { padding: 16px; }
+    .game-title { margin: 0 0 8px; font-size: 1.2em; }
+    .game-desc { margin: 0 0 12px; color: #666; font-size: 0.9em; }
+    .play-btn { background: #6c5ce7; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; }
+    .play-btn:hover { background: #5a4fcf; }
+    .logout { position: absolute; top: 20px; right: 20px; color: #666; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Juice Game</h1>
+    <p>Select a game to play</p>
+  </div>
+  <a href="/" class="logout">Logout</a>
+  <div id="game-list" class="game-grid"></div>
+
+  <script>
+    fetch('/api/me').then(r => r.json()).then(data => {
+      if (!data.user) window.location = '/';
+    });
+
+    fetch('/api/games').then(r => r.json()).then(data => {
+      const container = document.getElementById('game-list');
+      data.games.forEach(game => {
+        const card = document.createElement('div');
+        card.className = 'game-card';
+        card.innerHTML = `
+          <div class="game-thumb"></div>
+          <div class="game-info">
+            <h3 class="game-title">${game.title}</h3>
+            <p class="game-desc">${game.description}</p>
+            <button class="play-btn" onclick="play('${game.id}')">Play Now</button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    });
+
+    function play(id) {
+      window.location = '/play/' + id;
+    }
+  </script>
+</body>
+</html>
