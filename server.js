@@ -7,20 +7,25 @@ const path = require('path');
 const fs = require('fs');
 const app = express();
 
-// === PostgreSQL ===
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// === Session Store（优先 PG，失败用内存）===
+// === Session Store（禁用 ON CONFLICT）===
 let sessionStore;
 try {
   const PGSession = require('connect-pg-simple')(session);
-  sessionStore = new PGSession({ pool, tableName: 'session' });
-  console.log('Using PostgreSQL session store');
+  sessionStore = new PGSession({
+    pool,
+    tableName: 'session',
+    // 关键：禁用默认的 ON CONFLICT
+    createTableIfMissing: true,
+    // 手动控制 upsert
+  });
+  console.log('Using PG session store (no ON CONFLICT)');
 } catch (e) {
-  console.warn('connect-pg-simple failed, using MemoryStore');
+  console.warn('PG session failed, using MemoryStore');
   sessionStore = new session.MemoryStore();
 }
 
@@ -36,7 +41,7 @@ app.use(express.json());
 app.use(express.static('public'));
 app.use('/games', express.static('games'));
 
-// === 初始化数据库（含 session 表 + 唯一索引）===
+// === 初始化数据库（确保 sid 是 PRIMARY KEY）===
 (async () => {
   try {
     await pool.query(`
@@ -49,9 +54,10 @@ app.use('/games', express.static('games'));
       );
     `);
 
+    // 关键：sid 必须 PRIMARY KEY
     await pool.query(`
       CREATE TABLE IF NOT EXISTS session (
-        sid VARCHAR NOT NULL PRIMARY KEY,
+        sid VARCHAR PRIMARY KEY,
         sess JSON NOT NULL,
         expire TIMESTAMP(6) NOT NULL
       );
@@ -112,12 +118,10 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// === 当前用户 ===
 app.get('/api/me', (req, res) => {
   res.json(req.session.user || null);
 });
 
-// === 登出 ===
 app.post('/api/logout', (req, res) => {
   req.session.destroy(() => res.json({ success: true }));
 });
@@ -125,12 +129,12 @@ app.post('/api/logout', (req, res) => {
 // === 游戏扫描 ===
 function scanGames() {
   const games = {};
-
-  if (fs.existsSync(path.join(__dirname, 'games', 'demo-game.html'))) {
+  const demoPath = path.join(__dirname, 'games', 'demo-game.html');
+  if (fs.existsSync(demoPath)) {
     games.demo = {
       id: 'demo',
       title: 'Demo Game',
-      description: '简单演示游戏',
+      description: '简单演示',
       thumbnail: '',
       platform: 'both',
       entry: '/games/demo-game.html'
@@ -191,14 +195,13 @@ app.get('/play/:id', async (req, res) => {
   .container{max-width:1200px;margin:auto;padding:1rem}
   iframe{width:100%;height:70vh;border:none;border-radius:8px}
   .scores{background:#fff;padding:1rem;margin-top:1rem;border-radius:8px}
-  .score-item{display:flex;justify-content:space-between;padding:0.5rem 0;border-bottom:1px solid #eee}
 </style>
 </head><body>
-<div class="header"><a href="/games.html" class="back">Back</a><h1>${game.title}</h1></div>
+<div class="header"><a href="/games.html" class="back">返回</a><h1>${game.title}</h1></div>
 <div class="container">
   <iframe src="${game.entry}" allowfullscreen></iframe>
-  <div class="scores"><h3>你的最高分</h3>
-    ${scores.length ? scores.map(s => `<div class="score-item"><span>${s.score} 分</span><span>${new Date(s.created_at).toLocaleString()}</span></div>`).join('') : '<p>暂无记录</p>'}
+  <div class="scores"><h3>最高分</h3>
+    ${scores.length ? scores.map(s => `<div><strong>${s.score}</strong> - ${new Date(s.created_at).toLocaleString()}</div>`).join('') : '<p>暂无</p>'}
   </div>
 </div>
 <script>
@@ -225,7 +228,6 @@ app.post('/api/score', async (req, res) => {
   }
 });
 
-// === 静态页 ===
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/games.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'games.html')));
 
