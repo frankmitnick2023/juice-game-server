@@ -1,4 +1,4 @@
-// server.js - 完整代码（仅替换此文件）
+// server.js - 修复 /api/games 崩溃问题
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
@@ -77,7 +77,8 @@ app.post('/api/register', async (req, res) => {
     req.session.user = result.rows[0];
     res.json({ ok: true });
   } catch (e) {
-    res.json({ ok: false, error: e.message });
+    console.error('Register error:', e);
+    res.json({ ok: false, error: 'Server error' });
   }
 });
 
@@ -95,6 +96,7 @@ app.post('/api/login', async (req, res) => {
     req.session.user = { id: user.id, email: user.email };
     res.json({ ok: true });
   } catch (e) {
+    console.error('Login error:', e);
     res.json({ ok: false, error: 'Server error' });
   }
 });
@@ -104,40 +106,58 @@ app.get('/api/me', (req, res) => {
   res.json({ ok: true, user: req.session.user || null });
 });
 
-// 游戏列表 API - 自动扫描 games/ 下所有文件夹的 game.json
+// 游戏列表 API - 修复崩溃，添加容错
 app.get('/api/games', (req, res) => {
   const gamesDir = path.join(__dirname, 'games');
   const games = [];
 
-  // 扫描目录
-  fs.readdirSync(gamesDir).forEach(item => {
-    const itemPath = path.join(gamesDir, item);
-    if (fs.statSync(itemPath).isDirectory()) {
-      const gameJsonPath = path.join(itemPath, 'game.json');
-      const indexPath = path.join(itemPath, 'index.html');
-      if (fs.existsSync(gameJsonPath) && fs.existsSync(indexPath)) {
-        try {
-          const game = JSON.parse(fs.readFileSync(gameJsonPath, 'utf8'));
-          game.id = item;
-          game.url = `/games/${item}/index.html`;
-          games.push(game);
-        } catch (e) {
-          console.error(`Failed to load game.json in ${item}:`, e.message);
-        }
-      }
+  try {
+    if (!fs.existsSync(gamesDir)) {
+      return res.json({ ok: true, games: [] });
     }
-  });
 
-  // 添加 demo-game.html（单文件）
-  const demoPath = path.join(gamesDir, 'demo-game.html');
-  if (fs.existsSync(demoPath)) {
-    games.unshift({
-      id: 'demo',
-      title: 'Demo Game',
-      description: '基于摄像头动作捕捉的演示游戏',
-      platform: 'demo',
-      url: '/games/demo-game.html'
+    const items = fs.readdirSync(gamesDir);
+    console.log('Scanning games directory:', items);
+
+    items.forEach(item => {
+      try {
+        const itemPath = path.join(gamesDir, item);
+        const stat = fs.statSync(itemPath);
+
+        if (stat.isDirectory()) {
+          const gameJsonPath = path.join(itemPath, 'game.json');
+          const indexPath = path.join(itemPath, 'index.html');
+
+          if (fs.existsSync(gameJsonPath) && fs.existsSync(indexPath)) {
+            const raw = fs.readFileSync(gameJsonPath, 'utf8');
+            const game = JSON.parse(raw);
+            game.id = item;
+            game.url = `/games/${item}/index.html`;
+            games.push(game);
+            console.log(`Loaded game: ${item}`);
+          }
+        }
+      } catch (e) {
+        console.error(`Error loading game ${item}:`, e.message);
+      }
     });
+
+    // 添加 demo-game.html
+    const demoPath = path.join(gamesDir, 'demo-game.html');
+    if (fs.existsSync(demoPath)) {
+      games.unshift({
+        id: 'demo',
+        title: 'Demo Game',
+        description: '基于摄像头动作捕捉的演示游戏',
+        platform: 'any',
+        url: '/games/demo-game.html'
+      });
+      console.log('Loaded demo game');
+    }
+
+  } catch (e) {
+    console.error('Fatal error in /api/games:', e);
+    return res.status(500).json({ ok: false, error: 'Failed to scan games' });
   }
 
   res.json({ ok: true, games });
@@ -150,7 +170,7 @@ app.get('/play/:id', (req, res) => {
   if (!user) return res.redirect('/');
 
   let gameUrl = '';
-  let gameTitle = 'Unknown Game';
+  let gameTitle = 'Unknown';
 
   if (id === 'demo') {
     gameUrl = '/games/demo-game.html';
@@ -164,7 +184,7 @@ app.get('/play/:id', (req, res) => {
         gameTitle = game.title || id;
         gameUrl = `/games/${id}/index.html`;
       } catch (e) {
-        return res.status(404).send('Game config error');
+        return res.status(500).send('Game config error');
       }
     } else {
       return res.status(404).send('Game not found');
