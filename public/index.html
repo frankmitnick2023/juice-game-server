@@ -1,39 +1,116 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Juice Game - 登录</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Juice Game</title>
   <style>
-    body { font-family: sans-serif; display:flex; flex-direction:column; align-items:center; margin-top:60px;}
-    input, button { margin:6px; padding:8px; }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f0f2f5; text-align: center; }
+    .container { max-width: 400px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    input, button { width: 100%; padding: 12px; margin: 8px 0; font-size: 16px; border: 1px solid #ddd; border-radius: 8px; }
+    button { background: #007bff; color: white; cursor: pointer; }
+    button:hover { background: #0056b3; }
+    .hidden { display: none; }
+    #games { margin-top: 20px; }
+    .game-btn { display: block; width: 100%; margin: 10px 0; padding: 15px; background: #28a745; color: white; text-decoration: none; border-radius: 8px; }
+    .game-btn:hover { background: #218838; }
   </style>
 </head>
 <body>
-  <h1>Juice Game 🎮</h1>
-  <input id="email" placeholder="Email"><br>
-  <input id="password" type="password" placeholder="Password"><br>
-  <button id="registerBtn">注册</button>
-  <button id="loginBtn">登录</button>
-  <p id="msg"></p>
+  <div class="container">
+    <h1>Juice Game</h1>
+
+    <div id="auth">
+      <input id="email" type="email" placeholder="邮箱" />
+      <input id="password" type="password" placeholder="密码" />
+      <button onclick="register()">注册</button>
+      <button onclick="login()">登录</button>
+      <p id="msg" style="color: red; min-height: 24px;"></p>
+    </div>
+
+    <div id="dashboard" class="hidden">
+      <h2>欢迎, <span id="user-name"></span>!</h2>
+      <p>等级: <span id="level">1</span> | 金币: <span id="coins">100</span> | 总时长: <span id="time">0</span>秒</p>
+      <button onclick="logout()">登出</button>
+      <h3>选择游戏</h3>
+      <div id="games"></div>
+    </div>
+  </div>
 
   <script>
-    const msg = document.getElementById("msg");
-    document.getElementById("registerBtn").onclick = async () => {
-      const email = emailInput.value, password = passwordInput.value;
-      const res = await fetch("/api/register", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email, password})});
-      const data = await res.json();
-      msg.textContent = data.success ? "注册成功，请登录" : data.error;
-    };
-    document.getElementById("loginBtn").onclick = async () => {
-      const email = emailInput.value, password = passwordInput.value;
-      const res = await fetch("/api/login", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({email, password})});
-      const data = await res.json();
-      if(data.success){ localStorage.setItem("user", JSON.stringify(data.user)); location.href = "/games.html"; }
-      else msg.textContent = data.error;
-    };
-    const emailInput=document.getElementById("email");
-    const passwordInput=document.getElementById("password");
+    const msg = document.getElementById('msg');
+    const auth = document.getElementById('auth');
+    const dashboard = document.getElementById('dashboard');
+
+    async function api(path, data) {
+      const res = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      return res.json();
+    }
+
+    async function register() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const r = await api('/api/register', { email, password });
+      msg.textContent = r.ok ? '注册成功！正在登录...' : r.error;
+      if (r.ok) setTimeout(login, 500);
+    }
+
+    async function login() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const r = await api('/api/login', { email, password });
+      msg.textContent = r.ok ? '登录成功！' : r.error;
+      if (r.ok) loadDashboard();
+    }
+
+    async function loadDashboard() {
+      const me = await (await fetch('/api/me')).json();
+      if (!me.user) return;
+      auth.classList.add('hidden');
+      dashboard.classList.remove('hidden');
+      document.getElementById('user-name').textContent = me.user.name || me.user.email;
+      document.getElementById('level').textContent = me.user.level;
+      document.getElementById('coins').textContent = me.user.coins;
+      document.getElementById('time').textContent = me.user.total_time;
+
+      const gamesRes = await fetch('/api/games');
+      const gamesData = await gamesRes.json();
+      const container = document.getElementById('games');
+      container.innerHTML = '';
+      gamesData.games.forEach(g => {
+        const a = document.createElement('a');
+        a.href = g.entry;
+        a.className = 'game-btn';
+        a.textContent = `${g.name} (${g.platform})`;
+        a.onclick = (e) => {
+          e.preventDefault();
+          startGame(g.id, g.entry);
+        };
+        container.appendChild(a);
+      });
+    }
+
+    function startGame(gameId, entry) {
+      api('/api/game/start', { game_id: gameId }).then(r => {
+        if (r.ok) {
+          sessionStorage.setItem('session_id', r.session_id);
+          sessionStorage.setItem('game_start', Date.now());
+          window.location = entry;
+        }
+      });
+    }
+
+    function logout() {
+      fetch('/api/logout');
+      location.reload();
+    }
+
+    // Auto login check
+    fetch('/api/me').then(r => r.json()).then(d => { if (d.user) loadDashboard(); });
   </script>
 </body>
 </html>
-

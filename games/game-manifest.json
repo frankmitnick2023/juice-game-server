@@ -1,7 +1,21 @@
-{
-  "games": [
-    { "name": "Juice Maker Mobile", "path": "juice-maker-mobile", "desc": "移动端榨汁舞蹈挑战！" },
-    { "name": "Juice Maker PC", "path": "juice-maker-PC", "desc": "桌面端榨汁舞蹈挑战！" },
-    { "name": "Demo Game", "path": "demo-game.html", "desc": "简单演示版游戏" }
-  ]
-}
+[
+  {
+    "id": "demo",
+    "name": "Mediapipe Demo",
+    "entry": "/games/demo-game.html",
+    "platform": "mobile",
+    "description": "基于摄像头动作捕捉的演示游戏"
+  },
+  {
+    "id": "mobile",
+    "name": "Juice Maker Mobile",
+    "entry": "/games/juice-maker-mobile/index.html",
+    "platform": "mobile"
+  },
+  {
+    "id": "pc",
+    "name": "Juice Maker PC",
+    "entry": "/games/juice-maker-PC/index.html",
+    "platform": "pc"
+  }
+]
