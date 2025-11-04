@@ -7,27 +7,15 @@ const path = require('path');
 const fs = require('fs');
 const app = express();
 
+// === PostgreSQL ===
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// === Session Store（禁用 ON CONFLICT）===
-let sessionStore;
-try {
-  const PGSession = require('connect-pg-simple')(session);
-  sessionStore = new PGSession({
-    pool,
-    tableName: 'session',
-    // 关键：禁用默认的 ON CONFLICT
-    createTableIfMissing: true,
-    // 手动控制 upsert
-  });
-  console.log('Using PG session store (no ON CONFLICT)');
-} catch (e) {
-  console.warn('PG session failed, using MemoryStore');
-  sessionStore = new session.MemoryStore();
-}
+// === 使用 MemoryStore（完全避免 ON CONFLICT 问题）===
+const MemoryStore = session.MemoryStore;
+const sessionStore = new MemoryStore();
 
 app.use(session({
   store: sessionStore,
@@ -41,7 +29,7 @@ app.use(express.json());
 app.use(express.static('public'));
 app.use('/games', express.static('games'));
 
-// === 初始化数据库（确保 sid 是 PRIMARY KEY）===
+// === 初始化数据库（仅 users 和 scores）===
 (async () => {
   try {
     await pool.query(`
@@ -52,19 +40,6 @@ app.use('/games', express.static('games'));
         level INTEGER DEFAULT 1,
         coins INTEGER DEFAULT 0
       );
-    `);
-
-    // 关键：sid 必须 PRIMARY KEY
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS session (
-        sid VARCHAR PRIMARY KEY,
-        sess JSON NOT NULL,
-        expire TIMESTAMP(6) NOT NULL
-      );
-    `);
-
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS session_expire_idx ON session(expire);
     `);
 
     await pool.query(`
@@ -134,7 +109,7 @@ function scanGames() {
     games.demo = {
       id: 'demo',
       title: 'Demo Game',
-      description: '简单演示',
+      description: '简单演示游戏',
       thumbnail: '',
       platform: 'both',
       entry: '/games/demo-game.html'
