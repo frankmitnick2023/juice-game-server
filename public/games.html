@@ -1,67 +1,55 @@
-<!-- public/games.html -->
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Juice Game - Lobby</title>
+  <title>游戏大厅</title>
   <style>
     body{font-family:Arial;margin:0;background:#f9f9f9}
     .header{background:#ff6b35;color:white;padding:1rem;text-align:center;position:relative}
-    .logout{position:absolute;right:1rem;top:1rem;color:white;text-decoration:none;font-size:0.9rem}
-    .user-info{position:absolute;left:1rem;top:1rem;color:white;font-size:0.9rem}
+    .logout{position:absolute;right:1rem;top:1rem;color:white;text-decoration:none}
     .container{max-width:1000px;margin:2rem auto;padding:0 1rem}
     .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.5rem}
-    .game-card{background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.1);transition:transform 0.2s}
-    .game-card:hover{transform:translateY(-4px)}
-    .thumb{height:160px;background:#eee;display:flex;align-items:center;justify-content:center;color:#999;font-size:0.9rem}
+    .card{background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.1)}
+    .thumb{height:160px;background:#eee;display:flex;align-items:center;justify-content:center}
     .thumb img{width:100%;height:100%;object-fit:cover}
     .info{padding:1rem}
-    .title{font-weight:bold;font-size:1.2rem;margin-bottom:0.5rem}
-    .desc{color:#555;font-size:0.9rem;margin-bottom:1rem}
-    .play-btn{display:block;width:100%;background:#ff6b35;color:white;text-align:center;padding:0.7rem;border:none;border-radius:6px;text-decoration:none}
-    .play-btn:hover{background:#e55a2b}
-    .platform{margin-top:0.5rem;font-size:0.8rem;color:#ff6b35}
-    .loading{text-align:center;padding:2rem;color:#666}
+    .title{font-weight:bold;font-size:1.2rem}
+    .play-btn{display:block;margin-top:1rem;background:#ff6b35;color:white;text-align:center;padding:0.7rem;border-radius:6px;text-decoration:none}
   </style>
 </head>
 <body>
   <div class="header">
-    <div class="user-info" id="userInfo"></div>
-    <h1>Juice Game Lobby</h1>
-    <a href="#" id="logout" class="logout">Logout</a>
+    <h1>Juice Game 大厅</h1>
+    <a href="#" id="logout" class="logout">退出</a>
   </div>
   <div class="container">
-    <div id="loading" class="loading">Loading games...</div>
+    <div id="loading">加载中...</div>
     <div id="grid" class="grid" style="display:none"></div>
   </div>
   <script>
-    document.getElementById('logout').addEventListener('click', e => {
+    document.getElementById('logout').onclick = e => {
       e.preventDefault();
-      fetch('/api/logout', {method: 'POST'}).then(() => location.href = '/');
-    });
+      fetch('/api/logout', {method:'POST'}).then(() => location.href = '/');
+    };
 
     fetch('/api/me').then(r => r.json()).then(user => {
-      if (!user.id) return location.href = '/';
-      document.getElementById('userInfo').textContent = `${user.email} | Level ${user.level} | ${user.coins} coins`;
-    }).catch(() => location.href = '/');
+      if (!user || !user.id) location.href = '/';
+    });
 
     fetch('/api/games').then(r => r.json()).then(games => {
-      document.getElementById('loading').style.display = 'none';
+      document.getElementById('loading').remove();
       const grid = document.getElementById('grid');
       grid.style.display = 'grid';
-      games.forEach(game => {
+      games.forEach(g => {
         const card = document.createElement('div');
-        card.className = 'game-card';
+        card.className = 'card';
         card.innerHTML = `
-          <div class="thumb">
-            ${game.thumbnail ? `<img src="${game.thumbnail}" alt="">` : 'No Image'}
-          </div>
+          <div class="thumb"><img src="${g.thumbnail}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" /><div>No Image</div></div>
           <div class="info">
-            <div class="title">${game.title}</div>
-            <div class="desc">${game.description || 'No description'}</div>
-            <div class="platform">${game.platform === 'mobile' ? '📱 Mobile' : game.platform === 'pc' ? '💻 PC' : '🌐 Both'}</div>
-            <a href="/play/${game.id}" class="play-btn">Play Now</a>
+            <div class="title">${g.title}</div>
+            <div>${g.description || ''}</div>
+            <a href="/play/${g.id}" class="play-btn">开始游戏</a>
           </div>
         `;
         grid.appendChild(card);
