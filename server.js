@@ -82,8 +82,8 @@ app.post('/api/register', async (req, res) => {
     console.log('Registered:', email);
     res.json({ ok: true });
   } catch (e) {
-    console.error('Register error:', e.code, e.message);
-    res.json({ ok: false, error: 'Server error' });
+    console.error('Register error:', e.code, e.message);  // 关键日志
+    res.json({ ok: false, error: e.message });  // 返回具体错误
   }
 });
 
