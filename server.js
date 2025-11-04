@@ -4,6 +4,8 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const { Pool } = require('pg');
+const path = require('path');
+app.use(express.static(path.join(__dirname, 'public')));
 
 const isProd = process.env.NODE_ENV === 'production';
 const PORT = process.env.PORT || 3000;
@@ -147,6 +149,11 @@ app.post('/api/login', async (req, res) => {
 });
 
 app.get('/api/me', (req, res) => res.json(req.session.user || null));
+
+// Serve the SPA entry
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // ---------- static (serve index.html) ----------
 const path = require('path');
