@@ -5,17 +5,21 @@
   <title>Juice Game - Games</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: sans-serif; margin: 0; padding: 20px; background: #f0f0f0; }
-    .header { text-align: center; margin-bottom: 30px; }
-    .game-grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
-    .game-card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    .game-thumb { height: 160px; background: #ddd; }
-    .game-info { padding: 16px; }
-    .game-title { margin: 0 0 8px; font-size: 1.2em; }
-    .game-desc { margin: 0 0 12px; color: #666; font-size: 0.9em; }
-    .play-btn { background: #6c5ce7; color: white; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; width: 100%; font-weight: bold; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f8f9fa; }
+    .header { text-align: center; margin: 20px 0 40px; }
+    .header h1 { margin: 0; font-size: 2.2em; color: #2d3436; }
+    .header p { color: #636e72; margin: 8px 0 0; }
+    .logout { position: absolute; top: 20px; right: 20px; color: #636e72; text-decoration: none; font-size: 0.9em; }
+    .logout:hover { text-decoration: underline; }
+    .game-grid { display: grid; gap: 24px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); max-width: 1200px; margin: 0 auto; }
+    .game-card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); transition: transform 0.2s, box-shadow 0.2s; }
+    .game-card:hover { transform: translateY(-4px); box-shadow: 0 8px 30px rgba(0,0,0,0.15); }
+    .thumb { height: 180px; background: linear-gradient(135deg, #a29bfe, #6c5ce7); display: flex; align-items: center; justify-content: center; color: white; font-size: 3em; font-weight: bold; }
+    .info { padding: 20px; }
+    .title { margin: 0 0 8px; font-size: 1.3em; color: #2d3436; }
+    .desc { margin: 0 0 16px; color: #636e72; font-size: 0.95em; line-height: 1.5; }
+    .play-btn { width: 100%; padding: 12px; background: #6c5ce7; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 1em; cursor: pointer; transition: background 0.2s; }
     .play-btn:hover { background: #5a4fcf; }
-    .logout { position: absolute; top: 20px; right: 20px; color: #666; text-decoration: none; }
   </style>
 </head>
 <body>
@@ -24,7 +28,7 @@
     <p>Select a game to play</p>
   </div>
   <a href="/" class="logout">Logout</a>
-  <div id="game-list" class="game-grid"></div>
+  <div id="games" class="game-grid"></div>
 
   <script>
     fetch('/api/me').then(r => r.json()).then(data => {
@@ -32,25 +36,23 @@
     });
 
     fetch('/api/games').then(r => r.json()).then(data => {
-      const container = document.getElementById('game-list');
+      const container = document.getElementById('games');
       data.games.forEach(game => {
         const card = document.createElement('div');
         card.className = 'game-card';
         card.innerHTML = `
-          <div class="game-thumb"></div>
-          <div class="game-info">
-            <h3 class="game-title">${game.title}</h3>
-            <p class="game-desc">${game.description}</p>
-            <button class="play-btn" onclick="play('${game.id}')">Play Now</button>
+          <div class="thumb">${game.title[0]}</div>
+          <div class="info">
+            <h3 class="title">${game.title || 'Unknown'}</h3>
+            <p class="desc">${game.description || 'No description'}</p>
+            <button class="play-btn" onclick="location.href='/play/${game.id}'">Play Now</button>
           </div>
         `;
         container.appendChild(card);
       });
+    }).catch(() => {
+      document.getElementById('games').innerHTML = '<p style="text-align:center;color:#e74c3c;">Failed to load games</p>';
     });
-
-    function play(id) {
-      window.location = '/play/' + id;
-    }
   </script>
 </body>
 </html>

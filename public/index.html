@@ -1,81 +1,57 @@
-<!-- public/index.html (login/register page) -->
+<!-- public/games.html -->
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Juice Game - Login</title>
+  <title>Juice Game - Games</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: sans-serif; margin: 0; padding: 40px; background: linear-gradient(135deg, #6c5ce7, #a29bfe); color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .container { background: rgba(255,255,255,0.1); padding: 40px; border-radius: 16px; width: 100%; max-width: 400px; backdrop-filter: blur(10px); }
-    h1 { text-align: center; margin-bottom: 30px; }
-    input { width: 100%; padding: 12px; margin: 10px 0; border: none; border-radius: 8px; font-size: 16px; }
-    button { width: 100%; padding: 14px; margin: 10px 0; background: #fff; color: #6c5ce7; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; }
-    button:hover { background: #f0f0f0; }
-    .toggle { text-align: center; margin-top: 20px; }
-    .toggle a { color: white; text-decoration: underline; cursor: pointer; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; background: #f8f9fa; }
+    .header { text-align: center; margin: 20px 0 40px; }
+    .header h1 { margin: 0; font-size: 2.2em; color: #2d3436; }
+    .header p { color: #636e72; margin: 8px 0 0; }
+    .logout { position: absolute; top: 20px; right: 20px; color: #636e72; text-decoration: none; font-size: 0.9em; }
+    .logout:hover { text-decoration: underline; }
+    .game-grid { display: grid; gap: 24px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); max-width: 1200px; margin: 0 auto; }
+    .game-card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); transition: transform 0.2s, box-shadow 0.2s; }
+    .game-card:hover { transform: translateY(-4px); box-shadow: 0 8px 30px rgba(0,0,0,0.15); }
+    .thumb { height: 180px; background: linear-gradient(135deg, #a29bfe, #6c5ce7); display: flex; align-items: center; justify-content: center; color: white; font-size: 3em; font-weight: bold; }
+    .info { padding: 20px; }
+    .title { margin: 0 0 8px; font-size: 1.3em; color: #2d3436; }
+    .desc { margin: 0 0 16px; color: #636e72; font-size: 0.95em; line-height: 1.5; }
+    .play-btn { width: 100%; padding: 12px; background: #6c5ce7; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 1em; cursor: pointer; transition: background 0.2s; }
+    .play-btn:hover { background: #5a4fcf; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1 id="form-title">Login</h1>
-    <form id="auth-form">
-      <input type="email" id="email" placeholder="Email" required>
-      <input type="password" id="password" placeholder="Password" required>
-      <input type="text" id="name" placeholder="Name (optional)" style="display:none;">
-      <button type="submit" id="submit-btn">Login</button>
-    </form>
-    <div class="toggle">
-      <a id="toggle-link">Need an account? Register</a>
-    </div>
+  <div class="header">
+    <h1>Juice Game</h1>
+    <p>Select a game to play</p>
   </div>
+  <a href="/" class="logout">Logout</a>
+  <div id="games" class="game-grid"></div>
 
   <script>
-    const form = document.getElementById('auth-form');
-    const title = document.getElementById('form-title');
-    const submitBtn = document.getElementById('submit-btn');
-    const toggleLink = document.getElementById('toggle-link');
-    const nameInput = document.getElementById('name');
-    let isRegister = false;
-
-    toggleLink.onclick = () => {
-      isRegister = !isRegister;
-      if (isRegister) {
-        title.textContent = 'Register';
-        submitBtn.textContent = 'Create Account';
-        toggleLink.textContent = 'Have an account? Login';
-        nameInput.style.display = 'block';
-      } else {
-        title.textContent = 'Login';
-        submitBtn.textContent = 'Login';
-        toggleLink.textContent = 'Need an account? Register';
-        nameInput.style.display = 'none';
-      }
-    };
-
-    form.onsubmit = async (e) => {
-      e.preventDefault();
-      const email = document.getElementById('email').value;
-      const password = document.getElementById('password').value;
-      const name = document.getElementById('name').value;
-      const endpoint = isRegister ? '/api/register' : '/api/login';
-      const body = isRegister ? { email, password, name } : { email, password };
-
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      const data = await res.json();
-      if (data.ok) {
-        window.location = '/games.html';
-      } else {
-        alert(data.error || 'Failed');
-      }
-    };
-
-    // Auto redirect if logged in
     fetch('/api/me').then(r => r.json()).then(data => {
-      if (data.user) window.location = '/games.html';
+      if (!data.user) window.location = '/';
+    });
+
+    fetch('/api/games').then(r => r.json()).then(data => {
+      const container = document.getElementById('games');
+      data.games.forEach(game => {
+        const card = document.createElement('div');
+        card.className = 'game-card';
+        card.innerHTML = `
+          <div class="thumb">${game.title[0]}</div>
+          <div class="info">
+            <h3 class="title">${game.title || 'Unknown'}</h3>
+            <p class="desc">${game.description || 'No description'}</p>
+            <button class="play-btn" onclick="location.href='/play/${game.id}'">Play Now</button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }).catch(() => {
+      document.getElementById('games').innerHTML = '<p style="text-align:center;color:#e74c3c;">Failed to load games</p>';
     });
   </script>
 </body>
