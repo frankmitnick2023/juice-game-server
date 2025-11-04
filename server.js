@@ -61,45 +61,26 @@ app.get('/healthz', (req, res) => res.json({ ok: true, timestamp: new Date().toI
 
 // 注册 API（加超时 + 日志）
 app.post('/api/register', async (req, res) => {
-  console.log('Register attempt:', req.body.email);  // 日志入口
-  const { email, password } = req.body;
-  if (!email || !password) {
-    console.log('Register fail: missing fields');
-    return res.json({ ok: false, error: 'Missing email or password' });
-  }
-
-  const query = pool.query('SELECT 1 FROM users WHERE email = $1', [email]);  // 先查
-  const timeout = setTimeout(() => {
-    console.log('Register timeout');
-    res.status(408).json({ ok: false, error: 'Request timeout' });
-  }, 10000);
+  const { email, password, name } = req.body;  // 支持 name
+  if (!email || !password) return res.json({ ok: false, error: 'Missing email or password' });
 
   try {
-    const exists = await query;
-    clearTimeout(timeout);
+    const exists = await pool.query('SELECT 1 FROM users WHERE email = $1', [email]);
     if (exists.rows.length > 0) {
-      console.log('Register fail: email exists');
       return res.json({ ok: false, error: 'Email already exists' });
     }
 
-    console.log('Hashing password...');
-    const hash = await bcrypt.hash(password, 10);  // 可能慢
-    console.log('Inserting user...');
+    const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email',
-      [email, hash]
+      'INSERT INTO users (email, password_hash, name) VALUES ($1, $2, $3) RETURNING id, email, name',
+      [email, hash, name || null]  // name 可为空
     );
     req.session.user = result.rows[0];
-    console.log('Register success:', email);
+    console.log('Registered:', email);
     res.json({ ok: true });
   } catch (e) {
-    clearTimeout(timeout);
-    console.error('Register error:', e.code || 'unknown', e.message);
-    if (e.code === '23505') {
-      res.json({ ok: false, error: 'Email already exists' });
-    } else {
-      res.status(500).json({ ok: false, error: 'Server error: ' + e.message });
-    }
+    console.error('Register error:', e.code, e.message);
+    res.json({ ok: false, error: 'Server error' });
   }
 });
 
