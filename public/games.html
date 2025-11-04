@@ -1,4 +1,4 @@
-<!-- public/games.html -->
+<!-- public/games.html - 修复无限刷新 -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -21,6 +21,7 @@
     .play-btn { width: 100%; padding: 12px; background: #6c5ce7; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 1em; cursor: pointer; transition: background 0.2s; }
     .play-btn:hover { background: #5a4fcf; }
     .error { text-align: center; color: #e74c3c; margin: 40px 0; font-size: 1.1em; }
+    .loading { text-align: center; color: #636e72; margin: 40px 0; }
   </style>
 </head>
 <body>
@@ -29,39 +30,56 @@
     <p>Select a game to play</p>
   </div>
   <a href="/" class="logout">Logout</a>
-  <div id="games" class="game-grid"></div>
+  <div id="loading" class="loading">Loading games...</div>
+  <div id="games" class="game-grid" style="display:none;"></div>
   <div id="error" class="error" style="display:none;"></div>
 
   <script>
-    let isLoading = false;
+    // 防止重复请求
+    let authChecked = false;
+    let gamesLoaded = false;
 
-    // 登录检查 - 防止无限重定向
+    // 登录检查
     async function checkAuth() {
-      if (isLoading) return;
-      isLoading = true;
+      if (authChecked) return;
+      authChecked = true;
+      
       try {
-        const r = await fetch('/api/me');
+        const r = await fetch('/api/me', { 
+          credentials: 'include',
+          headers: { 'Cache-Control': 'no-cache' }
+        });
         const data = await r.json();
         if (!data.user) {
           window.location = '/';
+          return false;
         }
+        return true;
       } catch (e) {
-        console.error('Auth check failed:', e);
-      } finally {
-        isLoading = false;
+        console.error('Auth failed:', e);
+        document.getElementById('loading').textContent = 'Auth failed, redirecting...';
+        setTimeout(() => { window.location = '/'; }, 1000);
+        return false;
       }
     }
 
-    // 加载游戏列表
+    // 加载游戏
     async function loadGames() {
-      if (isLoading) return;
-      isLoading = true;
+      if (gamesLoaded) return;
+      gamesLoaded = true;
+
       const container = document.getElementById('games');
+      const loading = document.getElementById('loading');
       const errorEl = document.getElementById('error');
 
       try {
-        const r = await fetch('/api/games');
+        const r = await fetch('/api/games', { 
+          credentials: 'include',
+          headers: { 'Cache-Control': 'no-cache' }
+        });
         const data = await r.json();
+
+        loading.style.display = 'none';
 
         if (!data.ok || !data.games || data.games.length === 0) {
           errorEl.textContent = 'No games available';
@@ -69,7 +87,7 @@
           return;
         }
 
-        container.innerHTML = '';
+        container.style.display = 'grid';
         data.games.forEach(game => {
           const card = document.createElement('div');
           card.className = 'game-card';
@@ -78,29 +96,35 @@
             <div class="info">
               <h3 class="title">${game.title || 'Unknown Game'}</h3>
               <p class="desc">${game.description || 'No description'}</p>
-              <button class="play-btn" onclick="playGame('${game.id}')">Play Now</button>
+              <button class="play-btn" data-id="${game.id}">Play Now</button>
             </div>
           `;
           container.appendChild(card);
         });
+
+        // 事件委托
+        container.addEventListener('click', (e) => {
+          if (e.target.classList.contains('play-btn')) {
+            const id = e.target.getAttribute('data-id');
+            window.location.href = '/play/' + id;
+          }
+        });
+
       } catch (err) {
-        console.error('Failed to load games:', err);
+        console.error('Load games failed:', err);
+        loading.style.display = 'none';
         errorEl.textContent = 'Failed to load games';
         errorEl.style.display = 'block';
-      } finally {
-        isLoading = false;
       }
     }
 
-    function playGame(id) {
-      if (isLoading) return;
-      window.location.href = '/play/' + id;
-    }
-
     // 初始化
-    checkAuth().then(() => {
-      loadGames();
-    });
+    (async () => {
+      const authed = await checkAuth();
+      if (authed) {
+        await loadGames();
+      }
+    })();
   </script>
 </body>
 </html>

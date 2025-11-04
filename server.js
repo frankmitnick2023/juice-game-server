@@ -1,4 +1,4 @@
-// server.js - 修复无限刷新问题
+// server.js - 终极修复：防止无限刷新
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
@@ -52,10 +52,21 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'juice-secret-2025',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: 'auto', maxAge: 7 * 24 * 60 * 60 * 1000 }
+  cookie: { 
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  }
 }));
-app.use(express.static('public'));
-app.use('/games', express.static('games'));
+app.use(express.static('public', { 
+  maxAge: '1d',
+  setHeaders: (res, path) => {
+    if (path.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  }
+}));
+app.use('/games', express.static('games', { max | maxAge: '1d' }));
 
 // Health
 app.get('/healthz', (req, res) => res.json({ ok: true }));
@@ -101,8 +112,11 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Me - 防止无限重定向
+// Me - 关键修复：添加缓存头 + 防止重定向循环
 app.get('/api/me', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.json({ ok: true, user: req.session.user || null });
 });
 
@@ -160,14 +174,16 @@ app.get('/api/games', (req, res) => {
     return res.status(500).json({ ok: false, error: 'Failed to scan games' });
   }
 
+  res.setHeader('Cache-Control', 'no-cache');
   res.json({ ok: true, games });
 });
 
 // 播放页面
 app.get('/play/:id', (req, res) => {
   const { id } = req.params;
-  const user = req.session.user;
-  if (!user) return res.redirect('/');
+  if (!req.session.user) {
+    return res.redirect('/?redirect=/play/' + id);
+  }
 
   let gameUrl = '';
   let gameTitle = 'Unknown';
@@ -213,14 +229,22 @@ app.get('/play/:id', (req, res) => {
   res.send(html);
 });
 
-// Fallback - 防止无限刷新
-app.get('*', (req, res) => {
+// 游戏列表页 - 防止 SPA 路由冲突
+app.get('/games.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'games.html'));
+});
+
+// Fallback - 防止所有路径都走 SPA
+app.get('*', (req, res, next) => {
   const filePath = path.join(__dirname, 'public', req.path);
   if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-    res.sendFile(filePath);
-  } else {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    return res.sendFile(filePath);
   }
+  // 只有 / 和 /games.html 走 SPA
+  if (req.path === '/' || req.path === '/index.html') {
+    return res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
+  next();
 });
 
 app.listen(PORT, '0.0.0.0', () => {
