@@ -4,6 +4,7 @@
 const express = require('express');
 const session = require('express-session');
 const { Pool } = require('pg');
+const path = require('path');
 
 // 2) 基础设置
 const PORT = process.env.PORT || 3000;
