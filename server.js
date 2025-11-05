@@ -12,7 +12,6 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// === 使用 MemoryStore（完全避免 ON CONFLICT 问题）===
 const MemoryStore = session.MemoryStore;
 const sessionStore = new MemoryStore();
 
@@ -28,7 +27,18 @@ app.use(express.json());
 app.use(express.static('public'));
 app.use('/games', express.static('games'));
 
-// === 初始化数据库（仅 users 和 scores）===
+// === 捕获 aborted 请求 ===
+app.use((error, req, res, next) => {
+  if (error.type === 'entity.parse.failed' || error.code === 'ECONNABORTED') {
+    console.warn('Request aborted:', req.path);
+    if (!res.headersSent) res.status(400).end();
+    return;
+  }
+  console.error('Unhandled error:', error);
+  if (!res.headersSent) res.status(500).json({ error: 'Server error' });
+});
+
+// === 初始化数据库 ===
 (async () => {
   try {
     await pool.query(`
@@ -57,7 +67,7 @@ app.use('/games', express.static('games'));
   }
 })();
 
-// === 注册 ===
+// === API 端点（保持不变）===
 app.post('/api/register', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Missing fields' });
@@ -75,7 +85,6 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// === 登录 ===
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -100,21 +109,18 @@ app.post('/api/logout', (req, res) => {
   req.session.destroy(() => res.json({ success: true }));
 });
 
-// === 游戏扫描 ===
 function scanGames() {
   const games = {};
-  const demoPath = path.join(__dirname, 'games', 'demo-game.html');
-  if (fs.existsSync(demoPath)) {
-    games.demo = {
+  if (fs.existsSync(path.join(__dirname, 'games', 'demo-game.html'))) {
+    games['demo'] = {
       id: 'demo',
       title: 'Demo Game',
-      description: '简单演示游戏',
+      description: 'Demo',
       thumbnail: '',
       platform: 'both',
       entry: '/games/demo-game.html'
     };
   }
-
   ['juice-maker-mobile', 'juice-maker-PC'].forEach(dir => {
     const jsonPath = path.join(__dirname, 'games', dir, 'game.json');
     if (!fs.existsSync(jsonPath)) return;
@@ -129,7 +135,6 @@ function scanGames() {
       entry: `/games/${dir}/index.html`
     };
   });
-
   return Object.values(games);
 }
 
@@ -139,7 +144,6 @@ app.get('/api/games', (req, res) => {
   res.json(gameCache);
 });
 
-// === 播放页面 ===
 app.get('/play/:id', async (req, res) => {
   const gameId = req.params.id;
   const games = gameCache || scanGames();
@@ -162,34 +166,17 @@ app.get('/play/:id', async (req, res) => {
   res.send(`<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${game.title}</title>
-<style>
-  body{font-family:Arial;margin:0;background:#f4f4f4}
-  .header{background:#ff6b35;color:#fff;padding:1rem;text-align:center;position:relative}
-  .back{position:absolute;left:1rem;top:1rem;color:#fff;text-decoration:none}
-  .container{max-width:1200px;margin:auto;padding:1rem}
-  iframe{width:100%;height:70vh;border:none;border-radius:8px}
-  .scores{background:#fff;padding:1rem;margin-top:1rem;border-radius:8px}
-</style>
+<style>body{font-family:Arial;margin:0;background:#f4f4f4}.header{background:#ff6b35;color:#fff;padding:1rem;text-align:center;position:relative}.back{position:absolute;left:1rem;top:1rem;color:#fff;text-decoration:none}.container{max-width:1200px;margin:auto;padding:1rem}iframe{width:100%;height:70vh;border:none;border-radius:8px}.scores{background:#fff;padding:1rem;margin-top:1rem;border-radius:8px}</style>
 </head><body>
 <div class="header"><a href="/games.html" class="back">返回</a><h1>${game.title}</h1></div>
 <div class="container">
   <iframe src="${game.entry}" allowfullscreen></iframe>
-  <div class="scores"><h3>历史分数</h3>
-    ${scores.length ? scores.map(s => `<div><strong>${s.score}</strong> - ${new Date(s.created_at).toLocaleString()}</div>`).join('') : '<p>暂无</p>'}
-  </div>
+  <div class="scores"><h3>历史分数</h3>${scores.length ? scores.map(s => `<div><strong>${s.score}</strong> - ${new Date(s.created_at).toLocaleString()}</div>`).join('') : '<p>暂无</p>'}</div>
 </div>
-<script>
-  window.addEventListener('message', async e => {
-    if (e.data?.type === 'JUICE_GAME_SCORE') {
-      await fetch('/api/score', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gameId:'${gameId}',score:e.data.score})});
-      location.reload();
-    }
-  });
-</script>
+<script>window.addEventListener('message', async e => {if (e.data?.type === 'JUICE_GAME_SCORE') {await fetch('/api/score', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gameId:'${gameId}',score:e.data.score})});location.reload();}});</script>
 </body></html>`);
 });
 
-// === 提交分数 ===
 app.post('/api/score', async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
   const { gameId, score } = req.body;
@@ -200,6 +187,11 @@ app.post('/api/score', async (req, res) => {
   } catch (e) {
     res.status(500).json({ error: 'Save failed' });
   }
+});
+
+// === 健康检查端点（Railway 必需）===
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
