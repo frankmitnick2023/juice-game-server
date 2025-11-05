@@ -12,38 +12,9 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// === 关键：使用自定义 upsert 绕过 ON CONFLICT ===
-let sessionStore;
-try {
-  const PGSession = require('connect-pg-simple')(session);
-  sessionStore = new PGSession({
-    pool,
-    tableName: 'session',
-    // 禁用默认的 ON CONFLICT
-    // 改为手动 upsert
-  });
-
-  // 重写 set 方法，使用 upsert
-  const originalSet = sessionStore.set;
-  sessionStore.set = function (sid, sess, callback) {
-    const query = `
-      INSERT INTO session (sid, sess, expire)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (sid) DO UPDATE SET
-        sess = EXCLUDED.sess,
-        expire = EXCLUDED.expire
-    `;
-    const values = [sid, JSON.stringify(sess), new Date(sess.cookie.expires || Date.now() + 7*24*60*60*1000)];
-    this._asyncQuery(query, values)
-      .then(() => callback && callback(null))
-      .catch(err => callback && callback(err));
-  };
-
-  console.log('Using PostgreSQL session store with manual upsert');
-} catch (e) {
-  console.warn('PG session failed, using MemoryStore');
-  sessionStore = new session.MemoryStore();
-}
+// === 使用 MemoryStore（完全避免 ON CONFLICT 问题）===
+const MemoryStore = session.MemoryStore;
+const sessionStore = new MemoryStore();
 
 app.use(session({
   store: sessionStore,
@@ -57,7 +28,7 @@ app.use(express.json());
 app.use(express.static('public'));
 app.use('/games', express.static('games'));
 
-// === 初始化数据库（确保 sid 是 PRIMARY KEY）===
+// === 初始化数据库（仅 users 和 scores）===
 (async () => {
   try {
     await pool.query(`
@@ -68,18 +39,6 @@ app.use('/games', express.static('games'));
         level INTEGER DEFAULT 1,
         coins INTEGER DEFAULT 0
       );
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS session (
-        sid VARCHAR PRIMARY KEY,
-        sess JSON NOT NULL,
-        expire TIMESTAMP(6) NOT NULL
-      );
-    `);
-
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS session_expire_idx ON session(expire);
     `);
 
     await pool.query(`
@@ -98,7 +57,7 @@ app.use('/games', express.static('games'));
   }
 })();
 
-// === 注册 / 登录 / 分数提交（保持不变）===
+// === 注册 ===
 app.post('/api/register', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Missing fields' });
@@ -116,6 +75,7 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
+// === 登录 ===
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -140,11 +100,21 @@ app.post('/api/logout', (req, res) => {
   req.session.destroy(() => res.json({ success: true }));
 });
 
+// === 游戏扫描 ===
 function scanGames() {
   const games = {};
-  if (fs.existsSync(path.join(__dirname, 'games', 'demo-game.html'))) {
-    games['demo'] = { id: 'demo', title: 'Demo Game', description: 'Demo', thumbnail: '', platform: 'both', entry: '/games/demo-game.html' };
+  const demoPath = path.join(__dirname, 'games', 'demo-game.html');
+  if (fs.existsSync(demoPath)) {
+    games.demo = {
+      id: 'demo',
+      title: 'Demo Game',
+      description: '简单演示游戏',
+      thumbnail: '',
+      platform: 'both',
+      entry: '/games/demo-game.html'
+    };
   }
+
   ['juice-maker-mobile', 'juice-maker-PC'].forEach(dir => {
     const jsonPath = path.join(__dirname, 'games', dir, 'game.json');
     if (!fs.existsSync(jsonPath)) return;
@@ -159,6 +129,7 @@ function scanGames() {
       entry: `/games/${dir}/index.html`
     };
   });
+
   return Object.values(games);
 }
 
@@ -168,6 +139,7 @@ app.get('/api/games', (req, res) => {
   res.json(gameCache);
 });
 
+// === 播放页面 ===
 app.get('/play/:id', async (req, res) => {
   const gameId = req.params.id;
   const games = gameCache || scanGames();
@@ -195,8 +167,8 @@ app.get('/play/:id', async (req, res) => {
   .header{background:#ff6b35;color:#fff;padding:1rem;text-align:center;position:relative}
   .back{position:absolute;left:1rem;top:1rem;color:#fff;text-decoration:none}
   .container{max-width:1200px;margin:auto;padding:1rem}
-  iframe{width:100%;height:75vh;border:none;border-radius:8px}
-  .scores{background:#fff;padding:1.5rem;margin-top:1rem;border-radius:8px}
+  iframe{width:100%;height:70vh;border:none;border-radius:8px}
+  .scores{background:#fff;padding:1rem;margin-top:1rem;border-radius:8px}
 </style>
 </head><body>
 <div class="header"><a href="/games.html" class="back">返回</a><h1>${game.title}</h1></div>
@@ -217,6 +189,7 @@ app.get('/play/:id', async (req, res) => {
 </body></html>`);
 });
 
+// === 提交分数 ===
 app.post('/api/score', async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
   const { gameId, score } = req.body;
