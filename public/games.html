@@ -1,30 +1,38 @@
+<!-- public/games.html -->
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>游戏大厅</title>
+  <title>Juice Game 大厅</title>
   <style>
     body{font-family:Arial;margin:0;background:#f9f9f9}
-    .header{background:#ff6b35;color:white;padding:1rem;text-align:center;position:relative}
-    .logout{position:absolute;right:1rem;top:1rem;color:white;text-decoration:none}
-    .container{max-width:1000px;margin:2rem auto;padding:0 1rem}
-    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.5rem}
-    .card{background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.1)}
-    .thumb{height:160px;background:#eee;display:flex;align-items:center;justify-content:center}
+    .header{background:#ff6b35;color:white;padding:1.5rem;text-align:center;position:relative}
+    .logout{position:absolute;right:1.5rem;top:1.5rem;color:white;text-decoration:none;font-weight:bold}
+    .user-info{position:absolute;left:1.5rem;top:1.5rem;color:white;font-size:0.9rem}
+    .container{max-width:1100px;margin:2rem auto;padding:0 1rem}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:2rem}
+    .card{background:white;border-radius:12px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,0.1);transition:transform 0.2s}
+    .card:hover{transform:translateY(-8px)}
+    .thumb{height:180px;background:#eee;display:flex;align-items:center;justify-content:center;overflow:hidden}
     .thumb img{width:100%;height:100%;object-fit:cover}
-    .info{padding:1rem}
-    .title{font-weight:bold;font-size:1.2rem}
-    .play-btn{display:block;margin-top:1rem;background:#ff6b35;color:white;text-align:center;padding:0.7rem;border-radius:6px;text-decoration:none}
+    .info{padding:1.5rem}
+    .title{font-size:1.3rem;font-weight:bold;margin-bottom:0.5rem}
+    .desc{color:#666;margin-bottom:1rem}
+    .platform{font-size:0.8rem;color:#ff6b35;margin-bottom:1rem}
+    .play-btn{display:block;background:#ff6b35;color:white;text-align:center;padding:0.9rem;border-radius:8px;text-decoration:none;font-weight:bold}
+    .play-btn:hover{background:#e55a2b}
+    .loading{text-align:center;padding:3rem;color:#666;font-size:1.2rem}
   </style>
 </head>
 <body>
   <div class="header">
+    <div class="user-info" id="userInfo"></div>
     <h1>Juice Game 大厅</h1>
-    <a href="#" id="logout" class="logout">退出</a>
+    <a href="#" id="logout" class="logout">退出登录</a>
   </div>
   <div class="container">
-    <div id="loading">加载中...</div>
+    <div id="loading" class="loading">加载游戏列表中...</div>
     <div id="grid" class="grid" style="display:none"></div>
   </div>
   <script>
@@ -33,28 +41,37 @@
       fetch('/api/logout', {method:'POST'}).then(() => location.href = '/');
     };
 
-    fetch('/api/me').then(r => r.json()).then(user => {
-      if (!user || !user.id) location.href = '/';
-    });
+    fetch('/api/me')
+      .then(r => r.json())
+      .then(user => {
+        if (!user || !user.id) return location.href = '/';
+        document.getElementById('userInfo').textContent = `${user.email} | Lv.${user.level} | ${user.coins} coins`;
+      })
+      .catch(() => location.href = '/');
 
-    fetch('/api/games').then(r => r.json()).then(games => {
-      document.getElementById('loading').remove();
-      const grid = document.getElementById('grid');
-      grid.style.display = 'grid';
-      games.forEach(g => {
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.innerHTML = `
-          <div class="thumb"><img src="${g.thumbnail}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" /><div>No Image</div></div>
-          <div class="info">
-            <div class="title">${g.title}</div>
-            <div>${g.description || ''}</div>
-            <a href="/play/${g.id}" class="play-btn">开始游戏</a>
-          </div>
-        `;
-        grid.appendChild(card);
+    fetch('/api/games')
+      .then(r => r.json())
+      .then(games => {
+        document.getElementById('loading').remove();
+        const grid = document.getElementById('grid');
+        grid.style.display = 'grid';
+        games.forEach(g => {
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.innerHTML = `
+            <div class="thumb">
+              ${g.thumbnail ? `<img src="${g.thumbnail}" alt="${g.title}">` : '<div style="color:#999">No Image</div>'}
+            </div>
+            <div class="info">
+              <div class="title">${g.title}</div>
+              <div class="desc">${g.description || '暂无描述'}</div>
+              <div class="platform">${g.platform === 'mobile' ? '移动端' : g.platform === 'pc' ? 'PC端' : '全平台'}</div>
+              <a href="/play/${g.id}" class="play-btn">开始游戏</a>
+            </div>
+          `;
+          grid.appendChild(card);
+        });
       });
-    });
   </script>
 </body>
 </html>

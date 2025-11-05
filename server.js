@@ -174,7 +174,7 @@ app.get('/play/:id', async (req, res) => {
 </head>
 <body>
   <div class="header">
-    <a href="/games.html" class="back">← 返回</a>
+    <a href="/games.html" class="back">返回</a>
     <h1>${game.title}</h1>
   </div>
   <div class="container">

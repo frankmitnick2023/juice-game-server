@@ -4,59 +4,61 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Juice Game - Login</title>
+  <title>Juice Game - 登录</title>
   <style>
     body{font-family:Arial;background:linear-gradient(135deg,#ff9a56,#ff6b35);margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}
-    .card{background:white;border-radius:12px;padding:2rem;width:100%;max-width:400px;box-shadow:0 10px 30px rgba(0,0,0,0.2)}
-    h1{text-align:center;color:#ff6b35;margin-bottom:1.5rem}
-    input{display:block;width:100%;padding:0.8rem;margin:0.5rem 0;border:1px solid #ddd;border-radius:6px;font-size:1rem}
-    button{width:100%;padding:0.9rem;background:#ff6b35;color:white;border:none;border-radius:6px;font-size:1rem;margin-top:1rem;cursor:pointer}
+    .card{background:white;border-radius:16px;padding:3rem;width:100%;max-width:420px;box-shadow:0 20px 40px rgba(0,0,0,0.2)}
+    h1{text-align:center;color:#ff6b35;margin-bottom:2rem;font-size:2rem}
+    input{display:block;width:100%;padding:1rem;margin:1rem 0;border:1px solid #ddd;border-radius:8px;font-size:1.1rem;box-sizing:border-box}
+    button{width:100%;padding:1.1rem;background:#ff6b35;color:white;border:none;border-radius:8px;font-size:1.1rem;margin-top:1rem;cursor:pointer;font-weight:bold}
     button:hover{background:#e55a2b}
-    .switch{text-align:center;margin-top:1rem}
-    .switch a{color:#ff6b35;text-decoration:none}
-    .error{color:red;text-align:center;margin:1rem 0}
+    .switch{text-align:center;margin-top:1.5rem}
+    .switch a{color:#ff6b35;text-decoration:none;font-weight:bold}
+    .error{color:red;text-align:center;margin:1rem 0;font-weight:bold}
   </style>
 </head>
 <body>
   <div class="card">
-    <h1 id="title">Login</h1>
+    <h1 id="title">登录</h1>
     <div id="error" class="error" style="display:none"></div>
-    <input type="email" id="email" placeholder="Email" required>
-    <input type="password" id="password" placeholder="Password" required>
-    <button id="submit">Login</button>
+    <input type="email" id="email" placeholder="邮箱" required>
+    <input type="password" id="password" placeholder="密码" required>
+    <button id="submit">登录</button>
     <div class="switch">
-      <span id="switchText">No account? </span><a href="#" id="switchLink">Register</a>
+      <span id="switchText">没有账号？ </span><a href="#" id="switchLink">注册</a>
     </div>
   </div>
   <script>
-    const isLogin = location.search.includes('register') ? false : true;
+    const urlParams = new URLSearchParams(location.search);
+    const isRegister = urlParams.has('register');
+    const redirect = urlParams.get('redirect');
     const title = document.getElementById('title');
     const submit = document.getElementById('submit');
     const switchLink = document.getElementById('switchLink');
     const switchText = document.getElementById('switchText');
     const error = document.getElementById('error');
 
-    function setMode(login) {
-      title.textContent = login ? 'Login' : 'Register';
-      submit.textContent = login ? 'Login' : 'Register';
-      switchText.textContent = login ? 'No account? ' : 'Have account? ';
-      switchLink.textContent = login ? 'Register' : 'Login';
-      switchLink.href = login ? '?register' : '/';
+    function setMode(register) {
+      title.textContent = register ? '注册' : '登录';
+      submit.textContent = register ? '注册' : '登录';
+      switchText.textContent = register ? '已有账号？ ' : '没有账号？ ';
+      switchLink.textContent = register ? '登录' : '注册';
     }
-    setMode(isLogin);
+    setMode(isRegister);
 
-    switchLink.addEventListener('click', e => {
+    switchLink.onclick = e => {
       e.preventDefault();
-      setMode(!isLogin);
-    });
+      setMode(!isRegister);
+      history.replaceState(null, '', isRegister ? '/' : '?register');
+    };
 
-    submit.addEventListener('click', async () => {
+    submit.onclick = async () => {
       error.style.display = 'none';
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      if (!email || !password) return showError('Fill all fields');
+      if (!email || !password) return showError('请填写完整');
 
-      const endpoint = isLogin ? '/api/login' : '/api/register';
+      const endpoint = isRegister ? '/api/register' : '/api/login';
       try {
         const res = await fetch(endpoint, {
           method: 'POST',
@@ -64,25 +66,20 @@
           body: JSON.stringify({email, password})
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed');
-        const redirect = new URLSearchParams(location.search).get('redirect');
+        if (!res.ok) throw new Error(data.error || '失败');
         location.href = redirect || '/games.html';
       } catch (e) {
         showError(e.message);
       }
-    });
+    };
 
     function showError(msg) {
       error.textContent = msg;
       error.style.display = 'block';
     }
 
-    // Auto login if session exists
-    fetch('/api/me').then(r => r.json()).then(data => {
-      if (data.id) {
-        const redirect = new URLSearchParams(location.search).get('redirect');
-        location.href = redirect || '/games.html';
-      }
+    fetch('/api/me').then(r => r.json()).then(user => {
+      if (user && user.id) location.href = redirect || '/games.html';
     }).catch(() => {});
   </script>
 </body>
