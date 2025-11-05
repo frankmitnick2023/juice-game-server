@@ -1,202 +1,220 @@
-// server.js —— 完整可运行（登录 + 游戏 + 投屏 全在一个页面）
-const express   = require('express');
-const path      = require('path');
-const fs        = require('fs');
-const WebSocket = require('ws');
-const crypto    = require('crypto');
-
+// server.js
+const express = require('express');
+const session = require('express-session');
+const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
+const path = require('path');
+const fs = require('fs');
 const app = express();
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-
-// ---------------------------------------------------------------
-// 1. 内存用户系统
-const users = new Map();
-users.set('admin', { passwordHash: crypto.createHash('sha256').update('123456').digest('hex') });
-
-// ---------------------------------------------------------------
-// 2. 注册 API
-app.post('/api/register', async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ error: '缺少用户名或密码' });
-  if (users.has(username)) return res.status(400).json({ error: '用户名已存在' });
-  const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
-  users.set(username, { passwordHash });
-  res.json({ success: true, message: '注册成功' });
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// ---------------------------------------------------------------
-// 3. 登录 API
-app.post('/api/login', async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) return res.status(400).json({ error: '缺少用户名或密码' });
-  const user = users.get(username);
-  if (!user) return res.status(401).json({ error: '用户不存在' });
-  const inputHash = crypto.createHash('sha256').update(password).digest('hex');
-  if (inputHash !== user.passwordHash) return res.status(401).json({ error: '密码错误' });
-  res.json({ success: true });
-});
+const MemoryStore = session.MemoryStore;
+const sessionStore = new MemoryStore();
 
-// ---------------------------------------------------------------
-// 4. 静态资源
-app.use('/games', express.static('games'));
+app.use(session({
+  store: sessionStore,
+  secret: process.env.SESSION_SECRET || 'juice-secret-2025',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }
+}));
+
+app.use(express.json());
 app.use(express.static('public'));
+app.use('/games', express.static('games'));
 
-// ---------------------------------------------------------------
-// 5. 投屏大屏页
-app.get('/cast', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'cast.html'));
+// === 捕获 aborted 请求 ===
+app.use((error, req, res, next) => {
+  if (error.type === 'entity.parse.failed' || error.code === 'ECONNABORTED') {
+    console.warn('Request aborted:', req.path);
+    if (!res.headersSent) res.status(400).end();
+    return;
+  }
+  console.error('Unhandled error:', error);
+  if (!res.headersSent) res.status(500).json({ error: 'Server error' });
 });
 
-// ---------------------------------------------------------------
-// 6. 主页：登录 + 游戏 + 投屏
-app.get('/', (req, res) => {
-  const room = 'room-' + Date.now();
-  res.send(`
-<!DOCTYPE html>
-<html lang="zh-CN">
+// === 初始化数据库 ===
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        level INTEGER DEFAULT 1,
+        coins INTEGER DEFAULT 0
+      );
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS scores (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        game_id TEXT NOT NULL,
+        score INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    console.log('Database initialized');
+  } catch (err) {
+    console.error('DB init error:', err.message);
+  }
+})();
+
+// === API 端点（保持不变）===
+app.post('/api/register', async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'Missing fields' });
+  try {
+    const hash = await bcrypt.hash(password, 10);
+    const result = await pool.query(
+      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, level, coins',
+      [email, hash]
+    );
+    req.session.user = result.rows[0];
+    res.json(result.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(400).json({ error: 'Email exists' });
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = result.rows[0];
+    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    delete user.password_hash;
+    req.session.user = user;
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.get('/api/me', (req, res) => {
+  res.json(req.session.user || null);
+});
+
+app.post('/api/logout', (req, res) => {
+  req.session.destroy(() => res.json({ success: true }));
+});
+
+function scanGames() {
+  const games = {};
+  if (fs.existsSync(path.join(__dirname, 'games', 'demo-game.html'))) {
+    games['demo'] = {
+      id: 'demo',
+      title: 'Demo Game',
+      description: 'Demo',
+      thumbnail: '',
+      platform: 'both',
+      entry: '/games/demo-game.html'
+    };
+  }
+  ['juice-maker-mobile','demo-game', 'Ready!!Action!!','juice-maker-PC'].forEach(dir => {
+    const jsonPath = path.join(__dirname, 'games', dir, 'game.json');
+    if (!fs.existsSync(jsonPath)) return;
+    let meta;
+    try { meta = JSON.parse(fs.readFileSync(jsonPath, 'utf8')); } catch { return; }
+    games[dir] = {
+      id: dir,
+      title: meta.title || dir,
+      description: meta.description || '',
+      thumbnail: meta.thumbnail || '',
+      platform: dir.includes('mobile') ? 'mobile' : 'pc',
+      entry: `/games/${dir}/index.html`
+    };
+  });
+  return Object.values(games);
+}
+
+let gameCache = null;
+app.get('/api/games', (req, res) => {
+  if (!gameCache) gameCache = scanGames();
+  res.json(gameCache);
+});
+
+app.get('/play/:id', async (req, res) => {
+  const gameId = req.params.id;
+  const games = gameCache || scanGames();
+  const game = games.find(g => g.id === gameId);
+  if (!game) return res.status(404).send('Game not found');
+
+  if (!req.session.user) {
+    return res.redirect(`/?redirect=${encodeURIComponent('/play/' + gameId)}`);
+  }
+
+  // 所有游戏都走 wrapper
+  const wrapperUrl = `/wrapper.html?src=${encodeURIComponent(game.entry)}`;
+
+  let scores = [];
+  try {
+    const r = await pool.query(
+      'SELECT score, created_at FROM scores WHERE user_id = $1 AND game_id = $2 ORDER BY score DESC LIMIT 10',
+      [req.session.user.id, gameId]
+    );
+    scores = r.rows;
+  } catch (e) {}
+
+  res.send(`<!DOCTYPE html>
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>Juice Game</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${game.title}</title>
   <style>
-    body{font-family:Arial;background:#111;color:#fff;margin:0;height:100vh;overflow:hidden;}
-    .login-box,.game-box{background:#222;padding:2rem;border-radius:12px;width:300px;text-align:center;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);}
-    input,button{display:block;width:100%;margin:0.5rem 0;padding:0.8rem;border:none;border-radius:8px;}
-    button{background:#a855f7;color:#fff;font-weight:bold;cursor:pointer;}
-    button:hover{background:#9333ea;}
-    a{color:#a855f7;text-decoration:underline;}
-    #gameFrame{width:100%;height:100%;border:none;display:none;}
-    #castBtn{position:fixed;bottom:20px;right:20px;padding:12px 20px;
-             background:#a855f7;color:#fff;border:none;border-radius:8px;
-             font-weight:bold;z-index:9999;display:none;}
+    body{font-family:Arial;margin:0;background:#f4f4f4}
+    .header{background:#ff6b35;color:#fff;padding:1rem;text-align:center;position:relative}
+    .back{position:absolute;left:1rem;top:1rem;color:#fff;text-decoration:none}
+    .container{max-width:1200px;margin:auto;padding:1rem}
+    iframe{width:100%;height:75vh;border:none;border-radius:8px}
+    .scores{background:#fff;padding:1.5rem;margin-top:1rem;border-radius:8px}
   </style>
 </head>
 <body>
-
-  <!-- 登录/注册 -->
-  <div id="authBox" class="login-box">
-    <h2>登录</h2>
-    <form id="loginForm">
-      <input type="text" id="username" placeholder="用户名" required>
-      <input type="password" id="password" placeholder="密码" required>
-      <button type="submit">登录</button>
-    </form>
-    <p><a href="#" id="showRegister">没有账号？点这里注册</a></p>
-
-    <form id="registerForm" style="display:none;margin-top:1rem;">
-      <input type="text" id="regUsername" placeholder="新用户名" required>
-      <input type="password" id="regPassword" placeholder="新密码" required>
-      <button type="submit">注册</button>
-    </form>
+  <div class="header">
+    <a href="/games.html" class="back">返回</a>
+    <h1>${game.title}</h1>
   </div>
-
-  <!-- 游戏 + 投屏 -->
-  <iframe id="gameFrame" src="/games/dance-cam/index.html" sandbox="allow-scripts allow-same-origin"></iframe>
-  <button id="castBtn">投屏到大屏</button>
-
-  <script src="/inject.js"></script>
-  <script>
-    const room = '${room}';
-    const gameFrame = document.getElementById('gameFrame');
-    const castBtn = document.getElementById('castBtn');
-    const authBox = document.getElementById('authBox');
-    let pc, ws;
-
-    // 登录/注册逻辑
-    document.getElementById('showRegister').onclick = e => {
-      e.preventDefault();
-      document.getElementById('loginForm').style.display = 'none';
-      document.getElementById('registerForm').style.display = 'block';
-    };
-
-    document.getElementById('loginForm').onsubmit = async e => {
-      e.preventDefault();
-      await auth('/api/login', { username: document.getElementById('username').value, password: document.getElementById('password').value }, '登录成功！');
-    };
-
-    document.getElementById('registerForm').onsubmit = async e => {
-      e.preventDefault();
-      await auth('/api/register', { username: document.getElementById('regUsername').value, password: document.getElementById('regPassword').value }, '注册成功！请登录');
-    };
-
-    async function auth(url, body, successMsg) {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      const data = await res.json();
-      if (data.success) {
-        alert(successMsg);
-        authBox.style.display = 'none';
-        gameFrame.style.display = 'block';
-        castBtn.style.display = 'block';
-        injectScriptToIframe(gameFrame, '/inject.js');
-      } else {
-        alert(data.error || '操作失败');
-      }
-    }
-
-    // 投屏逻辑
-    function injectScriptToIframe(iframe, src) {
-      const doc = iframe.contentDocument || iframe.contentWindow.document;
-      const script = doc.createElement('script');
-      script.src = src;
-      script.onload = () => console.log('inject.js loaded');
-      doc.head.appendChild(script);
-    }
-
-    function startCast(canvas) {
-      ws = new WebSocket(\`wss://\${location.host}/ws-cast?room=\${room}\`);
-      pc = new RTCPeerConnection();
-      const stream = canvas.captureStream(30);
-      stream.getTracks().forEach(t => pc.addTrack(t, stream));
-      pc.onicecandidate = e => e.candidate && ws.send(JSON.stringify({ candidate: e.candidate }));
-      pc.createOffer()
-        .then(offer => pc.setLocalDescription(offer))
-        .then(() => ws.send(JSON.stringify({ sdp: pc.localDescription })));
-      ws.onmessage = async msg => {
-        const s = JSON.parse(msg.data);
-        if (s.sdp?.type === 'answer') {
-          await pc.setRemoteDescription(s);
-          castBtn.textContent = '投屏中…';
-          castBtn.disabled = true;
-          window.open('/cast?room=' + room, '_blank');
-        }
-      };
-    }
-
-    window.addEventListener('message', e => {
-      if (e.data.type === 'CAST_CANVAS_READY') startCast(e.source.castCanvas);
-    });
-
-    castBtn.onclick = () => {
-      if (ws) window.open('/cast?room=' + room, '_blank');
-    };
-  </script>
+  <div class="container">
+    <iframe src="${wrapperUrl}" allowfullscreen></iframe>
+    <div class="scores">
+      <h3>你的历史分数</h3>
+      ${scores.length ? scores.map(s => `<div><strong>${s.score}</strong> - ${new Date(s.created_at).toLocaleString()}</div>`).join('') : '<p>暂无记录</p>'}
+    </div>
+  </div>
 </body>
-</html>
-  `);
+</html>`);
 });
 
-// ---------------------------------------------------------------
-// 7. 启动服务器
-const server = app.listen(process.env.PORT || 3000, () => {
-  console.log(`Server running on port ${process.env.PORT || 3000}`);
-});
-const wss = new WebSocket.Server({ noServer: true });
-server.on('upgrade', (req, socket, head) => {
-  const { pathname, searchParams } = new URL(req.url, `http://${req.headers.host}`);
-  if (pathname === '/ws-cast') {
-    wss.handleUpgrade(req, socket, head, ws => {
-      ws.roomId = searchParams.get('room') || 'default';
-      ws.on('message', msg => {
-        wss.clients.forEach(c => {
-          if (c.roomId === ws.roomId && c !== ws && c.readyState === WebSocket.OPEN) c.send(msg);
-        });
-      });
-    });
+app.post('/api/score', async (req, res) => {
+  if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
+  const { gameId, score } = req.body;
+  if (!gameId || typeof score !== 'number') return res.status(400).json({ error: 'Invalid' });
+  try {
+    await pool.query('INSERT INTO scores (user_id, game_id, score) VALUES ($1,$2,$3)', [req.session.user.id, gameId, score]);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: 'Save failed' });
   }
 });
+
+// === 健康检查端点（Railway 必需）===
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/games.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'games.html')));
+
+app.listen(process.env.PORT || 3000, () => console.log('Server running'));
