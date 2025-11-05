@@ -1,7 +1,6 @@
 // server.js
 // ---------------------------------------------------------------
-// 1. 基础依赖
-// ---------------------------------------------------------------
+// 1. 基础依赖（只保留一次）
 const express   = require('express');
 const path      = require('path');
 const fs        = require('fs');
@@ -10,30 +9,32 @@ const WebSocket = require('ws');
 const app = express();
 
 // ---------------------------------------------------------------
-// 2. 你的原有中间件 / 路由 / 数据库等（全部保留）
+// 2. 必须的中间件（防止 JSON 解析错误）
+app.use(express.json({ limit: '10mb' }));        // 解析 POST JSON
+app.use(express.urlencoded({ extended: true })); // 解析表单
+
 // ---------------------------------------------------------------
-// 请把原来的代码粘贴到这里，例如：
-// app.use(express.json());
-// app.use('/api', yourApiRouter);
-// app.use(session(...));
+// 3. 你的原有路由 / API（全部保留在此区域）
+// ---------------------------------------------------------------
+// 请把原来的登录、注册、游戏逻辑粘贴到这里
+// 例如：
+// app.post('/api/login', async (req, res) => { ... });
+// app.post('/api/register', async (req, res) => { ... });
 // ---------------------------------------------------------------
 
 // ---------------------------------------------------------------
-// 3. 投屏框架：静态资源
-// ---------------------------------------------------------------
-app.use('/games', express.static('games'));   // 所有游戏
+// 4. 投屏框架：静态资源
+app.use('/games', express.static('games'));   // 游戏目录
 app.use(express.static('public'));            // cast.html、inject.js
 
 // ---------------------------------------------------------------
-// 4. 通用大屏投屏页
-// ---------------------------------------------------------------
+// 5. 通用大屏投屏页
 app.get('/cast', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'cast.html'));
 });
 
 // ---------------------------------------------------------------
-// 5. 通用游戏播放页（自动注入投屏）
-// ---------------------------------------------------------------
+// 6. 通用游戏播放页（自动注入投屏）
 app.get('/play/:gameName', (req, res) => {
   const gamePath = path.join(__dirname, 'games', req.params.gameName, 'index.html');
   if (!fs.existsSync(gamePath)) {
@@ -67,7 +68,6 @@ app.get('/play/:gameName', (req, res) => {
     const castBtn   = document.getElementById('castBtn');
     let pc, ws;
 
-    // 把 inject.js 注入 iframe
     function injectScriptToIframe(iframe, src) {
       const doc = iframe.contentDocument || iframe.contentWindow.document;
       const script = doc.createElement('script');
@@ -76,7 +76,6 @@ app.get('/play/:gameName', (req, res) => {
       doc.head.appendChild(script);
     }
 
-    // 开始投屏
     function startCast(canvas) {
       ws = new WebSocket(\`wss://\${location.host}/ws-cast?room=\${room}\`);
       pc = new RTCPeerConnection();
@@ -99,7 +98,6 @@ app.get('/play/:gameName', (req, res) => {
       };
     }
 
-    // 接收 iframe 发来的 canvas 就绪消息
     window.addEventListener('message', e => {
       if (e.data.type === 'CAST_CANVAS_READY') {
         startCast(e.source.castCanvas);
@@ -114,11 +112,21 @@ app.get('/play/:gameName', (req, res) => {
 });
 
 // ---------------------------------------------------------------
-// 6. 启动 HTTP + WebSocket
-// ---------------------------------------------------------------
-const server = app.listen(process.env.PORT || 3000);
-const wss = new WebSocket.Server({ noServer: true });
+// 7. 兜底：所有未定义路由返回 JSON（防止 HTML 被 JSON.parse）
+app.use((req, res, next) => {
+  if (req.accepts('json') && !req.accepts('html')) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  next();
+});
 
+// ---------------------------------------------------------------
+// 8. 启动服务器 + WebSocket
+const server = app.listen(process.env.PORT || 3000, () => {
+  console.log(`Server running on port ${process.env.PORT || 3000}`);
+});
+
+const wss = new WebSocket.Server({ noServer: true });
 server.on('upgrade', (request, socket, head) => {
   const { pathname, searchParams } = new URL(request.url, `http://${request.headers.host}`);
   if (pathname === '/ws-cast') {
