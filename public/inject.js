@@ -1,0 +1,1 @@
+(paste inject.js content)

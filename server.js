@@ -218,3 +218,83 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.ht
 app.get('/games.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'games.html')));
 
 app.listen(process.env.PORT || 3000, () => console.log('Server running'));
+
+const express = require('express');
+const path = require('path');
+const fs = require('fs');
+const app = express();
+
+// 静态资源
+app.use('/games', express.static('games'));
+app.use(express.static('public'));
+
+// 通用投屏页
+app.get('/cast', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'cast.html'));
+});
+
+// 通用游戏播放页（自动注入投屏）
+app.get('/play/:gameName', (req, res) => {
+  const gamePath = path.join(__dirname, 'games', req.params.gameName, 'index.html');
+  if (!fs.existsSync(gamePath)) {
+      return res.status(404).send('Game not found');
+  }
+
+  const room = 'room-' + Date.now();
+
+  res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body,html{margin:0;height:100vh;overflow:hidden;background:#000;}
+    #gameFrame{width:100%;height:100%;border:none;}
+    #castBtn{position:fixed;bottom:20px;right:20px;padding:12px 20px;
+             background:#a855f7;color:#fff;border:none;border-radius:8px;
+             font-weight:bold;z-index:9999;}
+  </style>
+</head>
+<body>
+  <iframe id="gameFrame" src="/games/${req.params.gameName}/index.html" sandbox="allow-scripts allow-same-origin"></iframe>
+  <button id="castBtn">投屏到大屏</button>
+
+  <script src="/inject.js"></script>
+  <script>
+    const room = '${room}';
+    const gameFrame = document.getElementById('gameFrame');
+    const castBtn = document.getElementById('castBtn');
+
+    // 注入完成后，inject.js 会调用 window.onCanvasReady(canvas)
+    window.onCanvasReady = (canvas) => {
+      startCast(canvas, room, castBtn);
+    };
+
+    // 自动检测 iframe 是否已加载
+    gameFrame.onload = () => {
+      injectScriptToIframe(gameFrame, '/inject.js');
+    };
+  </script>
+</body>
+</html>
+  `);
+});
+
+// WebSocket 信令（同前）
+const server = app.listen(process.env.PORT || 3000);
+const wss = new WebSocket.Server({ noServer: true });
+server.on('upgrade', (req, socket, head) => {
+  const { pathname, searchParams } = new URL(req.url, `http://${req.headers.host}`);
+  if (pathname === '/ws-cast') {
+    wss.handleUpgrade(req, socket, head, ws => {
+      ws.roomId = searchParams.get('room') || 'default';
+      ws.on('message', msg => {
+        wss.clients.forEach(c => {
+          if (c.roomId === ws.roomId && c !== ws && c.readyState === WebSocket.OPEN) {
+            c.send(msg);
+          }
+        });
+      });
+    });
+  }
+});
