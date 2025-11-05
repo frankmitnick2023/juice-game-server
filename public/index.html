@@ -43,13 +43,16 @@
       submit.textContent = register ? '注册' : '登录';
       switchText.textContent = register ? '已有账号？ ' : '没有账号？ ';
       switchLink.textContent = register ? '登录' : '注册';
+      // 修复：切换时更新 URL 参数
+      const newUrl = register ? '/?register' : '/';
+      history.replaceState(null, '', redirect ? `${newUrl}&redirect=${redirect}` : newUrl);
     }
+
     setMode(isRegister);
 
     switchLink.onclick = e => {
       e.preventDefault();
       setMode(!isRegister);
-      history.replaceState(null, '', isRegister ? '/' : '?register');
     };
 
     submit.onclick = async () => {
