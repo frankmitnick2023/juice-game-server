@@ -12,20 +12,17 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-const MemoryStore = session.MemoryStore;
-const sessionStore = new MemoryStore();
-
+// === 使用 PostgreSQL 持久化会话（修复重复声明）===
 let sessionStore;
 try {
   const PGSession = require('connect-pg-simple')(session);
   sessionStore = new PGSession({
     pool,
-    tableName: 'session',
-    // 不启用自动建表（我们手动建了）
+    tableName: 'session'
   });
   console.log('Using PostgreSQL session store');
 } catch (e) {
-  console.warn('PG session failed, fallback to MemoryStore');
+  console.warn('PG session failed, using MemoryStore');
   sessionStore = new session.MemoryStore();
 }
 
@@ -34,48 +31,12 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'juice-secret-2025',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 } // 7天
-}));
-
-app.use(session({
-  store: sessionStore,
-  secret: process.env.SESSION_SECRET || 'juice-secret-2025',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { maxAge: 24 * 60 * 60 * 1000 }
+  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }
 }));
 
 app.use(express.json());
 app.use(express.static('public'));
 app.use('/games', express.static('games'));
-
-(async () => {
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        level INTEGER DEFAULT 1,
-        coins INTEGER DEFAULT 0
-      );
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS scores (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        game_id TEXT NOT NULL,
-        score INTEGER NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
-
-    console.log('Database initialized');
-  } catch (err) {
-    console.error('DB init error:', err.message);
-  }
-})();
 
 // === 初始化数据库（添加 session 表 + 唯一约束）===
 (async () => {
@@ -90,7 +51,6 @@ app.use('/games', express.static('games'));
       );
     `);
 
-    // 关键：为 session 表添加 PRIMARY KEY（解决 ON CONFLICT 问题）
     await pool.query(`
       CREATE TABLE IF NOT EXISTS session (
         sid VARCHAR PRIMARY KEY,
@@ -103,7 +63,6 @@ app.use('/games', express.static('games'));
       CREATE INDEX IF NOT EXISTS session_expire_idx ON session(expire);
     `);
 
-    // 已有 scores 表，增强字段用于排行榜
     await pool.query(`
       CREATE TABLE IF NOT EXISTS scores (
         id SERIAL PRIMARY KEY,
@@ -114,12 +73,7 @@ app.use('/games', express.static('games'));
       );
     `);
 
-    // 可选：添加唯一约束防止重复提交（同一游戏同一时间）
-    // await pool.query(`
-    //   ALTER TABLE scores ADD CONSTRAINT unique_user_game UNIQUE (user_id, game_id);
-    // `).catch(() => {});
-
-    console.log('Database initialized with session + scores support');
+    console.log('Database initialized');
   } catch (err) {
     console.error('DB init error:', err.message);
   }
@@ -158,21 +112,6 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-app.post('/api/score', async (req, res) => {
-  if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
-  const { gameId, score } = req.body;
-  if (!gameId || typeof score !== 'number' || score < 0) return res.status(400).json({ error: 'Invalid' });
-  try {
-    await pool.query(
-      'INSERT INTO scores (user_id, game_id, score) VALUES ($1, $2, $3)',
-      [req.session.user.id, gameId, score]
-    );
-    res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ error: 'Save failed' });
-  }
-});
-
 app.get('/api/me', (req, res) => {
   res.json(req.session.user || null);
 });
@@ -183,7 +122,6 @@ app.post('/api/logout', (req, res) => {
 
 function scanGames() {
   const games = {};
-
   if (fs.existsSync(path.join(__dirname, 'games', 'demo-game.html'))) {
     games['demo'] = {
       id: 'demo',
@@ -194,7 +132,6 @@ function scanGames() {
       entry: '/games/demo-game.html'
     };
   }
-
   ['juice-maker-mobile', 'juice-maker-PC'].forEach(dir => {
     const jsonPath = path.join(__dirname, 'games', dir, 'game.json');
     if (!fs.existsSync(jsonPath)) return;
@@ -209,7 +146,6 @@ function scanGames() {
       entry: `/games/${dir}/index.html`
     };
   });
-
   return Object.values(games);
 }
 
@@ -309,7 +245,6 @@ app.post('/api/score', async (req, res) => {
     );
     res.json({ success: true });
   } catch (e) {
-    console.error(e);
     res.status(500).json({ error: 'Save failed' });
   }
 });
