@@ -1,30 +1,58 @@
-// server.js
+// server.js  ——  完整可直接运行
 // ---------------------------------------------------------------
 // 1. 基础依赖（只保留一次）
 const express   = require('express');
 const path      = require('path');
 const fs        = require('fs');
 const WebSocket = require('ws');
+const crypto    = require('crypto');
 
 const app = express();
 
 // ---------------------------------------------------------------
-// 2. 必须的中间件（防止 JSON 解析错误）
-app.use(express.json({ limit: '10mb' }));        // 解析 POST JSON
-app.use(express.urlencoded({ extended: true })); // 解析表单
+// 2. 必须的中间件
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
 // ---------------------------------------------------------------
 // 3. 你的原有路由 / API（全部保留在此区域）
 // ---------------------------------------------------------------
 // 请把原来的登录、注册、游戏逻辑粘贴到这里
-// 例如：
-// app.post('/api/login', async (req, res) => { ... });
-// app.post('/api/register', async (req, res) => { ... });
 // ---------------------------------------------------------------
+// 示例：内存用户（实际请换成数据库 + bcrypt）
+const users = new Map(); // username → { passwordHash }
+
+// 注册（可选）
+app.post('/api/register', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) return res.status(400).json({ error: '缺少参数' });
+  if (users.has(username)) return res.status(400).json({ error: '用户已存在' });
+
+  const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+  users.set(username, { passwordHash });
+  res.json({ success: true, message: '注册成功' });
+});
+
+// 登录（必须返回 JSON）
+app.post('/api/login', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    return res.status(400).json({ error: '缺少用户名或密码' });
+  }
+  const user = users.get(username);
+  if (!user) {
+    return res.status(401).json({ error: '用户不存在' });
+  }
+  const inputHash = crypto.createHash('sha256').update(password).digest('hex');
+  if (inputHash !== user.passwordHash) {
+    return res.status(401).json({ error: '密码错误' });
+  }
+  res.json({ success: true });
+});
 
 // ---------------------------------------------------------------
 // 4. 投屏框架：静态资源
-app.use('/games', express.static('games'));   // 游戏目录
+app.use('/games', express.static('games'));   // 所有游戏
 app.use(express.static('public'));            // cast.html、inject.js
 
 // ---------------------------------------------------------------
@@ -121,7 +149,7 @@ app.use((req, res, next) => {
 });
 
 // ---------------------------------------------------------------
-// 8. 启动服务器 + WebSocket
+// 8. 启动 HTTP + WebSocket
 const server = app.listen(process.env.PORT || 3000, () => {
   console.log(`Server running on port ${process.env.PORT || 3000}`);
 });
