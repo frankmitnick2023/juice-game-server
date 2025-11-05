@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body,html{margin:0;padding:0;width:100%;height:100%;overflow:hidden}
+    iframe{width:100%;height:100%;border:none}
+  </style>
+</head>
+<body>
+  <iframe id="gameFrame" src="" allowfullscreen></iframe>
+
+  <script>
+    const urlParams = new URLSearchParams(location.search);
+    const gameUrl = decodeURIComponent(urlParams.get('src'));
+    const gameFrame = document.getElementById('gameFrame');
+    gameFrame.src = gameUrl;
+
+    // 统一拦截所有游戏消息
+    window.addEventListener('message', (event) => {
+      const data = event.data;
+
+      // 兼容旧游戏：如果发送 {score: 999}
+      if (typeof data === 'object' && data.score !== undefined && !data.type) {
+        forwardScore(data.score);
+        return;
+      }
+
+      // 标准协议
+      if (data.type === 'JUICE_GAME_SCORE' && typeof data.score === 'number') {
+        forwardScore(data.score);
+      }
+    });
+
+    function forwardScore(score) {
+      parent.postMessage({
+        type: 'JUICE_GAME_SCORE',
+        score: Math.floor(score) // 防小数
+      }, '*');
+    }
+
+    // 备用：游戏无输出时，5分钟后提交 0 分（防作弊）
+    setTimeout(() => {
+      forwardScore(0);
+    }, 5 * 60 * 1000);
+  </script>
+</body>
+</html>
