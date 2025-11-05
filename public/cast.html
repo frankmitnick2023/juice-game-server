@@ -1,1 +1,27 @@
-(paste cast.html content above)
+<!DOCTYPE html>
+<html>
+<head>
+  <title>投屏大屏</title>
+  <style>body,html{margin:0;height:100vh;background:#111;}
+         video{width:100vw;height:100vh;object-fit:contain;}</style>
+</head>
+<body>
+  <video id="remote" autoplay playsinline></video>
+  <script>
+    const urlParams = new URLSearchParams(location.search);
+    const room = urlParams.get('room') || 'default';
+    const ws = new WebSocket(`wss://${location.host}/ws-cast?room=${room}`);
+    const pc = new RTCPeerConnection();
+
+    pc.ontrack = e => document.getElementById('remote').srcObject = e.streams[0];
+
+    ws.onmessage = async msg => {
+      const s = JSON.parse(msg.data);
+      if (s.sdp) await pc.setRemoteDescription(s);
+      if (s.candidate) await pc.addIceCandidate(s);
+    };
+
+    pc.onicecandidate = e => e.candidate && ws.send(JSON.stringify({ candidate: e.candidate }));
+  </script>
+</body>
+</html>
