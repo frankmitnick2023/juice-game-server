@@ -15,6 +15,28 @@ const pool = new Pool({
 const MemoryStore = session.MemoryStore;
 const sessionStore = new MemoryStore();
 
+let sessionStore;
+try {
+  const PGSession = require('connect-pg-simple')(session);
+  sessionStore = new PGSession({
+    pool,
+    tableName: 'session',
+    // 不启用自动建表（我们手动建了）
+  });
+  console.log('Using PostgreSQL session store');
+} catch (e) {
+  console.warn('PG session failed, fallback to MemoryStore');
+  sessionStore = new session.MemoryStore();
+}
+
+app.use(session({
+  store: sessionStore,
+  secret: process.env.SESSION_SECRET || 'juice-secret-2025',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 } // 7天
+}));
+
 app.use(session({
   store: sessionStore,
   secret: process.env.SESSION_SECRET || 'juice-secret-2025',
@@ -55,6 +77,54 @@ app.use('/games', express.static('games'));
   }
 })();
 
+// === 初始化数据库（添加 session 表 + 唯一约束）===
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        level INTEGER DEFAULT 1,
+        coins INTEGER DEFAULT 0
+      );
+    `);
+
+    // 关键：为 session 表添加 PRIMARY KEY（解决 ON CONFLICT 问题）
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS session (
+        sid VARCHAR PRIMARY KEY,
+        sess JSON NOT NULL,
+        expire TIMESTAMP(6) NOT NULL
+      );
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS session_expire_idx ON session(expire);
+    `);
+
+    // 已有 scores 表，增强字段用于排行榜
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS scores (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        game_id TEXT NOT NULL,
+        score INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // 可选：添加唯一约束防止重复提交（同一游戏同一时间）
+    // await pool.query(`
+    //   ALTER TABLE scores ADD CONSTRAINT unique_user_game UNIQUE (user_id, game_id);
+    // `).catch(() => {});
+
+    console.log('Database initialized with session + scores support');
+  } catch (err) {
+    console.error('DB init error:', err.message);
+  }
+})();
+
 app.post('/api/register', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Missing fields' });
@@ -85,6 +155,21 @@ app.post('/api/login', async (req, res) => {
     res.json(user);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/api/score', async (req, res) => {
+  if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
+  const { gameId, score } = req.body;
+  if (!gameId || typeof score !== 'number' || score < 0) return res.status(400).json({ error: 'Invalid' });
+  try {
+    await pool.query(
+      'INSERT INTO scores (user_id, game_id, score) VALUES ($1, $2, $3)',
+      [req.session.user.id, gameId, score]
+    );
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: 'Save failed' });
   }
 });
 
