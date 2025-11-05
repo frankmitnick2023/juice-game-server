@@ -1,8 +1,7 @@
 {
-  "name": "体感榨汁机（手机版）",
-  "description": "腰胯扭转来“榨汁”，30秒挑战！",
-  "icon": "🍹",
-  "category": "Fitness",
-  "entryFile": "index.html",
-  "difficulty": "easy"
+  "title": "榨汁机 - 移动版",
+  "description": "用手指疯狂榨汁，挑战最高分！",
+  "thumbnail": "thumbnail.jpg",
+  "version": "1.0",
+  "author": "Juice Team"
 }

@@ -2,6 +2,7 @@
   "name": "体感榨汁机（电脑版）",
   "description": "腰胯扭转来“榨汁”，30秒挑战！",
   "icon": "🍹",
+  "thumbnail": "thumbnail.jpg",
   "category": "Fitness",
   "entryFile": "index.html",
   "difficulty": "easy"

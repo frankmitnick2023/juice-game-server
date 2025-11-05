@@ -15,5 +15,17 @@
     </div>
     <br>
     <a href="/">Back to Home</a>
+	<script>
+  // ???????
+  function endGame(finalScore) {
+    parent.postMessage({
+      type: 'JUICE_GAME_SCORE',
+      score: finalScore
+    }, '*');
+  }
+
+  // ???3????
+  setTimeout(() => endGame(888), 3000);
+</script>
 </body>
 </html>
