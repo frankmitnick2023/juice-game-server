@@ -60,8 +60,12 @@
           card.className = 'card';
           card.innerHTML = `
             <div class="thumb">
-              ${g.thumbnail ? `<img src="${g.thumbnail}" alt="${g.title}">` : '<div style="color:#999">No Image</div>'}
-            </div>
+			${g.thumbnail 
+    		? `<img src="/games/${g.id}/${g.thumbnail}" alt="${g.title}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">` 
+		  	: ''
+			}
+  			<div style="color:#999;display:${g.thumbnail?'none':'block'}">No Image</div>
+	  		</div>
             <div class="info">
               <div class="title">${g.title}</div>
               <div class="desc">${g.description || '暂无描述'}</div>
