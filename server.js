@@ -12,7 +12,6 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// === 使用 PostgreSQL 持久化会话（修复重复声明）===
 let sessionStore;
 try {
   const PGSession = require('connect-pg-simple')(session);
@@ -38,7 +37,6 @@ app.use(express.json());
 app.use(express.static('public'));
 app.use('/games', express.static('games'));
 
-// === 初始化数据库（添加 session 表 + 唯一约束）===
 (async () => {
   try {
     await pool.query(`
