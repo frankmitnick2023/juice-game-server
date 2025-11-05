@@ -154,6 +154,9 @@ app.get('/play/:id', async (req, res) => {
     return res.redirect(`/?redirect=${encodeURIComponent('/play/' + gameId)}`);
   }
 
+  // 所有游戏都走 wrapper
+  const wrapperUrl = `/wrapper.html?src=${encodeURIComponent(game.entry)}`;
+
   let scores = [];
   try {
     const r = await pool.query(
@@ -164,17 +167,34 @@ app.get('/play/:id', async (req, res) => {
   } catch (e) {}
 
   res.send(`<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${game.title}</title>
-<style>body{font-family:Arial;margin:0;background:#f4f4f4}.header{background:#ff6b35;color:#fff;padding:1rem;text-align:center;position:relative}.back{position:absolute;left:1rem;top:1rem;color:#fff;text-decoration:none}.container{max-width:1200px;margin:auto;padding:1rem}iframe{width:100%;height:70vh;border:none;border-radius:8px}.scores{background:#fff;padding:1rem;margin-top:1rem;border-radius:8px}</style>
-</head><body>
-<div class="header"><a href="/games.html" class="back">返回</a><h1>${game.title}</h1></div>
-<div class="container">
-  <iframe src="${game.entry}" allowfullscreen></iframe>
-  <div class="scores"><h3>历史分数</h3>${scores.length ? scores.map(s => `<div><strong>${s.score}</strong> - ${new Date(s.created_at).toLocaleString()}</div>`).join('') : '<p>暂无</p>'}</div>
-</div>
-<script>window.addEventListener('message', async e => {if (e.data?.type === 'JUICE_GAME_SCORE') {await fetch('/api/score', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gameId:'${gameId}',score:e.data.score})});location.reload();}});</script>
-</body></html>`);
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${game.title}</title>
+  <style>
+    body{font-family:Arial;margin:0;background:#f4f4f4}
+    .header{background:#ff6b35;color:#fff;padding:1rem;text-align:center;position:relative}
+    .back{position:absolute;left:1rem;top:1rem;color:#fff;text-decoration:none}
+    .container{max-width:1200px;margin:auto;padding:1rem}
+    iframe{width:100%;height:75vh;border:none;border-radius:8px}
+    .scores{background:#fff;padding:1.5rem;margin-top:1rem;border-radius:8px}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <a href="/games.html" class="back">返回</a>
+    <h1>${game.title}</h1>
+  </div>
+  <div class="container">
+    <iframe src="${wrapperUrl}" allowfullscreen></iframe>
+    <div class="scores">
+      <h3>你的历史分数</h3>
+      ${scores.length ? scores.map(s => `<div><strong>${s.score}</strong> - ${new Date(s.created_at).toLocaleString()}</div>`).join('') : '<p>暂无记录</p>'}
+    </div>
+  </div>
+</body>
+</html>`);
 });
 
 app.post('/api/score', async (req, res) => {
