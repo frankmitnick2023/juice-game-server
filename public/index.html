@@ -29,9 +29,8 @@
     </div>
   </div>
   <script>
-    const urlParams = new URLSearchParams(location.search);
-    const isRegister = urlParams.has('register');
-    const redirect = urlParams.get('redirect');
+    let isRegister = new URLSearchParams(location.search).has('register');
+    const redirect = new URLSearchParams(location.search).get('redirect');
     const title = document.getElementById('title');
     const submit = document.getElementById('submit');
     const switchLink = document.getElementById('switchLink');
@@ -39,13 +38,15 @@
     const error = document.getElementById('error');
 
     function setMode(register) {
+      isRegister = register;
       title.textContent = register ? '注册' : '登录';
       submit.textContent = register ? '注册' : '登录';
       switchText.textContent = register ? '已有账号？ ' : '没有账号？ ';
       switchLink.textContent = register ? '登录' : '注册';
-      // 修复：切换时更新 URL 参数
-      const newUrl = register ? '/?register' : '/';
-      history.replaceState(null, '', redirect ? `${newUrl}&redirect=${redirect}` : newUrl);
+      // 同步 URL 参数
+      const base = register ? '/?register' : '/';
+      const url = redirect ? `${base}&redirect=${encodeURIComponent(redirect)}` : base;
+      history.replaceState(null, '', url);
     }
 
     setMode(isRegister);
@@ -81,6 +82,7 @@
       error.style.display = 'block';
     }
 
+    // 自动登录检查
     fetch('/api/me').then(r => r.json()).then(user => {
       if (user && user.id) location.href = redirect || '/games.html';
     }).catch(() => {});
