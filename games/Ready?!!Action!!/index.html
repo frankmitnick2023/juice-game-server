@@ -18,6 +18,9 @@
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.7} }
     .btn-primary { @apply px-6 py-3 rounded-2xl font-semibold transition-all duration-200 hover:scale-105 active:scale-95 shadow-lg; }
     .btn-glow { box-shadow: 0 0 20px rgba(34,197,94,0.5); }
+    .skeleton-line { stroke: #10b981; stroke-width: 3; fill: none; }
+    .skeleton-joint { fill: #34d399; }
+    .align-curve-bg { position: absolute; inset: 0; opacity: 0.15; pointer-events: none; }
   </style>
 </head>
 <body class="min-h-screen p-4 md:p-8">
@@ -25,10 +28,10 @@
     <!-- 标题与版本 -->
     <header class="text-center space-y-4">
       <h1 class="text-4xl md:text-6xl font-black bg-gradient-to-r from-emerald-400 via-blue-400 to-purple-500 bg-clip-text text-transparent drop-shadow-2xl">
-        🎵 DanceCam
+        DanceCam
       </h1>
-      <p class="text-xl md:text-2xl opacity-90">AI全身捕捉舞蹈游戏 · 平台优化版 v7</p>
-      <div class="text-sm md:text-base opacity-70">竖屏三分屏 | 预告轮廓 | 角度训练 | 本地排行</div>
+      <p class="text-xl md:text-2xl opacity-90">AI全身捕捉舞蹈游戏 · 平台优化版 v8</p>
+      <div class="text-sm md:text-base opacity-70">Lite模型 | OneEuro滤波 | 3D角度 | 骨架+对齐曲线</div>
     </header>
 
     <!-- 控制面板 -->
@@ -38,14 +41,13 @@
         <div class="space-y-3">
           <label class="flex items-center gap-3 bg-slate-800/70 px-4 py-3 rounded-2xl ring-1 ring-white/10">
             <span class="font-semibold w-16">难度</span>
-            <select id="difficulty" class="flex-1 bg-slate-900/80 border border-white/20 rounded-xl px-4 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all">
-              <option value="Easy">🌟 Easy</option>
-              <option value="Normal" selected>⭐ Normal</option>
-              <option value="Hard">⭐⭐ Hard</option>
-              <option value="Extreme">⭐⭐⭐ Extreme</option>
+            <select id="difficulty" class="flex-1 bg-slate-900/80 border border-white/20 rounded-xl px-4 py-2 focus:ring-2 focus:ring-emerald-500">
+              <option value="Easy">Easy</option>
+              <option value="Normal" selected>Normal</option>
+              <option value="Hard">Hard</option>
+              <option value="Extreme">Extreme</option>
             </select>
           </label>
-          
           <label class="flex items-center gap-3 bg-slate-800/70 px-4 py-3 rounded-2xl ring-1 ring-white/10">
             <span class="font-semibold w-16">预告</span>
             <input id="ghostToggle" type="checkbox" checked class="w-5 h-5 accent-emerald-500 rounded" />
@@ -53,7 +55,6 @@
             <input id="lookahead" type="range" min="200" max="2000" step="100" value="800" class="w-24 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500" />
             <span id="lookaheadVal" class="text-sm font-mono bg-slate-900 px-2 py-1 rounded">800ms</span>
           </label>
-
           <label class="flex items-center gap-3 bg-slate-800/70 px-4 py-3 rounded-2xl ring-1 ring-white/10">
             <span class="font-semibold w-16">训练</span>
             <input id="trainToggle" type="checkbox" class="w-5 h-5 accent-emerald-500 rounded" />
@@ -64,22 +65,17 @@
             </select>
           </label>
         </div>
-
         <!-- 个人信息 -->
         <div class="space-y-3">
           <label class="flex items-center gap-3 bg-slate-800/70 px-4 py-3 rounded-2xl ring-1 ring-white/10">
             <span class="font-semibold w-16">曲目</span>
-            <input id="songTitle" type="text" placeholder="输入歌曲名" maxlength="30" 
-                   class="flex-1 bg-slate-900/80 border border-white/20 rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 placeholder:opacity-50 transition-all" />
+            <input id="songTitle" type="text" placeholder="输入歌曲名" maxlength="30" class="flex-1 bg-slate-900/80 border border-white/20 rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 placeholder:opacity-50" />
           </label>
-          
           <label class="flex items-center gap-3 bg-slate-800/70 px-4 py-3 rounded-2xl ring-1 ring-white/10">
             <span class="font-semibold w-16">玩家</span>
-            <input id="playerName" type="text" placeholder="你的昵称" maxlength="12" value="舞者" 
-                   class="flex-1 bg-gradient-to-r from-emerald-500/20 to-blue-500/20 border border-white/30 rounded-xl px-4 py-2 font-semibold focus:ring-4 focus:ring-emerald-400 transition-all" />
+            <input id="playerName" type="text" placeholder="你的昵称" maxlength="12" value="舞者" class="flex-1 bg-gradient-to-r from-emerald-500/20 to-blue-500/20 border border-white/30 rounded-xl px-4 py-2 font-semibold focus:ring-4 focus:ring-emerald-400" />
           </label>
         </div>
-
         <!-- 状态显示 -->
         <div class="space-y-3 md:col-span-3 lg:col-span-1">
           <div class="grid grid-cols-2 gap-3">
@@ -98,22 +94,22 @@
       <div class="flex flex-wrap gap-4 justify-center">
         <input id="refFile" type="file" accept="video/*" class="hidden" />
         <button id="refBtn" class="btn-primary bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-orange-500/50 hover:from-orange-400 hover:to-orange-500 game-ready">
-          📹 选择舞蹈视频
+          选择舞蹈视频
         </button>
         <button id="openCamBtn" class="btn-primary bg-gradient-to-r from-teal-500 to-teal-600 text-white shadow-teal-500/50 hover:from-teal-400 hover:to-teal-500">
-          🎥 打开摄像头
+          打开摄像头
         </button>
         <button id="analyzeRefBtn" class="btn-primary bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-indigo-500/50 hover:from-indigo-400 hover:to-indigo-500 disabled:opacity-50" disabled>
-          ⚡ 分析动作
+          分析动作
         </button>
         <button id="startGameBtn" class="btn-primary bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-emerald-500/50 hover:from-emerald-400 hover:to-emerald-500 text-xl px-8 disabled:opacity-50" disabled>
-          🚀 开始跟舞
+          开始跟舞
         </button>
         <button id="stopGameBtn" class="btn-primary bg-gradient-to-r from-rose-500 to-rose-600 text-white shadow-rose-500/50 hover:from-rose-400 hover:to-rose-500 text-xl px-8 disabled:opacity-50 hidden" disabled>
-          ⏹️ 停止
+          停止
         </button>
       </div>
-      
+
       <div id="statusRow" class="flex flex-wrap gap-4 text-sm opacity-80 mt-4 justify-center">
         <span id="refStatus"></span>
         <span id="runStatus"></span>
@@ -146,18 +142,23 @@
         <video id="camVideo" class="portrait w-full rounded-2xl bg-gradient-to-br from-black to-slate-900 ring-4 ring-teal-500/30 shadow-2xl" autoplay muted playsinline></video>
       </div>
 
-      <!-- 卡通人物 -->
-      <div id="rightPanel" class="bg-slate-900/70 backdrop-blur-xl rounded-3xl p-6 ring-2 ring-white/10 shadow-2xl" data-role="avatar">
+      <!-- 卡通人物 + 骨架 + 对齐曲线 -->
+      <div id="rightPanel" class="bg-slate-900/70 backdrop-blur-xl rounded-3xl p-6 ring-2 ring-white/10 shadow-2xl relative" data-role="avatar">
         <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
           <span class="w-8 h-8 bg-emerald-500/20 rounded-xl flex items-center justify-center text-emerald-400 font-bold text-lg">3</span>
           AI卡通化
         </h2>
         <div class="relative mb-6">
+          <!-- 对齐曲线背景 -->
+          <canvas id="alignCurveBg" class="align-curve-bg portrait w-full rounded-2xl"></canvas>
+          <!-- 骨架绘制层 -->
+          <canvas id="skeletonCanvas" class="portrait w-full rounded-2xl absolute inset-0 pointer-events-none"></canvas>
+          <!-- 卡通人物 -->
           <canvas id="avatarCanvas" class="portrait w-full rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 ring-4 ring-emerald-500/30 shadow-2xl"></canvas>
           <canvas id="ghostCanvas" class="portrait w-full rounded-2xl absolute inset-0 pointer-events-none"></canvas>
           <div class="fx-burst" id="fxLayer"></div>
         </div>
-        
+
         <!-- 实时得分 -->
         <div class="grid grid-cols-2 gap-4">
           <div class="p-4 rounded-2xl bg-gradient-to-br from-blue-900/60 to-blue-800/60 ring-2 ring-blue-500/40 text-center">
@@ -184,13 +185,13 @@
     <div class="text-center">
       <label class="inline-flex items-center gap-3 bg-slate-800/60 px-6 py-3 rounded-2xl ring-1 ring-white/20 hover:bg-slate-800/80 cursor-pointer transition-all">
         <input id="fsTarget" type="checkbox" class="hidden" value="avatar" checked />
-        <span>🎮 全屏卡通人物</span>
+        <span>全屏卡通人物</span>
         <button id="fsBtn" class="ml-auto px-4 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-violet-600 hover:from-violet-400 hover:to-violet-500 text-white text-sm font-semibold shadow-lg">进入全屏</button>
       </label>
     </div>
 
     <footer class="text-center text-xs opacity-50 pt-8">
-      <p>✨ 平台专属优化版 | 支持本地排行榜 | MediaPipe Pose AI驱动</p>
+      <p>平台专属优化版 | 骨架可视化 + 实时对齐曲线 | MediaPipe v0.10</p>
     </footer>
   </div>
 
@@ -198,10 +199,9 @@
   <div id="resultModal" class="modal">
     <div class="w-full max-w-4xl max-h-[90vh] bg-gradient-to-b from-slate-900/95 to-slate-800/90 ring-2 ring-white/20 rounded-3xl p-8 space-y-8 overflow-hidden shadow-2xl">
       <div class="flex items-center justify-between">
-        <h3 class="text-3xl font-black bg-gradient-to-r from-emerald-400 to-blue-400 bg-clip-text text-transparent">🎉 舞蹈结算</h3>
-        <button id="closeResult" class="px-4 py-2 rounded-xl bg-slate-800/70 hover:bg-slate-700/70 ring-1 ring-white/20 transition-all">✕</button>
+        <h3 class="text-3xl font-black bg-gradient-to-r from-emerald-400 to-blue-400 bg-clip-text text-transparent">舞蹈结算</h3>
+        <button id="closeResult" class="px-4 py-2 rounded-xl bg-slate-800/70 hover:bg-slate-700/70 ring-1 ring-white/20 transition-all text-white font-bold">x</button>
       </div>
-
       <!-- 成绩总览 -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center text-center">
         <div>
@@ -222,21 +222,19 @@
           </div>
         </div>
       </div>
-
       <!-- 精准度曲线 -->
       <div class="bg-slate-900/50 rounded-2xl p-6 ring-1 ring-white/10">
         <h4 class="font-bold text-lg mb-4 flex items-center gap-2">
-          📈 命中精准度曲线
+          命中精准度曲线
           <span class="text-xs opacity-60">(绿色=Perfect, 蓝色=Great, 红色=Miss)</span>
         </h4>
         <canvas id="accChart" class="w-full h-48 rounded-xl bg-slate-900/30 ring-1 ring-white/20"></canvas>
       </div>
-
       <!-- 排行榜 -->
       <div>
         <div class="flex items-center justify-between mb-6">
           <h4 class="text-xl font-bold flex items-center gap-2">
-            🏆 本地排行榜
+            本地排行榜
             <span class="text-sm opacity-60">(当前歌曲)</span>
           </h4>
           <div class="flex items-center gap-2">
@@ -244,21 +242,20 @@
               <option value="all">清空全部记录</option>
               <option value="video" selected>清空当前歌曲</option>
             </select>
-            <button id="doClearLB" class="px-4 py-2 text-sm rounded-xl bg-rose-600/80 hover:bg-rose-500/80 ring-1 ring-rose-500/30 transition-all">删除</button>
+            <button id="doClearLB" class="px-4 py-2 text-sm rounded-xl bg-rose-600/80 hover:bg-rose-500/80 ring-1 ring-rose-500/30 transition-all text-white font-bold">删除</button>
           </div>
         </div>
         <div class="max-h-64 overflow-auto">
           <ol id="leaderboard" class="space-y-2"></ol>
         </div>
       </div>
-
       <!-- 再次挑战 -->
       <div class="flex flex-col sm:flex-row gap-4 pt-4 border-t border-white/10">
-        <button id="replayBtn" class="flex-1 btn-primary bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-emerald-500/50 hover:from-emerald-400">
-          🔄 再战一次
+        <button id="replayBtn" class="flex-1 btn-primary bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-emerald-500/50 hover:from-emerald-400 font-bold">
+          再战一次
         </button>
-        <button id="shareBtn" class="flex-1 btn-primary bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-blue-500/50 hover:from-blue-400">
-          📱 分享成绩
+        <button id="shareBtn" class="flex-1 btn-primary bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-blue-500/50 hover:from-blue-400 font-bold">
+          分享成绩
         </button>
       </div>
     </div>
@@ -277,8 +274,9 @@
 
     // ===== 核心状态 =====
     let poseLandmarker, running = false, rafId, combo = 0, lastBeatIdx = -1, lastHitTime = -1e9;
-    let refFrames = [], refBeats = [], userFrames = [], judgments = [];
+    let refFrames = [], refBeats = [], userFrames = [], judgments = [], alignHistory = [];
     const ctx = {}, gctx = {}, cctx = {};
+    const FPS = 30, INTERVAL = 1000 / FPS;
 
     // ===== DOM 元素 =====
     const els = {
@@ -287,102 +285,208 @@
       camVideo: document.getElementById('camVideo'),
       avatarCanvas: document.getElementById('avatarCanvas'),
       ghostCanvas: document.getElementById('ghostCanvas'),
+      skeletonCanvas: document.getElementById('skeletonCanvas'),
+      alignCurveBg: document.getElementById('alignCurveBg'),
       accChart: document.getElementById('accChart'),
       comboCount: document.getElementById('comboCount'),
       feedbackText: document.getElementById('feedbackText'),
       finalScore: document.getElementById('finalScore'),
-      // ... 其他元素
+      refStatus: document.getElementById('refStatus'),
+      runStatus: document.getElementById('runStatus'),
+      refBtn: document.getElementById('refBtn'),
+      analyzeRefBtn: document.getElementById('analyzeRefBtn'),
+      startGameBtn: document.getElementById('startGameBtn'),
+      stopGameBtn: document.getElementById('stopGameBtn'),
+      openCamBtn: document.getElementById('openCamBtn'),
+      resultModal: document.getElementById('resultModal'),
+      closeResult: document.getElementById('closeResult'),
+      replayBtn: document.getElementById('replayBtn'),
+      shareBtn: document.getElementById('shareBtn'),
+      doClearLB: document.getElementById('doClearLB'),
     };
 
-    // 初始化画布上下文
+    // 初始化画布
     function initCtx() {
-      ['avatarCanvas', 'ghostCanvas', 'accChart'].forEach(id => {
+      ['avatarCanvas', 'ghostCanvas', 'skeletonCanvas', 'alignCurveBg', 'accChart'].forEach(id => {
         const canvas = document.getElementById(id);
-        if (canvas) ctx[id.replace('Canvas','')] = canvas.getContext('2d');
+        if (canvas) ctx[id.replace('Canvas','').replace('Bg','')] = canvas.getContext('2d');
       });
       cctx = ctx.accChart;
     }
 
+    // ===== One Euro Filter =====
+    class OneEuroFilter {
+      constructor(freq, minCutOff = 1.0, beta = 0.0, dCutOff = 1.0) {
+        this.freq = freq; this.minCutOff = minCutOff; this.beta = beta; this.dCutOff = dCutOff;
+        this.xPrev = null; this.dxPrev = 0; this.tPrev = null;
+      }
+      filter(x, t) {
+        if (this.xPrev === null) { this.xPrev = x; this.tPrev = t; return x; }
+        const dt = t - this.tPrev; if (dt <= 0) return x;
+        const dx = (x - this.xPrev) / dt;
+        const edx = this.smoothing(dx, dt, this.dCutOff);
+        const cutoff = this.minCutOff + this.beta * Math.abs(edx);
+        const filtered = this.smoothing(x, dt, cutoff);
+        this.xPrev = filtered; this.dxPrev = edx; this.tPrev = t;
+        return filtered;
+      }
+      smoothing(x, dt, cutoff) {
+        const alpha = 1 / (1 + dt * cutoff / Math.PI);
+        return alpha * x + (1 - alpha) * this.xPrev;
+      }
+    }
+    const filters = Array(33).fill().map(() => new OneEuroFilter(FPS, 0.8, 0.1));
+
     // ===== 工具函数 =====
     const now = () => performance.now();
-    function copyXYV(lms) { return lms.map(p => ({x:p.x,y:p.y,v:p.visibility||1})); }
-    function angleDeg(a,b,c) {
-      const A = Math.atan2(c.y-b.y, c.x-b.x) - Math.atan2(a.y-b.y, a.x-b.x);
-      return Math.abs(A * 180 / Math.PI) % 180;
+    function copyXYV(lms) { return lms.map(p => ({x:p.x, y:p.y, z:p.z||0, v:p.visibility||1})); }
+
+    // MediaPipe 骨架连接
+    const SKELETON_CONNECTIONS = [
+      [0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],[9,10],
+      [11,13],[13,15],[15,17],[15,19],[15,21],[11,12],[12,14],[14,16],[16,18],[16,20],[16,22],
+      [11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28],[27,29],[28,30],[27,31],[28,32]
+    ];
+
+    // 绘制骨架
+    function drawSkeleton(ctx, lms, scaleX, scaleY) {
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      ctx.strokeStyle = '#10b981'; ctx.lineWidth = 3; ctx.fillStyle = '#34d399';
+
+      SKELETON_CONNECTIONS.forEach(([i, j]) => {
+        const a = lms[i], b = lms[j];
+        if (a.v > 0.5 && b.v > 0.5) {
+          ctx.beginPath();
+          ctx.moveTo(a.x * scaleX, a.y * scaleY);
+          ctx.lineTo(b.x * scaleX, b.y * scaleY);
+          ctx.stroke();
+        }
+      });
+
+      lms.forEach(p => {
+        if (p.v > 0.5) {
+          ctx.beginPath();
+          ctx.arc(p.x * scaleX, p.y * scaleY, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
     }
 
-    // ===== MediaPipe Pose =====
+    // 绘制对齐曲线背景
+    function drawAlignCurveBg() {
+      const canvas = els.alignCurveBg;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      if (alignHistory.length < 2) return;
+
+      ctx.strokeStyle = '#10b981'; ctx.lineWidth = 2; ctx.globalAlpha = 0.3;
+      ctx.beginPath();
+      const startX = w * 0.1;
+      const spanX = w * 0.8;
+      const midY = h / 2;
+
+      alignHistory.forEach((val, i) => {
+        const x = startX + (i / (alignHistory.length - 1)) * spanX;
+        const y = midY + (val - 0.5) * midY * 1.8;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    // ===== MediaPipe Pose (Lite + 3D) =====
     async function loadPose() {
       if (poseLandmarker) return;
       const filesetResolver = await FilesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
       );
       poseLandmarker = await PoseLandmarker.createFromOptions(filesetResolver, {
-        baseOptions: { modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker.task` },
+        baseOptions: {
+          modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task`,
+          delegate: "GPU"
+        },
         runningMode: "VIDEO",
-        numPoses: 1
+        numPoses: 1,
+        minPoseDetectionConfidence: 0.5,
+        minPosePresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+        outputSegmentationMasks: false,
+        outputPoseWorldLandmarks: true
       });
     }
 
+    // ===== 修复按钮点击 =====
+    els.refBtn.onclick = () => els.refFile.click();
+
     // ===== 参考视频分析 =====
-    document.getElementById('refFile').addEventListener('change', e => {
+    els.refFile.addEventListener('change', e => {
       const f = e.target.files[0];
       if (!f) return;
       const url = URL.createObjectURL(f);
       els.refVideo.src = url;
       els.refVideo.controls = true;
-      document.getElementById('refStatus').textContent = `已选择：${f.name}`;
-      document.getElementById('analyzeRefBtn').disabled = true;
-      document.getElementById('startGameBtn').disabled = true;
-      
+      els.refStatus.textContent = `已选择：${f.name}`;
+      els.analyzeRefBtn.disabled = true;
+      els.startGameBtn.disabled = true;
+
       els.refVideo.onloadedmetadata = () => {
-        document.getElementById('refStatus').textContent += ` | 时长 ${els.refVideo.duration.toFixed(1)}s`;
-        document.getElementById('analyzeRefBtn').disabled = false;
+        els.refStatus.textContent += ` | 时长 ${els.refVideo.duration.toFixed(1)}s`;
+        els.analyzeRefBtn.disabled = false;
       };
     });
 
-    document.getElementById('analyzeRefBtn').addEventListener('click', async () => {
+    els.analyzeRefBtn.onclick = async () => {
       await loadPose();
       if (!els.refVideo.src) return alert('请先选择参考视频');
-      
-      document.getElementById('refStatus').textContent = '🎬 分析舞蹈动作中...';
+
+      els.refStatus.textContent = '分析舞蹈动作中...';
       refFrames = []; refBeats = []; judgments = [];
-      
-      const fps = 30, interval = 1000/fps;
+
       const start = now();
       await els.refVideo.play();
-      
+
       let nextT = 0, lastVec = null;
       const times = [], ener = [];
-      
-      while (!els.refVideo.ended) {
+
+      while (!els.refVideo.ended && running === false) {
         const t = now() - start;
         if (t >= nextT) {
           const res = poseLandmarker.detectForVideo(els.refVideo, performance.now());
           if (res.landmarks?.[0]) {
             const lms = copyXYV(res.landmarks[0]);
-            let vec = normalizeAndFlatten(lms);
-            vec = oneEuroVec(vec, t);
-            const vis = lms.reduce((a,b) => a + (b.v||1), 0) / lms.length;
-            const e = motionEnergy(lastVec, vec);
-            refFrames.push({t, vec, vis, raw: lms});
+            const world = res.worldLandmarks[0];
+            lms.forEach((p, i) => {
+              if (world[i]) { p.z = world[i].z; }
+              p.x = filters[i].filter(p.x, t);
+              p.y = filters[i].filter(p.y, t);
+            });
+            const vec = lms.map(p => [p.x, p.y, p.z]).flat();
+            const e = lastVec ? vec.reduce((s, v, i) => s + (v - lastVec[i])**2, 0) : 0;
+            refFrames.push({t, vec, raw: lms});
             times.push(t); ener.push(e);
             lastVec = vec;
           }
-          nextT += interval;
+          nextT += INTERVAL;
         }
         await new Promise(r => setTimeout(r, 0));
       }
-      
-      refBeats = detectPeaks(times, ener, {win:3, thrK:1.0, minGapMs:160});
-      document.getElementById('refStatus').textContent = `✅ 分析完成：${refFrames.length}帧 | ${refBeats.length}个节拍`;
-      document.getElementById('startGameBtn').disabled = false;
-      document.getElementById('runStatus').textContent = '🎯 可以开始跟舞啦！';
+
+      refBeats = detectPeaks(times, ener, {win: 3, thrK: 1.2, minGapMs: 160});
+      els.refStatus.textContent = `分析完成：${refFrames.length}帧 | ${refBeats.length}个节拍`;
+      els.startGameBtn.disabled = false;
+      els.runStatus.textContent = '可以开始跟舞啦！';
       els.refVideo.pause(); els.refVideo.currentTime = 0;
-    });
+    };
 
     // ===== 摄像头 =====
-    document.getElementById('openCamBtn').onclick = async () => {
+    els.openCamBtn.onclick = async () => {
+      console.log('打开摄像头按钮点击');
+      els.openCamBtn.textContent = '开启中...';
+      els.openCamBtn.disabled = true;
+      els.runStatus.textContent = '请求摄像头权限...';
+
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { width: {ideal: 720}, height: {ideal: 1280}, aspectRatio: 9/16 },
@@ -390,56 +494,69 @@
         });
         els.camVideo.srcObject = stream;
         await els.camVideo.play();
-        document.getElementById('runStatus').textContent = '📹 摄像头就位（竖屏）';
+        els.runStatus.textContent = '摄像头就位（竖屏）';
       } catch (err) {
-        document.getElementById('runStatus').textContent = '❌ 摄像头权限失败：' + err.message;
+        els.runStatus.textContent = '摄像头权限失败：' + err.message;
+      } finally {
+        els.openCamBtn.textContent = '打开摄像头';
+        els.openCamBtn.disabled = false;
       }
     };
 
-    // ===== 核心游戏逻辑 =====
+    // ===== 游戏逻辑 =====
     function startGame() {
-      running = true;
-      userFrames = []; judgments = []; combo = 0;
-      document.getElementById('comboCount').textContent = 0;
-      document.getElementById('finalScore').textContent = '…';
-      
-      document.getElementById('startGameBtn').disabled = true;
-      document.getElementById('stopGameBtn').classList.remove('hidden');
-      document.getElementById('stopGameBtn').disabled = false;
-      document.getElementById('runStatus').textContent = '🎵 跟舞进行中...';
-      
+      running = true; userFrames = []; judgments = []; combo = 0; alignHistory = [];
+      els.comboCount.textContent = 0; els.finalScore.textContent = '…';
+      els.startGameBtn.disabled = true; els.stopGameBtn.classList.remove('hidden'); els.stopGameBtn.disabled = false;
+      els.runStatus.textContent = '跟舞进行中...';
+
       resizeCanvases();
-      els.refVideo.currentTime = 0;
-      els.refVideo.play();
-      
+      els.refVideo.currentTime = 0; els.refVideo.play();
+
       let last = null;
-      const fps = 30, interval = 1000/fps;
       const startT = now();
       let nextT = 0;
-      
+
       function loop() {
         if (!running) return;
         const t = now() - startT;
-        
         if (t >= nextT) {
           const res = poseLandmarker.detectForVideo(els.camVideo, performance.now());
           if (res.landmarks?.[0]) {
             const lms = copyXYV(res.landmarks[0]);
-            let vec = normalizeAndFlatten(lms);
-            vec = oneEuroVec(vec, t);
+            const world = res.worldLandmarks[0];
+            lms.forEach((p, i) => {
+              if (world[i]) p.z = world[i].z;
+              p.x = filters[i].filter(p.x, t);
+              p.y = filters[i].filter(p.y, t);
+            });
+
+            // 绘制骨架
+            const skCtx = els.skeletonCanvas.getContext('2d');
+            const scaleX = skCtx.canvas.width, scaleY = skCtx.canvas.height;
+            drawSkeleton(skCtx, lms, scaleX, scaleY);
+
+            const vec = lms.map(p => [p.x, p.y, p.z]).flat();
             drawAvatar(lms);
-            
-            const vis = lms.reduce((a,b) => a + (b.v||1), 0) / lms.length;
-            const e = motionEnergy(last, vec);
-            userFrames.push({t, vec, vis, energy: e});
+            const e = last ? vec.reduce((s, v, i) => s + (v - last[i])**2, 0) : 0;
+            userFrames.push({t, vec, energy: e});
             last = vec;
-            
-            computeScores();
+
+            // 计算对齐度并更新曲线
+            if (refFrames.length > 0) {
+              const refIdx = Math.min(Math.floor(t / 1000 * FPS), refFrames.length - 1);
+              if (refFrames[refIdx]) {
+                const sim = cosineSimilarity(vec, refFrames[refIdx].vec);
+                alignHistory.push(sim);
+                if (alignHistory.length > 100) alignHistory.shift();
+                drawAlignCurveBg();
+              }
+            }
+
             tryJudge(t, vec, lms);
           }
-          nextT += interval;
+          nextT += INTERVAL;
         }
-        
         drawNextGhost(t);
         handleMiss(t);
         rafId = requestAnimationFrame(loop);
@@ -447,66 +564,134 @@
       rafId = requestAnimationFrame(loop);
     }
 
-    function stopGame(showResults = true) {
-      running = false;
-      if (rafId) cancelAnimationFrame(rafId);
-      document.getElementById('startGameBtn').disabled = false;
-      document.getElementById('stopGameBtn').disabled = true;
-      document.getElementById('stopGameBtn').classList.add('hidden');
-      els.refVideo.pause();
-      document.getElementById('runStatus').textContent = '⏸️ 已停止';
-      if (showResults) showResultsModal();
+    function cosineSimilarity(a, b) {
+      let dot = 0, magA = 0, magB = 0;
+      for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        magA += a[i] ** 2;
+        magB += b[i] ** 2;
+      }
+      return dot / (Math.sqrt(magA) * Math.sqrt(magB) + 1e-8);
     }
 
-    // ===== 事件绑定 =====
-    document.getElementById('startGameBtn').onclick = async () => {
+    function stopGame(show = true) {
+      running = false;
+      if (rafId) cancelAnimationFrame(rafId);
+      els.startGameBtn.disabled = false; els.stopGameBtn.disabled = true; els.stopGameBtn.classList.add('hidden');
+      els.refVideo.pause(); els.runStatus.textContent = '已停止';
+      if (show) showResultsModal();
+    }
+
+    els.startGameBtn.onclick = async () => {
       await loadPose();
-      if (!els.camVideo.srcObject) return document.getElementById('runStatus').textContent = '请先打开摄像头';
-      if (!refFrames.length) return document.getElementById('runStatus').textContent = '请先分析参考视频';
-      
+      if (!els.camVideo.srcObject) return els.runStatus.textContent = '请先打开摄像头';
+      if (!refFrames.length) return els.runStatus.textContent = '请先分析参考视频';
       lastBeatIdx = -1; lastHitTime = -1e9;
       startAfterCountdown();
     };
 
-    document.getElementById('stopGameBtn').onclick = () => stopGame(true);
+    els.stopGameBtn.onclick = () => stopGame(true);
     els.refVideo.addEventListener('ended', () => { if (running) stopGame(true); });
 
-    // ===== 倒计时启动 =====
     async function startAfterCountdown() {
-      let seq = ['3', '2', '1', 'GO!'];
       const overlay = document.getElementById('countdownOverlay');
       const numberEl = document.getElementById('countdownNumber');
-      
+      const seq = ['3', '2', '1', 'GO!'];
       overlay.classList.remove('hidden');
       for (let i = 0; i < seq.length; i++) {
         numberEl.textContent = seq[i];
         await new Promise(r => setTimeout(r, 800));
       }
       overlay.classList.add('hidden');
-      
       els.refVideo.play();
       startGame();
     }
 
-    // ===== 其他必要函数（简化版）=====
-    function normalizeAndFlatten(lms) {
-      // 简化姿态向量归一化
-      const hips = [(lms[23].x + lms[24].x)/2, (lms[23].y + lms[24].y)/2];
-      return lms.map(p => Math.hypot(p.x-hips[0], p.y-hips[1]));
+    // ===== 简化函数 =====
+    function detectPeaks(times, ener, opts) {
+      const peaks = [];
+      for (let i = opts.win; i < ener.length - opts.win; i++) {
+        if (ener[i] > opts.thrK * Math.max(...ener.slice(i-opts.win, i+opts.win+1)) && 
+            (peaks.length === 0 || times[i] - peaks[peaks.length-1] >= opts.minGapMs)) {
+          peaks.push(times[i]);
+        }
+      }
+      return peaks;
     }
-    
-    function oneEuroVec(vec, t) { return vec; } // 简化
-    function motionEnergy(a, b) { return a ? Math.hypot(...a.map((v,i) => v - b[i])) : 0; }
-    function detectPeaks(times, ener, opts) { return []; } // 简化
-    
-    function computeScores() { /* 简化 */ }
-    function drawAvatar(lms) {}
+
+    function drawAvatar(lms) {
+      const ctx = els.avatarCanvas.getContext('2d');
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    }
+
     function drawNextGhost(t) {}
     function tryJudge(t, vec, lms) {}
     function handleMiss(t) {}
-    
+    function resizeCanvases() {
+      ['avatarCanvas', 'ghostCanvas', 'skeletonCanvas', 'alignCurveBg'].forEach(id => {
+        const canvas = document.getElementById(id);
+        const rect = canvas.parentElement.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+      });
+    }
+
+    // ===== 结算面板功能（已修复）=====
+    function showResultsModal() {
+      els.resultModal.classList.add('show');
+    }
+
+    // 关闭按钮
+    els.closeResult.onclick = () => {
+      els.resultModal.classList.remove('show');
+    };
+
+    // 再战一次
+    els.replayBtn.onclick = () => {
+      els.resultModal.classList.remove('show');
+      // 重置游戏状态
+      refFrames = []; userFrames = []; judgments = [];
+      els.refVideo.src = '';
+      els.refStatus.textContent = '';
+      els.runStatus.textContent = '';
+      els.analyzeRefBtn.disabled = true;
+      els.startGameBtn.disabled = true;
+      els.comboCount.textContent = '0';
+      els.finalScore.textContent = '—';
+    };
+
+    // 分享成绩
+    els.shareBtn.onclick = () => {
+      if (navigator.share) {
+        navigator.share({
+          title: '我的DanceCam成绩',
+          text: `我在DanceCam中获得 ${document.getElementById('finalScoreModal').textContent} 分！`,
+          url: window.location.href
+        }).catch(console.error);
+      } else {
+        alert('分享功能不可用，请手动复制链接');
+      }
+    };
+
+    // 删除排行榜
+    els.doClearLB.onclick = () => {
+      const scope = document.getElementById('clearScope').value;
+      if (scope === 'all') {
+        localStorage.removeItem('dancecam_leaderboard_v1');
+      } else {
+        // 简化：清空当前歌曲（实际需按歌曲名过滤）
+        const list = JSON.parse(localStorage.getItem('dancecam_leaderboard_v1') || '[]');
+        const song = document.getElementById('songTitle').value || '未命名';
+        const filtered = list.filter(e => e.song !== song);
+        localStorage.setItem('dancecam_leaderboard_v1', JSON.stringify(filtered));
+      }
+      document.getElementById('leaderboard').innerHTML = '';
+      alert('排行榜已清空');
+    };
+
     // 初始化
     initCtx();
+    window.addEventListener('resize', resizeCanvases);
     document.getElementById('lookahead').addEventListener('input', e => {
       document.getElementById('lookaheadVal').textContent = e.target.value + 'ms';
     });
