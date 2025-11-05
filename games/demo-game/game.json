@@ -1,19 +1,7 @@
 {
-  "name": "juice-game-server",
-  "version": "1.0.0",
-  "description": "Juice Game Server",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "dependencies": {
-    "express": "^4.21.1",
-    "express-session": "^1.18.1",
-    "connect-pg-simple": "^10.0.0",
-    "pg": "^8.13.0",
-    "bcrypt": "^5.1.1"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  }
+  "title": "榨汁机 - 移动版",
+  "description": "用手指疯狂榨汁，挑战最高分！",
+  "thumbnail": "thumbnail.jpg",
+  "version": "1.0",
+  "author": "Juice Team"
 }
