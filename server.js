@@ -7,13 +7,11 @@ const path = require('path');
 const fs = require('fs');
 const app = express();
 
-// === PostgreSQL ===
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// === 使用 MemoryStore（完全避免 ON CONFLICT 问题）===
 const MemoryStore = session.MemoryStore;
 const sessionStore = new MemoryStore();
 
@@ -29,7 +27,6 @@ app.use(express.json());
 app.use(express.static('public'));
 app.use('/games', express.static('games'));
 
-// === 初始化数据库（仅 users 和 scores）===
 (async () => {
   try {
     await pool.query(`
@@ -58,7 +55,6 @@ app.use('/games', express.static('games'));
   }
 })();
 
-// === 注册 ===
 app.post('/api/register', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: 'Missing fields' });
@@ -76,7 +72,6 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// === 登录 ===
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -101,15 +96,14 @@ app.post('/api/logout', (req, res) => {
   req.session.destroy(() => res.json({ success: true }));
 });
 
-// === 游戏扫描 ===
 function scanGames() {
   const games = {};
-  const demoPath = path.join(__dirname, 'games', 'demo-game.html');
-  if (fs.existsSync(demoPath)) {
-    games.demo = {
+
+  if (fs.existsSync(path.join(__dirname, 'games', 'demo-game.html'))) {
+    games['demo'] = {
       id: 'demo',
       title: 'Demo Game',
-      description: '简单演示游戏',
+      description: 'Demo',
       thumbnail: '',
       platform: 'both',
       entry: '/games/demo-game.html'
@@ -140,7 +134,6 @@ app.get('/api/games', (req, res) => {
   res.json(gameCache);
 });
 
-// === 播放页面 ===
 app.get('/play/:id', async (req, res) => {
   const gameId = req.params.id;
   const games = gameCache || scanGames();
@@ -154,51 +147,84 @@ app.get('/play/:id', async (req, res) => {
   let scores = [];
   try {
     const r = await pool.query(
-      'SELECT score, created_at FROM scores WHERE user_id = $1 AND game_id = $2 ORDER BY score DESC LIMIT 5',
+      'SELECT score, created_at FROM scores WHERE user_id = $1 AND game_id = $2 ORDER BY score DESC LIMIT 10',
       [req.session.user.id, gameId]
     );
     scores = r.rows;
   } catch (e) {}
 
   res.send(`<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${game.title}</title>
-<style>
-  body{font-family:Arial;margin:0;background:#f4f4f4}
-  .header{background:#ff6b35;color:#fff;padding:1rem;text-align:center;position:relative}
-  .back{position:absolute;left:1rem;top:1rem;color:#fff;text-decoration:none}
-  .container{max-width:1200px;margin:auto;padding:1rem}
-  iframe{width:100%;height:70vh;border:none;border-radius:8px}
-  .scores{background:#fff;padding:1rem;margin-top:1rem;border-radius:8px}
-</style>
-</head><body>
-<div class="header"><a href="/games.html" class="back">返回</a><h1>${game.title}</h1></div>
-<div class="container">
-  <iframe src="${game.entry}" allowfullscreen></iframe>
-  <div class="scores"><h3>最高分</h3>
-    ${scores.length ? scores.map(s => `<div><strong>${s.score}</strong> - ${new Date(s.created_at).toLocaleString()}</div>`).join('') : '<p>暂无</p>'}
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${game.title}</title>
+  <style>
+    body{font-family:Arial;margin:0;background:#f4f4f4}
+    .header{background:#ff6b35;color:#fff;padding:1rem;text-align:center;position:relative}
+    .back{position:absolute;left:1rem;top:1rem;color:#fff;text-decoration:none}
+    .container{max-width:1200px;margin:auto;padding:1rem}
+    iframe{width:100%;height:75vh;border:none;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15)}
+    .scores{background:#fff;padding:1.5rem;margin-top:1rem;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+    .score-list{list-style:none;padding:0;margin:0}
+    .score-item{display:flex;justify-content:space-between;padding:0.75rem 0;border-bottom:1px solid #eee}
+    .score-item:last-child{border-bottom:none}
+    .no-scores{color:#888;text-align:center;padding:2rem}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <a href="/games.html" class="back">← 返回</a>
+    <h1>${game.title}</h1>
   </div>
-</div>
-<script>
-  window.addEventListener('message', async e => {
-    if (e.data?.type === 'JUICE_GAME_SCORE') {
-      await fetch('/api/score', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gameId:'${gameId}',score:e.data.score})});
-      location.reload();
-    }
-  });
-</script>
-</body></html>`);
+  <div class="container">
+    <iframe src="${game.entry}" allowfullscreen></iframe>
+    <div class="scores">
+      <h3>你的历史分数</h3>
+      ${scores.length ? `
+      <ul class="score-list">
+        ${scores.map(s => `
+          <li class="score-item">
+            <span><strong>${s.score}</strong> 分</span>
+            <span>${new Date(s.created_at).toLocaleString()}</span>
+          </li>
+        `).join('')}
+      </ul>
+      ` : '<p class="no-scores">暂无记录，玩一局试试吧！</p>'}
+    </div>
+  </div>
+  <script>
+    window.addEventListener('message', async e => {
+      if (e.data && e.data.type === 'JUICE_GAME_SCORE' && typeof e.data.score === 'number') {
+        try {
+          await fetch('/api/score', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gameId: '${gameId}', score: e.data.score })
+          });
+          location.reload();
+        } catch (err) {
+          console.error('Score submit failed');
+        }
+      }
+    });
+  </script>
+</body>
+</html>`);
 });
 
-// === 提交分数 ===
 app.post('/api/score', async (req, res) => {
   if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
   const { gameId, score } = req.body;
-  if (!gameId || typeof score !== 'number') return res.status(400).json({ error: 'Invalid' });
+  if (!gameId || typeof score !== 'number' || score < 0) return res.status(400).json({ error: 'Invalid data' });
   try {
-    await pool.query('INSERT INTO scores (user_id, game_id, score) VALUES ($1,$2,$3)', [req.session.user.id, gameId, score]);
+    await pool.query(
+      'INSERT INTO scores (user_id, game_id, score) VALUES ($1, $2, $3)',
+      [req.session.user.id, gameId, score]
+    );
     res.json({ success: true });
   } catch (e) {
+    console.error(e);
     res.status(500).json({ error: 'Save failed' });
   }
 });
@@ -206,6 +232,5 @@ app.post('/api/score', async (req, res) => {
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/games.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'games.html')));
 
-app.listen(process.env.PORT || 3000, () => {
-  console.log('Server running on port', process.env.PORT || 3000);
-});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
