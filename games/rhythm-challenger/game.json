@@ -4,6 +4,6 @@
   "version": "1.0",
   "platform": "mobile",
   "orientation": "portrait",
-  "thumbnail": "thumb.jpg",
+  "thumbnail": "thumbnail.jpg",
   "description": "用头部动作跟随音乐节拍，挑战你的节奏感！"
 }
