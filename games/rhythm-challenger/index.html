@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>节奏挑战者 · 预览与教程整合版</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: #0f172a; color: #f1f5f9; font-family: system-ui; }
+    .portrait { aspect-ratio: 9/16; height: 70vh; width: auto; }
+    video, canvas { object-fit: cover; }
+    .btn { @apply px-6 py-3 rounded-2xl font-bold transition-all hover:scale-105 active:scale-95 shadow-lg; }
+    .modal { @apply fixed inset-0 hidden items-center justify-center bg-black/80 backdrop-blur-xl z-50; }
+    .modal.show { @apply flex; }
+    .pulse { animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+    .beat { animation: beat 0.4s ease-out; }
+    @keyframes beat { 0% { transform: scale(1) rotate(0); } 50% { transform: scale(1.4) rotate(10deg); } 100% { transform: scale(1) rotate(0); } }
+    .perfect { animation: perfect 0.8s ease-out; }
+    @keyframes perfect { 0% { transform: scale(0) rotate(-180deg); opacity: 0; } 50% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(1) rotate(0); opacity: 0; } }
+    .great { animation: great 0.6s ease-out; }
+    @keyframes great { 0% { transform: scale(0.8); opacity: 0; } 50% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
+    .good { animation: good 0.5s ease-out; }
+    @keyframes good { 0% { transform: scale(0.6); opacity: 0; } 50% { transform: scale(1); opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
+    .miss { animation: miss 0.4s ease-out; }
+    @keyframes miss { 0% { transform: scale(1.2); opacity: 0.8; } 100% { transform: scale(0.8); opacity: 0; } }
+    .countdown { position: fixed; inset: 0; background: rgba(15,23,42,0.95); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    .countdown-number { font-size: 20vw; font-weight: 900; background: linear-gradient(45deg, #a855f7, #ec4899); -webkit-background-clip: text; background-clip: text; }
+    .progress-bar { height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #a855f7, #ec4899); transition: width 0.1s; border-radius: 4px; }
+    .rhythm-circle { 
+      position: absolute; 
+      top: 50%; 
+      left: 50%; 
+      transform: translate(-50%, -50%); 
+      width: 120px; 
+      height: 120px; 
+      border: 4px solid rgba(255,255,255,0.3); 
+      border-radius: 50%; 
+      background: radial-gradient(circle, rgba(168,85,247,0.3) 0%, transparent 70%);
+      opacity: 0.7;
+      transition: all 0.12s ease; /* 更灵敏 */
+      filter: brightness(0.7);
+    }
+    .rhythm-circle.active {
+      border-color: #a855f7;
+      background: radial-gradient(circle, rgba(168,85,247,0.6) 0%, transparent 70%);
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1.1);
+      box-shadow: 0 0 24px rgba(168,85,247,0.6);
+      animation: rhythmPulse 0.6s ease-out infinite;
+    }
+    @keyframes rhythmPulse { 
+      0% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 20px rgba(168,85,247,0.5); }
+      50% { transform: translate(-50%, -50%) scale(1.4); box-shadow: 0 0 60px rgba(168,85,247,1); }
+      100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 20px rgba(168,85,247,0.5); }
+    }
+    .analyzing { position: fixed; inset: 0; background: rgba(15,23,42,0.95); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+    .analyzing-bar { width: 200px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin: 20px 0; }
+    .analyzing-fill { height: 100%; background: linear-gradient(90deg, #a855f7, #ec4899); transition: width 0.3s ease; border-radius: 2px; }
+  </style>
+</head>
+<body class="min-h-screen p-4">
+  <div class="max-w-lg mx-auto space-y-6">
+
+    <!-- 标题 -->
+    <header class="text-center space-y-2">
+      <h1 class="text-5xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+        🎵 节奏挑战者
+      </h1>
+      <p class="text-lg opacity-80">圈放大=靠近节拍，圈最亮=现在动！摇动头部击中节拍。</p>
+    </header>
+
+    <!-- 控制面板 -->
+    <div class="bg-slate-900/80 backdrop-blur-xl rounded-3xl p-6 ring-1 ring-white/10 space-y-4">
+      <!-- 上传音乐 -->
+      <div class="space-y-2">
+        <label class="block text-sm font-semibold">🎼 选择音乐</label>
+        <input type="file" id="musicFile" accept="audio/*,video/*" class="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-purple-500 file:to-pink-600 file:text-white hover:file:from-purple-400 hover:file:to-pink-500" />
+        <div class="text-xs opacity-70 mt-1">支持 MP3, WAV, M4A, OGG, 视频文件</div>
+      </div>
+
+      <!-- 测试音乐 -->
+      <div class="space-y-2">
+        <label class="block text-sm font-semibold">🔊 测试音乐 (立即可用)</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="testMusic1" class="px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl text-sm hover:from-emerald-400">电子节拍 30s</button>
+          <button id="testMusic2" class="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl text-sm hover:from-blue-400">流行舞曲 45s</button>
+        </div>
+      </div>
+
+      <!-- 按钮组 -->
+      <div class="flex flex-wrap gap-3 justify-center pt-4">
+        <button id="openCam" class="btn bg-gradient-to-r from-teal-500 to-teal-600 text-white pulse">
+          🎥 打开摄像头
+        </button>
+        <button id="analyzeMusic" class="btn bg-gradient-to-r from-orange-500 to-orange-600 text-white hidden" disabled>
+          🔍 分析节奏
+        </button>
+        <button id="startGame" class="btn bg-gradient-to-r from-purple-500 to-pink-600 text-white disabled:opacity-50 hidden" disabled>
+          🚀 开始挑战
+        </button>
+      </div>
+
+      <div id="status" class="text-center text-sm opacity-70 h-8 flex items-center justify-center">
+        <span>准备开始</span>
+      </div>
+    </div>
+
+    <!-- 游戏区域 -->
+    <div class="relative bg-slate-900/70 backdrop-blur-xl rounded-3xl p-6 ring-2 ring-purple-500/30 overflow-hidden">
+      <!-- 摄像头视频 -->
+      <video id="camVideo" class="portrait w-full rounded-2xl ring-2 ring-teal-500/50" autoplay muted playsinline></video>
+      
+      <!-- 骨骼叠加层 -->
+      <canvas id="skeletonCanvas" class="portrait w-full rounded-2xl absolute inset-0 pointer-events-none"></canvas>
+      
+      <!-- 头像追踪层 -->
+      <canvas id="avatarCanvas" class="portrait w-full rounded-2xl absolute inset-0 pointer-events-none"></canvas>
+      
+      <!-- 节奏圈 -->
+      <div id="rhythmCircle" class="rhythm-circle"></div>
+
+      <!-- 摇头提示（圈放大时显示） -->
+      <div id="hintShake" class="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-[120%] text-2xl font-black text-white/90 drop-shadow-xl opacity-0 transition-opacity select-none">
+        摇动头部！
+      </div>
+      
+      <!-- 实时状态 -->
+      <div id="liveStatus" class="absolute top-4 left-4 text-xs bg-black/50 px-2 py-1 rounded-lg opacity-0">
+        姿态检测中...
+      </div>
+      
+      <!-- 节拍指示器 -->
+      <div id="beatIndicator" class="absolute top-8 left-1/2 -translate-x-1/2 w-20 h-20 bg-white/20 rounded-full backdrop-blur-sm flex items-center justify-center text-xl font-bold opacity-0">🎵</div>
+      
+      <!-- 判定反馈 -->
+      <div id="judgmentIndicator" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-5xl font-black z-20 scale-0 opacity-0 drop-shadow-2xl">
+        PERFECT!
+      </div>
+      
+      <!-- 分数显示 -->
+      <div class="absolute bottom-28 left-1/2 -translate-x-1/2 text-center">
+        <div id="scoreDisplay" class="text-5xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent drop-shadow-2xl">0</div>
+        <div id="comboDisplay" class="text-2xl font-bold text-emerald-400 mt-1 opacity-0">连击 x0</div>
+      </div>
+
+      <!-- 3秒节拍预览条（画布） -->
+      <canvas id="beatPreview" class="absolute bottom-16 left-1/2 -translate-x-1/2 w-4/5 h-10 opacity-0"></canvas>
+      
+      <!-- 音乐进度条 -->
+      <div id="progressBar" class="absolute bottom-6 left-1/2 -translate-x-1/2 w-4/5 mx-4 opacity-0">
+        <div class="progress-bar">
+          <div id="progressFill" class="progress-fill" style="width: 0%"></div>
+        </div>
+        <div class="text-xs text-center mt-1 text-slate-400" id="timeDisplay">00:00 / 00:00</div>
+      </div>
+    </div>
+
+    <!-- 倒计时 -->
+    <div id="countdownOverlay" class="countdown hidden">
+      <div class="countdown-number" id="countdownNumber">3</div>
+      <div class="text-3xl font-bold mt-8 opacity-70" id="countdownText">准备摇摆！</div>
+    </div>
+
+    <!-- 分析进度 -->
+    <div id="analyzingOverlay" class="analyzing hidden">
+      <div class="text-3xl font-bold mb-4">🎵 分析音乐节奏...</div>
+      <div class="analyzing-bar">
+        <div id="analyzingFill" class="analyzing-fill" style="width: 0%"></div>
+      </div>
+      <div id="analyzingStatus" class="text-sm opacity-70 mt-4">加载音频...</div>
+    </div>
+
+    <!-- 教程引导（自动在第一个节拍前出现） -->
+    <div id="tutorialOverlay" class="modal">
+      <div class="bg-gradient-to-b from-slate-900 to-slate-800 rounded-3xl p-8 max-w-md w-full space-y-6 shadow-2xl ring-2 ring-purple-500/50 text-center">
+        <div class="text-3xl font-black">🎯 怎么玩？</div>
+        <div class="text-slate-300 leading-relaxed">
+          <div>• <b>圈越大越亮 = 越接近节拍点</b></div>
+          <div>• 底部预览条：<span class="text-white">白</span>=未来 <span class="text-[#a855f7]">紫</span>=当前 <span class="text-[#f472b6]">粉</span>=已过</div>
+          <div>• 圈放大时 <b>摇动头部</b> 击中！</div>
+        </div>
+        <div class="flex items-center justify-center">
+          <div class="relative">
+            <div class="w-28 h-28 rounded-full bg-purple-500/30 border-4 border-purple-400 animate-pulse"></div>
+            <div class="absolute inset-0 flex items-center justify-center font-bold">摇动头部</div>
+          </div>
+        </div>
+        <button id="tutorialNext" class="btn w-full bg-gradient-to-r from-purple-500 to-pink-600 text-white">我知道了</button>
+      </div>
+    </div>
+
+    <!-- 结算模态框 -->
+    <div id="resultModal" class="modal">
+      <div class="bg-gradient-to-b from-slate-900 to-slate-800 rounded-3xl p-8 max-w-md w-full space-y-6 shadow-2xl ring-2 ring-purple-500/50">
+        <h3 class="text-3xl font-black text-center bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">🎉 节奏大师！</h3>
+        <div class="text-center space-y-4">
+          <div class="text-7xl font-black text-emerald-400" id="finalGrade">S</div>
+          <div class="text-6xl font-bold text-white drop-shadow-2xl" id="finalScoreModal">0</div>
+          <div class="space-y-1">
+            <div class="text-xl opacity-80">最高连击 <span class="text-2xl font-bold text-emerald-400" id="maxCombo">0</span></div>
+            <div class="text-sm opacity-60">命中率 <span id="accuracy">0%</span></div>
+          </div>
+        </div>
+        <div class="flex gap-3">
+          <button id="replayBtn" class="flex-1 btn bg-gradient-to-r from-emerald-500 to-emerald-600 text-white">再战一曲</button>
+          <button id="closeResult" class="flex-1 btn bg-slate-700 text-white">完成</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script type="module">
+    // ==================== 全局变量 ====================
+    const els = {
+      camVideo: document.getElementById('camVideo'),
+      skeletonCanvas: document.getElementById('skeletonCanvas'),
+      avatarCanvas: document.getElementById('avatarCanvas'),
+      rhythmCircle: document.getElementById('rhythmCircle'),
+      hintShake: document.getElementById('hintShake'),
+      musicFile: document.getElementById('musicFile'),
+      openCam: document.getElementById('openCam'),
+      analyzeMusic: document.getElementById('analyzeMusic'),
+      startGame: document.getElementById('startGame'),
+      testMusic1: document.getElementById('testMusic1'),
+      testMusic2: document.getElementById('testMusic2'),
+      status: document.getElementById('status'),
+      liveStatus: document.getElementById('liveStatus'),
+      beatIndicator: document.getElementById('beatIndicator'),
+      judgmentIndicator: document.getElementById('judgmentIndicator'),
+      scoreDisplay: document.getElementById('scoreDisplay'),
+      comboDisplay: document.getElementById('comboDisplay'),
+      progressBar: document.getElementById('progressBar'),
+      progressFill: document.getElementById('progressFill'),
+      timeDisplay: document.getElementById('timeDisplay'),
+      beatPreview: document.getElementById('beatPreview'),
+      countdownOverlay: document.getElementById('countdownOverlay'),
+      countdownNumber: document.getElementById('countdownNumber'),
+      countdownText: document.getElementById('countdownText'),
+      analyzingOverlay: document.getElementById('analyzingOverlay'),
+      analyzingFill: document.getElementById('analyzingFill'),
+      analyzingStatus: document.getElementById('analyzingStatus'),
+      tutorialOverlay: document.getElementById('tutorialOverlay'),
+      tutorialNext: document.getElementById('tutorialNext'),
+      resultModal: document.getElementById('resultModal'),
+      finalGrade: document.getElementById('finalGrade'),
+      finalScoreModal: document.getElementById('finalScoreModal'),
+      maxCombo: document.getElementById('maxCombo'),
+      accuracy: document.getElementById('accuracy'),
+      replayBtn: document.getElementById('replayBtn'),
+      closeResult: document.getElementById('closeResult')
+    };
+
+    let poseLandmarker, audio, audioBuffer, stream;
+    let running = false, totalDuration = 0;
+    let musicBeats = [], currentBeatIndex = 0;
+    let judgments = [];
+    let score = 0, combo = 0, maxComboVal = 0;
+    let headHistory = [], prevNose = null, poseDetected = false;
+    let firstTutorialShown = false;
+    const HEAD_LANDMARKS = [0, 1, 2, 4, 5, 7, 8, 10, 11];
+    const TEST_MUSICS = [
+      'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
+      'https://www.soundjay.com/human/sounds/whip-1.mp3'
+    ];
+
+    // ==================== 节奏检测算法 ====================
+    async function analyzeBeats(buffer) {
+      return new Promise((resolve, reject) => {
+        const offlineContext = new OfflineAudioContext(1, buffer.length, buffer.sampleRate);
+        const source = offlineContext.createBufferSource();
+        source.buffer = buffer;
+
+        const filter = offlineContext.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 150;
+
+        source.connect(filter);
+        filter.connect(offlineContext.destination);
+
+        source.start(0);
+
+        offlineContext.startRendering().then(renderedBuffer => {
+          const data = renderedBuffer.getChannelData(0);
+          const samples = data.length;
+          const threshold = 0.25;
+          const gamma = 0.8;
+          const peaks = [];
+
+          let avg = 0;
+          for (let i = 0; i < samples; i++) {
+            avg += Math.abs(data[i]);
+          }
+          avg /= samples;
+
+          let runningAvg = avg;
+          for (let i = 0; i < samples; i++) {
+            const current = Math.abs(data[i]);
+            if (current > runningAvg * threshold && current > avg * 1.2) {
+              peaks.push(i / buffer.sampleRate * 1000);
+            }
+            runningAvg *= gamma;
+            runningAvg += (1 - gamma) * current;
+          }
+
+          const filteredPeaks = [peaks[0]];
+          for (let i = 1; i < peaks.length; i++) {
+            if (peaks[i] - filteredPeaks[filteredPeaks.length - 1] > 120) {
+              filteredPeaks.push(peaks[i]);
+            }
+          }
+
+          // 去掉一半，只突出重点节奏（每隔一个保留）
+          const highlightedPeaks = filteredPeaks.filter((p, i) => i % 2 === 0);
+
+          resolve(highlightedPeaks);
+        }).catch(reject);
+      });
+    }
+
+    // ==================== 初始化 MediaPipe ====================
+    async function loadPose() {
+      if (poseLandmarker) return;
+      const { PoseLandmarker, FilesetResolver } = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14");
+      const filesetResolver = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+      );
+      poseLandmarker = await PoseLandmarker.createFromOptions(filesetResolver, {
+        baseOptions: {
+          modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task`,
+          delegate: "GPU"
+        },
+        runningMode: "VIDEO",
+        numPoses: 1,
+        minPoseDetectionConfidence: 0.3,
+        minPosePresenceConfidence: 0.3,
+        minTrackingConfidence: 0.3
+      });
+    }
+
+    // ==================== 画布调整 ====================
+    function resizeCanvases() {
+      const rect = els.camVideo.getBoundingClientRect();
+      [els.skeletonCanvas, els.avatarCanvas].forEach(canvas => {
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+      });
+    }
+
+    // ==================== 绘制骨骼 ====================
+    function drawSkeleton(ctx, landmarks) {
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      
+      const HEAD_CONNECTIONS = [[0,1],[1,2],[0,4],[4,5],[0,7],[7,8]];
+      
+      ctx.strokeStyle = poseDetected ? '#10b981' : '#ef4444';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      
+      HEAD_CONNECTIONS.forEach(([i, j]) => {
+        const p1 = landmarks[i], p2 = landmarks[j];
+        if (p1?.visibility > 0.3 && p2?.visibility > 0.3) {
+          ctx.beginPath();
+          ctx.moveTo(p1.x * ctx.canvas.width, p1.y * ctx.canvas.height);
+          ctx.lineTo(p2.x * ctx.canvas.width, p2.y * ctx.canvas.height);
+          ctx.stroke();
+        }
+      });
+      
+      landmarks.forEach((p, i) => {
+        if (p.visibility > 0.3) {
+          const size = i === 0 ? 10 : 6;
+          ctx.beginPath();
+          ctx.arc(p.x * ctx.canvas.width, p.y * ctx.canvas.height, size, 0, Math.PI*2);
+          ctx.fillStyle = i === 0 ? '#f59e0b' : '#34d399';
+          ctx.fill();
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      });
+    }
+
+    // ==================== 头部追踪 ====================
+    function detectHeadShake(landmarks) {
+      if (!prevNose || !landmarks[0]) return 0;
+      const nose = landmarks[0];
+      const dx = Math.abs(nose.x - prevNose.x);
+      const dy = Math.abs(nose.y - prevNose.y);
+      const speed = (dx + dy) * 2000;
+      prevNose = {x: nose.x, y: nose.y};
+      return speed;
+    }
+
+    function drawHeadTracker(ctx, landmarks) {
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      
+      if (landmarks[0]) {
+        headHistory.push({x: landmarks[0].x, y: landmarks[0].y});
+        if (headHistory.length > 15) headHistory.shift();
+        
+        ctx.strokeStyle = 'rgba(168, 85, 247, 0.8)';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        headHistory.forEach((p, i) => {
+          const x = p.x * ctx.canvas.width;
+          const y = p.y * ctx.canvas.height;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      }
+    }
+
+    // ==================== 节奏圈控制 ====================
+    function updateRhythmCircle(audioTime) {
+      if (musicBeats.length === 0 || currentBeatIndex >= musicBeats.length) return;
+      
+      const nextBeat = musicBeats[currentBeatIndex];
+      const timeToBeat = nextBeat - audioTime;
+      
+      if (timeToBeat > 0 && timeToBeat < 800) {
+        els.rhythmCircle.classList.add('active');
+        const scale = 1 + (800 - timeToBeat) / 800 * 0.6;
+        els.rhythmCircle.style.transform = `translate(-50%, -50%) scale(${scale})`;
+        
+        // 摇头提示
+        els.hintShake.style.opacity = timeToBeat < 400 ? 1 : 0;
+      } else {
+        els.rhythmCircle.classList.remove('active');
+        els.rhythmCircle.style.transform = 'translate(-50%, -50%) scale(1)';
+        els.hintShake.style.opacity = 0;
+      }
+    }
+
+    // ==================== 节拍预览条 ====================
+    function drawBeatPreview(audioTime) {
+      const ctx = els.beatPreview.getContext('2d');
+      ctx.clearRect(0, 0, els.beatPreview.width, els.beatPreview.height);
+      if (musicBeats.length === 0) return;
+
+      const previewWindow = 3000; // 3秒预览
+      const width = els.beatPreview.width;
+      const height = els.beatPreview.height;
+      const startTime = audioTime;
+      const endTime = audioTime + previewWindow;
+
+      // 绘制底线
+      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, height / 2);
+      ctx.lineTo(width, height / 2);
+      ctx.stroke();
+
+      // 绘制节拍点
+      for (let i = currentBeatIndex; i < musicBeats.length; i++) {
+        const beatTime = musicBeats[i];
+        if (beatTime > endTime) break;
+        if (beatTime < startTime) continue;
+
+        const progress = (beatTime - startTime) / previewWindow;
+        const x = progress * width;
+        const radius = i === currentBeatIndex ? 6 : 4;
+
+        ctx.beginPath();
+        ctx.arc(x, height / 2, radius, 0, Math.PI * 2);
+        ctx.fillStyle = i === currentBeatIndex ? '#a855f7' : (beatTime < audioTime ? '#ec4899' : 'rgba(255,255,255,0.6)');
+        ctx.fill();
+      }
+    }
+
+    // ==================== 判定反馈 ====================
+    function showJudgment(judgment) {
+      els.judgmentIndicator.textContent = judgment;
+      els.judgmentIndicator.className = `absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-5xl font-black z-20 scale-0 opacity-0 drop-shadow-2xl ${judgment.toLowerCase()}`;
+      els.judgmentIndicator.classList.add(judgment.toLowerCase());
+      setTimeout(() => els.judgmentIndicator.classList.remove(judgment.toLowerCase()), 800);
+      els.beatIndicator.classList.add('beat');
+      setTimeout(() => els.beatIndicator.classList.remove('beat'), 400);
+    }
+
+    // ==================== 倒计时 ====================
+    async function startCountdown() {
+      els.countdownOverlay.classList.remove('hidden');
+      const sequence = [
+        {num: '3', text: '准备摇摆！'},
+        {num: '2', text: '准备摇摆！'},
+        {num: '1', text: '准备摇摆！'},
+        {num: 'GO!', text: '开始！'}
+      ];
+      for (let item of sequence) {
+        els.countdownNumber.textContent = item.num;
+        els.countdownText.textContent = item.text;
+        await new Promise(r => setTimeout(r, 700));
+      }
+      els.countdownOverlay.classList.add('hidden');
+    }
+
+    // ==================== 分析音乐节奏 ====================
+    async function analyzeMusic() {
+      if (!audioBuffer) return;
+      els.analyzingOverlay.classList.remove('hidden');
+      els.analyzeMusic.disabled = true;
+      els.analyzingStatus.textContent = '分析节拍...';
+      const steps = 60;
+      for (let i = 0; i <= steps; i++) {
+        els.analyzingFill.style.width = `${(i / steps) * 100}%`;
+        await new Promise(r => setTimeout(r, 25));
+      }
+      musicBeats = await analyzeBeats(audioBuffer);
+      currentBeatIndex = 0;
+      els.analyzingStatus.textContent = `检测到 ${musicBeats.length} 个节拍`;
+      await new Promise(r => setTimeout(r, 400));
+      els.analyzingOverlay.classList.add('hidden');
+      els.analyzeMusic.disabled = false;
+      els.analyzeMusic.textContent = '✅ 节奏分析完成';
+      els.startGame.disabled = false;
+      els.startGame.classList.remove('hidden');
+      const bpm = musicBeats.length > 1 ? Math.round(60000 / ((musicBeats[1] || 0) - (musicBeats[0] || 0))) : '-';
+      els.status.innerHTML = `🎵 检测到 ${musicBeats.length} 个节拍 <span class="text-emerald-400">(${bpm} BPM)</span>`;
+    }
+
+    // ==================== 游戏主循环 ====================
+    async function startGame() {
+      if (!musicBeats.length) { els.status.textContent = '请先分析节奏'; return; }
+      await loadPose();
+
+      // 首次进入展示教程
+      if (!firstTutorialShown) {
+        els.tutorialOverlay.classList.add('show');
+        await new Promise(resolve => {
+          const proceed = () => { els.tutorialOverlay.classList.remove('show'); resolve(); };
+          els.tutorialNext.onclick = proceed;
+          // 也允许自动继续（3秒）
+          setTimeout(proceed, 3000);
+        });
+        firstTutorialShown = true;
+      }
+
+      // 重置状态
+      running = true;
+      score = 0; combo = 0; maxComboVal = 0;
+      judgments = [];
+      headHistory = []; prevNose = null; poseDetected = false;
+      currentBeatIndex = 0;
+      els.scoreDisplay.textContent = '0';
+      els.comboDisplay.classList.add('opacity-0');
+      els.startGame.disabled = true;
+      els.progressBar.classList.add('opacity-0');
+      els.rhythmCircle.classList.remove('active');
+      els.beatPreview.classList.add('opacity-0');
+
+      // 倒计时
+      await startCountdown();
+
+      // 开始音乐
+      audio.volume = 0.8;
+      audio.currentTime = 0;
+      audio.play().catch(e => console.error('音频播放失败:', e));
+      totalDuration = (audio.duration || (audioBuffer?.duration ?? 0)) * 1000;
+
+      els.status.innerHTML = '🎶 <span class="text-emerald-400">圈放大时摇头击中！</span>';
+      els.progressBar.classList.remove('opacity-0');
+      els.beatPreview.classList.remove('opacity-0');
+
+      let lastHitTime = 0;
+      const gameLoop = async () => {
+        if (!running) return;
+        const now = performance.now();
+        const audioTime = (audio.currentTime || 0) * 1000;
+
+        // 更新节奏圈 + 预览条
+        updateRhythmCircle(audioTime);
+        drawBeatPreview(audioTime);
+
+        // 更新进度条
+        const progress = totalDuration ? (audioTime / totalDuration) * 100 : 0;
+        els.progressFill.style.width = `${progress}%`;
+        const min = Math.floor((audio.currentTime || 0) / 60).toString().padStart(2, '0');
+        const sec = Math.floor((audio.currentTime || 0) % 60).toString().padStart(2, '0');
+        const totalMin = Math.floor(totalDuration / 60000).toString().padStart(2, '0');
+        const totalSec = Math.floor((totalDuration % 60000) / 1000).toString().padStart(2, '0');
+        els.timeDisplay.textContent = `${min}:${sec} / ${totalMin}:${totalSec}`;
+
+        // 姿态检测
+        try {
+          const results = await poseLandmarker.detectForVideo(els.camVideo, now);
+          if (results.landmarks?.[0]) {
+            const landmarks = results.landmarks[0];
+            const headLms = HEAD_LANDMARKS.map(i => landmarks[i]).filter(p => p);
+            if (headLms.length >= 3) {
+              poseDetected = true;
+              els.liveStatus.textContent = '✅ 头部捕捉成功';
+              els.liveStatus.classList.remove('opacity-0');
+              drawSkeleton(els.skeletonCanvas.getContext('2d'), landmarks);
+              drawHeadTracker(els.avatarCanvas.getContext('2d'), headLms);
+
+              const shakeSpeed = detectHeadShake(headLms);
+              if (shakeSpeed > 25 && audioTime - lastHitTime > 100) {
+                lastHitTime = audioTime;
+                if (currentBeatIndex < musicBeats.length) {
+                  const nextBeat = musicBeats[currentBeatIndex];
+                  const timeDelta = Math.abs(audioTime - nextBeat);
+                  let judgment = 'Miss';
+                  let points = 0;
+                  if (timeDelta < 80) { judgment = 'PERFECT'; points = 100; }
+                  else if (timeDelta < 150) { judgment = 'GREAT'; points = 70; }
+                  else if (timeDelta < 250) { judgment = 'GOOD'; points = 40; }
+
+                  if (points > 0 && audioTime >= nextBeat - 250 && audioTime <= nextBeat + 250) {
+                    score += points; combo++; maxComboVal = Math.max(maxComboVal, combo);
+                    els.scoreDisplay.textContent = score;
+                    if (combo > 1) { els.comboDisplay.textContent = `连击 x${combo}`; els.comboDisplay.classList.remove('opacity-0'); }
+                    judgments.push({judgment, points});
+                    showJudgment(judgment);
+                    currentBeatIndex++;
+                  } else {
+                    combo = 0;
+                    els.comboDisplay.classList.add('opacity-0');
+                    showJudgment('MISS');
+                  }
+                }
+              }
+            } else {
+              poseDetected = false;
+              els.liveStatus.textContent = '❌ 找不到头部';
+              drawSkeleton(els.skeletonCanvas.getContext('2d'), []);
+            }
+          }
+        } catch (e) { console.error('姿态检测错误:', e); }
+
+        // 游戏结束检查
+        if (audio.ended || audioTime >= totalDuration - 300) { endGame(); return; }
+        requestAnimationFrame(gameLoop);
+      };
+      gameLoop();
+    }
+
+    function endGame() {
+      running = false;
+      try { audio.pause(); } catch {}
+      els.rhythmCircle.classList.remove('active');
+      els.hintShake.style.opacity = 0;
+
+      const hitRate = judgments.filter(j => j.points > 0).length / Math.max(musicBeats.length, 1);
+      const accuracy = Math.round(hitRate * 100);
+      const finalScore = Math.round(score * (1 + maxComboVal * 0.1));
+      els.finalScoreModal.textContent = finalScore;
+      els.maxCombo.textContent = maxComboVal;
+      els.accuracy.textContent = `${accuracy}%`;
+      const grade = finalScore >= 800 ? 'S' : finalScore >= 600 ? 'A' : finalScore >= 400 ? 'B' : finalScore >= 200 ? 'C' : 'D';
+      els.finalGrade.textContent = grade;
+      els.resultModal.classList.add('show');
+      setTimeout(() => { parent.postMessage({ type: 'JUICE_GAME_SCORE', score: Math.max(0, finalScore) }, '*'); }, 400);
+    }
+
+    // ==================== 事件绑定 ====================
+    els.openCam.onclick = async () => {
+      els.openCam.disabled = true; els.openCam.textContent = '请求权限...';
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: {ideal: 720}, height: {ideal: 1280}, facingMode: 'user', frameRate: {ideal: 30} },
+          audio: false
+        });
+        els.camVideo.srcObject = stream;
+        await new Promise(r => els.camVideo.onloadedmetadata = r);
+        resizeCanvases();
+        els.status.innerHTML = '✅ <span class="text-emerald-400">摄像头就绪！</span>';
+        els.openCam.textContent = '✅ 摄像头已开';
+        await loadPose();
+      } catch (e) {
+        els.status.textContent = '❌ 摄像头权限被拒绝';
+        console.error(e);
+      } finally { els.openCam.disabled = false; }
+    };
+
+    async function loadAudio(src) {
+      return new Promise((resolve, reject) => {
+        if (!audio) audio = new Audio();
+        audio.src = src;
+        const context = new (window.AudioContext || window.webkitAudioContext)();
+        audio.addEventListener('loadedmetadata', async () => {
+          try {
+            const response = await fetch(src);
+            const arrayBuffer = await response.arrayBuffer();
+            audioBuffer = await context.decodeAudioData(arrayBuffer);
+            resolve(audioBuffer.duration);
+          } catch (e) { reject(e); }
+        });
+        audio.load();
+      });
+    }
+
+    // 测试音乐
+    els.testMusic1.onclick = async () => {
+      els.status.textContent = '加载测试音乐...';
+      try {
+        const duration = await loadAudio(TEST_MUSICS[0]);
+        els.analyzeMusic.classList.remove('hidden');
+        els.analyzeMusic.disabled = false;
+        els.status.innerHTML = `✅ <span class="text-blue-400">测试音乐1加载成功 (${duration.toFixed(0)}s)</span>`;
+      } catch { els.status.textContent = '❌ 加载失败'; }
+    };
+    els.testMusic2.onclick = async () => {
+      els.status.textContent = '加载测试音乐...';
+      try {
+        const duration = await loadAudio(TEST_MUSICS[1]);
+        els.analyzeMusic.classList.remove('hidden');
+        els.analyzeMusic.disabled = false;
+        els.status.innerHTML = `✅ <span class="text-blue-400">测试音乐2加载成功 (${duration.toFixed(0)}s)</span>`;
+      } catch { els.status.textContent = '❌ 加载失败'; }
+    };
+
+    // 本地文件
+    els.musicFile.onchange = async e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      els.status.textContent = '加载音乐...';
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const context = new (window.AudioContext || window.webkitAudioContext)();
+        audioBuffer = await context.decodeAudioData(arrayBuffer);
+        if (!audio) audio = new Audio();
+        audio.src = URL.createObjectURL(file);
+        els.analyzeMusic.classList.remove('hidden');
+        els.analyzeMusic.disabled = false;
+        els.status.innerHTML = `✅ <span class="text-blue-400">${file.name} (${audioBuffer.duration.toFixed(0)}s)</span>`;
+      } catch { els.status.textContent = '❌ 音乐加载失败'; }
+    };
+
+    els.analyzeMusic.onclick = analyzeMusic;
+    els.startGame.onclick = startGame;
+    els.replayBtn.onclick = () => { els.resultModal.classList.remove('show'); els.startGame.disabled = false; els.status.textContent = '准备再次挑战'; };
+    els.closeResult.onclick = () => { els.resultModal.classList.remove('show'); };
+
+    // ==================== 初始化 ====================
+    window.addEventListener('load', () => {
+      parent.postMessage({ type: 'JUICE_GAME_READY' }, '*');
+      resizeCanvases();
+      audio = new Audio();
+      audio.volume = 0.8;
+    });
+    window.addEventListener('resize', resizeCanvases);
+  </script>
+</body>
+</html>
