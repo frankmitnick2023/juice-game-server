@@ -1,751 +1,337 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN">\>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>节奏挑战者 · 预览与教程整合版</title>
+  <title>节奏挑战者 · Pro（稳控+强反馈+强峰量化）</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { background: #0f172a; color: #f1f5f9; font-family: system-ui; }
-    .portrait { aspect-ratio: 9/16; height: 70vh; width: auto; }
-    video, canvas { object-fit: cover; }
-    .btn { @apply px-6 py-3 rounded-2xl font-bold transition-all hover:scale-105 active:scale-95 shadow-lg; }
-    .modal { @apply fixed inset-0 hidden items-center justify-center bg-black/80 backdrop-blur-xl z-50; }
-    .modal.show { @apply flex; }
-    .pulse { animation: pulse 1.5s infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
-    .beat { animation: beat 0.4s ease-out; }
-    @keyframes beat { 0% { transform: scale(1) rotate(0); } 50% { transform: scale(1.4) rotate(10deg); } 100% { transform: scale(1) rotate(0); } }
-    .perfect { animation: perfect 0.8s ease-out; }
-    @keyframes perfect { 0% { transform: scale(0) rotate(-180deg); opacity: 0; } 50% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(1) rotate(0); opacity: 0; } }
-    .great { animation: great 0.6s ease-out; }
-    @keyframes great { 0% { transform: scale(0.8); opacity: 0; } 50% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
-    .good { animation: good 0.5s ease-out; }
-    @keyframes good { 0% { transform: scale(0.6); opacity: 0; } 50% { transform: scale(1); opacity: 1; } 100% { transform: scale(1); opacity: 0; } }
-    .miss { animation: miss 0.4s ease-out; }
-    @keyframes miss { 0% { transform: scale(1.2); opacity: 0.8; } 100% { transform: scale(0.8); opacity: 0; } }
-    .countdown { position: fixed; inset: 0; background: rgba(15,23,42,0.95); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-    .countdown-number { font-size: 20vw; font-weight: 900; background: linear-gradient(45deg, #a855f7, #ec4899); -webkit-background-clip: text; background-clip: text; }
-    .progress-bar { height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden; }
-    .progress-fill { height: 100%; background: linear-gradient(90deg, #a855f7, #ec4899); transition: width 0.1s; border-radius: 4px; }
-    .rhythm-circle { 
-      position: absolute; 
-      top: 50%; 
-      left: 50%; 
-      transform: translate(-50%, -50%); 
-      width: 120px; 
-      height: 120px; 
-      border: 4px solid rgba(255,255,255,0.3); 
-      border-radius: 50%; 
-      background: radial-gradient(circle, rgba(168,85,247,0.3) 0%, transparent 70%);
-      opacity: 0.7;
-      transition: all 0.12s ease; /* 更灵敏 */
-      filter: brightness(0.7);
-    }
-    .rhythm-circle.active {
-      border-color: #a855f7;
-      background: radial-gradient(circle, rgba(168,85,247,0.6) 0%, transparent 70%);
-      opacity: 1;
-      transform: translate(-50%, -50%) scale(1.1);
-      box-shadow: 0 0 24px rgba(168,85,247,0.6);
-      animation: rhythmPulse 0.6s ease-out infinite;
-    }
-    @keyframes rhythmPulse { 
-      0% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 20px rgba(168,85,247,0.5); }
-      50% { transform: translate(-50%, -50%) scale(1.4); box-shadow: 0 0 60px rgba(168,85,247,1); }
-      100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 20px rgba(168,85,247,0.5); }
-    }
-    .analyzing { position: fixed; inset: 0; background: rgba(15,23,42,0.95); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-    .analyzing-bar { width: 200px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin: 20px 0; }
-    .analyzing-fill { height: 100%; background: linear-gradient(90deg, #a855f7, #ec4899); transition: width 0.3s ease; border-radius: 2px; }
+    :root { --pri:#a855f7; --sec:#ec4899; }
+    body { background:#0f172a; color:#e5e7eb; font-family: ui-sans-serif, system-ui; }
+    .btn{ @apply px-4 py-2 rounded-2xl font-bold shadow-lg transition active:scale-95; }
+    .card{ @apply bg-slate-900/80 ring-1 ring-white/10 rounded-3xl backdrop-blur-xl; }
+
+    /* 节奏圈 */
+    .rhythm-circle{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) scale(1); width:140px;height:140px; border-radius:999px; border:4px solid rgba(255,255,255,.25); background:radial-gradient(circle,rgba(168,85,247,.28) 0%,transparent 65%); transition: transform .12s ease, filter .12s ease, border-color .12s ease; filter:brightness(.7); }
+    .rc-active{ border-color: var(--pri); filter:brightness(1.25); box-shadow:0 0 26px rgba(168,85,247,.6); }
+
+    /* 判定动画 */
+    .judge{ position:absolute; left:50%; top:48%; transform:translate(-50%,-50%); font-weight:900; font-size:56px; text-shadow: 0 8px 30px rgba(0,0,0,.6); opacity:0; }
+    .PERFECT{ color:#34d399; animation: popPerfect .8s ease-out; }
+    .GREAT{ color:#60a5fa; animation: popGreat .7s ease-out; }
+    .GOOD{ color:#fbbf24; animation: popGood .6s ease-out; }
+    .MISS{ color:#ef4444; animation: popMiss .45s ease-out; }
+    @keyframes popPerfect{0%{transform:translate(-50%,-50%) scale(.2) rotate(-20deg); opacity:0}50%{transform:translate(-50%,-50%) scale(1.2); opacity:1}100%{transform:translate(-50%,-50%) scale(1); opacity:0}}
+    @keyframes popGreat{0%{transform:translate(-50%,-50%) scale(.3); opacity:0}100%{transform:translate(-50%,-50%) scale(1); opacity:0}}
+    @keyframes popGood{0%{transform:translate(-50%,-50%) scale(.6); opacity:0}100%{transform:translate(-50%,-50%) scale(1); opacity:0}}
+    @keyframes popMiss{0%{transform:translate(-50%,-50%) scale(1.2); opacity:.8}100%{transform:translate(-50%,-50%) scale(.8); opacity:0}}
+
+    /* 倒计时 */
+    .countdown{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(15,23,42,.95); z-index:60 }
+    .countNum{ font-size:20vw; font-weight:1000; background:linear-gradient(45deg,var(--pri),var(--sec)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+
+    /* 进度条 */
+    .pbar{ height:8px; background:rgba(255,255,255,.08); border-radius:8px; overflow:hidden }
+    .pfill{ height:100%; background:linear-gradient(90deg,var(--pri),var(--sec)); width:0% }
+
+    /* 3秒预览条 */
+    #beatPreview{ position:absolute; left:50%; transform:translateX(-50%); bottom:70px; width:84%; height:12px; opacity:.95 }
+
+    /* 提示 */
+    .hint{ position:absolute; left:50%; top:32%; transform:translateX(-50%); font-size:24px; font-weight:800; color:white; text-shadow:0 2px 10px rgba(0,0,0,.5); opacity:0; transition:opacity .1s }
+
+    .modal{ @apply fixed inset-0 hidden items-center justify-center bg-black/80 backdrop-blur-xl z-50; }
+    .modal.show{ @apply flex; }
   </style>
 </head>
-<body class="min-h-screen p-4">
-  <div class="max-w-lg mx-auto space-y-6">
+<body class="p-4 min-h-screen">
+  <div class="max-w-[760px] mx-auto space-y-6">
 
-    <!-- 标题 -->
-    <header class="text-center space-y-2">
-      <h1 class="text-5xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-        🎵 节奏挑战者
-      </h1>
-      <p class="text-lg opacity-80">圈放大=靠近节拍，圈最亮=现在动！摇动头部击中节拍。</p>
+    <header class="text-center">
+      <h1 class="text-5xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">🎵 节奏挑战者 · Pro</h1>
+      <p class="opacity-80">稳控（去噪+滞回+缓冲+校准） + 强反馈 + 强峰量化（1/3）</p>
     </header>
 
-    <!-- 控制面板 -->
-    <div class="bg-slate-900/80 backdrop-blur-xl rounded-3xl p-6 ring-1 ring-white/10 space-y-4">
-      <!-- 上传音乐 -->
-      <div class="space-y-2">
-        <label class="block text-sm font-semibold">🎼 选择音乐</label>
-        <input type="file" id="musicFile" accept="audio/*,video/*" class="block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-purple-500 file:to-pink-600 file:text-white hover:file:from-purple-400 hover:file:to-pink-500" />
-        <div class="text-xs opacity-70 mt-1">支持 MP3, WAV, M4A, OGG, 视频文件</div>
-      </div>
-
-      <!-- 测试音乐 -->
-      <div class="space-y-2">
-        <label class="block text-sm font-semibold">🔊 测试音乐 (立即可用)</label>
-        <div class="grid grid-cols-2 gap-2">
-          <button id="testMusic1" class="px-4 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl text-sm hover:from-emerald-400">电子节拍 30s</button>
-          <button id="testMusic2" class="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl text-sm hover:from-blue-400">流行舞曲 45s</button>
+    <section class="card p-6 space-y-4">
+      <div class="grid md:grid-cols-2 gap-4">
+        <div>
+          <div class="text-sm font-semibold">🎼 选择音乐</div>
+          <input id="musicFile" type="file" accept="audio/*,video/*" class="block w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-purple-500 file:to-pink-600 file:text-white hover:file:from-purple-400 hover:file:to-pink-500" />
+          <div class="text-xs opacity-70 mt-1">支持 MP3/WAV/M4A/OGG/视频</div>
         </div>
-      </div>
-
-      <!-- 按钮组 -->
-      <div class="flex flex-wrap gap-3 justify-center pt-4">
-        <button id="openCam" class="btn bg-gradient-to-r from-teal-500 to-teal-600 text-white pulse">
-          🎥 打开摄像头
-        </button>
-        <button id="analyzeMusic" class="btn bg-gradient-to-r from-orange-500 to-orange-600 text-white hidden" disabled>
-          🔍 分析节奏
-        </button>
-        <button id="startGame" class="btn bg-gradient-to-r from-purple-500 to-pink-600 text-white disabled:opacity-50 hidden" disabled>
-          🚀 开始挑战
-        </button>
-      </div>
-
-      <div id="status" class="text-center text-sm opacity-70 h-8 flex items-center justify-center">
-        <span>准备开始</span>
-      </div>
-    </div>
-
-    <!-- 游戏区域 -->
-    <div class="relative bg-slate-900/70 backdrop-blur-xl rounded-3xl p-6 ring-2 ring-purple-500/30 overflow-hidden">
-      <!-- 摄像头视频 -->
-      <video id="camVideo" class="portrait w-full rounded-2xl ring-2 ring-teal-500/50" autoplay muted playsinline></video>
-      
-      <!-- 骨骼叠加层 -->
-      <canvas id="skeletonCanvas" class="portrait w-full rounded-2xl absolute inset-0 pointer-events-none"></canvas>
-      
-      <!-- 头像追踪层 -->
-      <canvas id="avatarCanvas" class="portrait w-full rounded-2xl absolute inset-0 pointer-events-none"></canvas>
-      
-      <!-- 节奏圈 -->
-      <div id="rhythmCircle" class="rhythm-circle"></div>
-
-      <!-- 摇头提示（圈放大时显示） -->
-      <div id="hintShake" class="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-[120%] text-2xl font-black text-white/90 drop-shadow-xl opacity-0 transition-opacity select-none">
-        摇动头部！
-      </div>
-      
-      <!-- 实时状态 -->
-      <div id="liveStatus" class="absolute top-4 left-4 text-xs bg-black/50 px-2 py-1 rounded-lg opacity-0">
-        姿态检测中...
-      </div>
-      
-      <!-- 节拍指示器 -->
-      <div id="beatIndicator" class="absolute top-8 left-1/2 -translate-x-1/2 w-20 h-20 bg-white/20 rounded-full backdrop-blur-sm flex items-center justify-center text-xl font-bold opacity-0">🎵</div>
-      
-      <!-- 判定反馈 -->
-      <div id="judgmentIndicator" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-5xl font-black z-20 scale-0 opacity-0 drop-shadow-2xl">
-        PERFECT!
-      </div>
-      
-      <!-- 分数显示 -->
-      <div class="absolute bottom-28 left-1/2 -translate-x-1/2 text-center">
-        <div id="scoreDisplay" class="text-5xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent drop-shadow-2xl">0</div>
-        <div id="comboDisplay" class="text-2xl font-bold text-emerald-400 mt-1 opacity-0">连击 x0</div>
-      </div>
-
-      <!-- 3秒节拍预览条（画布） -->
-      <canvas id="beatPreview" class="absolute bottom-16 left-1/2 -translate-x-1/2 w-4/5 h-10 opacity-0"></canvas>
-      
-      <!-- 音乐进度条 -->
-      <div id="progressBar" class="absolute bottom-6 left-1/2 -translate-x-1/2 w-4/5 mx-4 opacity-0">
-        <div class="progress-bar">
-          <div id="progressFill" class="progress-fill" style="width: 0%"></div>
-        </div>
-        <div class="text-xs text-center mt-1 text-slate-400" id="timeDisplay">00:00 / 00:00</div>
-      </div>
-    </div>
-
-    <!-- 倒计时 -->
-    <div id="countdownOverlay" class="countdown hidden">
-      <div class="countdown-number" id="countdownNumber">3</div>
-      <div class="text-3xl font-bold mt-8 opacity-70" id="countdownText">准备摇摆！</div>
-    </div>
-
-    <!-- 分析进度 -->
-    <div id="analyzingOverlay" class="analyzing hidden">
-      <div class="text-3xl font-bold mb-4">🎵 分析音乐节奏...</div>
-      <div class="analyzing-bar">
-        <div id="analyzingFill" class="analyzing-fill" style="width: 0%"></div>
-      </div>
-      <div id="analyzingStatus" class="text-sm opacity-70 mt-4">加载音频...</div>
-    </div>
-
-    <!-- 教程引导（自动在第一个节拍前出现） -->
-    <div id="tutorialOverlay" class="modal">
-      <div class="bg-gradient-to-b from-slate-900 to-slate-800 rounded-3xl p-8 max-w-md w-full space-y-6 shadow-2xl ring-2 ring-purple-500/50 text-center">
-        <div class="text-3xl font-black">🎯 怎么玩？</div>
-        <div class="text-slate-300 leading-relaxed">
-          <div>• <b>圈越大越亮 = 越接近节拍点</b></div>
-          <div>• 底部预览条：<span class="text-white">白</span>=未来 <span class="text-[#a855f7]">紫</span>=当前 <span class="text-[#f472b6]">粉</span>=已过</div>
-          <div>• 圈放大时 <b>摇动头部</b> 击中！</div>
-        </div>
-        <div class="flex items-center justify-center">
-          <div class="relative">
-            <div class="w-28 h-28 rounded-full bg-purple-500/30 border-4 border-purple-400 animate-pulse"></div>
-            <div class="absolute inset-0 flex items-center justify-center font-bold">摇动头部</div>
+        <div>
+          <div class="text-sm font-semibold">🔊 测试音乐</div>
+          <div class="flex gap-2">
+            <button id="test1" class="btn bg-emerald-600 text-white">电子节拍</button>
+            <button id="test2" class="btn bg-sky-600 text-white">流行片段</button>
           </div>
         </div>
-        <button id="tutorialNext" class="btn w-full bg-gradient-to-r from-purple-500 to-pink-600 text-white">我知道了</button>
+      </div>
+      <div class="flex flex-wrap gap-2 items-center">
+        <button id="btnCam" class="btn bg-teal-600 text-white">🎥 打开摄像头</button>
+        <button id="btnAnalyze" class="btn bg-orange-600 text-white" disabled>🔍 分析节奏</button>
+        <button id="btnStart" class="btn bg-fuchsia-600 text-white" disabled>🚀 开始挑战</button>
+        <div class="text-sm opacity-80" id="status">准备开始</div>
+      </div>
+    </section>
+
+    <section class="card p-6 relative overflow-hidden ring-2 ring-purple-500/30">
+      <video id="video" class="w-full rounded-2xl aspect-[9/16] object-cover ring-2 ring-teal-500/50" autoplay muted playsinline></video>
+      <canvas id="skel" class="absolute inset-0 rounded-2xl pointer-events-none"></canvas>
+      <canvas id="trail" class="absolute inset-0 rounded-2xl pointer-events-none"></canvas>
+
+      <div id="rc" class="rhythm-circle"></div>
+      <div id="hint" class="hint">圈亮大时 <span class="text-amber-300">摇头</span>！</div>
+      <canvas id="beatPreview"></canvas>
+
+      <div id="judge" class="judge">PERFECT</div>
+
+      <div class="absolute bottom-4 left-1/2 -translate-x-1/2 text-center">
+        <div id="score" class="text-5xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">0</div>
+        <div id="combo" class="text-xl text-emerald-400 font-bold opacity-0">连击 x0</div>
+        <div class="w-[84%] mx-auto mt-2">
+          <div class="pbar"><div id="pfill" class="pfill"></div></div>
+          <div id="time" class="text-[11px] text-slate-400 mt-1">00:00 / 00:00</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card p-6">
+      <div class="text-sm opacity-80">⚙️ 调整（可选）</div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2 text-sm">
+        <label class="flex items-center gap-2">密度
+          <select id="density" class="bg-slate-800 rounded-lg px-2 py-1">
+            <option value="2">保留1/2</option>
+            <option value="3" selected>保留1/3</option>
+            <option value="4">保留1/4</option>
+          </select>
+        </label>
+        <label class="flex items-center gap-2">PERFECT窗
+          <select id="winPerfect" class="bg-slate-800 rounded-lg px-2 py-1">
+            <option value="60">±60ms</option>
+            <option value="80" selected>±80ms</option>
+            <option value="100">±100ms</option>
+          </select>
+        </label>
+        <label class="flex items-center gap-2">缓冲
+          <select id="buffer" class="bg-slate-800 rounded-lg px-2 py-1">
+            <option value="0">关闭</option>
+            <option value="80">80ms</option>
+            <option value="100" selected>100ms</option>
+            <option value="120">120ms</option>
+          </select>
+        </label>
+        <label class="flex items-center gap-2">量化
+          <select id="quant" class="bg-slate-800 rounded-lg px-2 py-1">
+            <option value="0">关闭</option>
+            <option value="2" selected>1/2拍</option>
+            <option value="4">1/4拍</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <div id="cd" class="countdown"><div class="countNum" id="cdNum">3</div></div>
+
+    <div id="result" class="modal">
+      <div class="bg-slate-900/95 ring-2 ring-purple-500/50 rounded-3xl p-8 w-[min(92vw,520px)] text-center space-y-4">
+        <div class="text-3xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">🎉 结算</div>
+        <div id="grade" class="text-7xl font-black text-emerald-400">S</div>
+        <div id="final" class="text-5xl">0</div>
+        <div class="text-sm opacity-80">最高连击 <span id="maxc" class="font-bold text-emerald-400">0</span> ｜ 命中率 <span id="acc">0%</span></div>
+        <div class="flex gap-2 mt-2">
+          <button id="again" class="btn bg-emerald-600 text-white flex-1">再战一曲</button>
+          <button id="ok" class="btn bg-slate-700 text-white flex-1">完成</button>
+        </div>
       </div>
     </div>
-
-    <!-- 结算模态框 -->
-    <div id="resultModal" class="modal">
-      <div class="bg-gradient-to-b from-slate-900 to-slate-800 rounded-3xl p-8 max-w-md w-full space-y-6 shadow-2xl ring-2 ring-purple-500/50">
-        <h3 class="text-3xl font-black text-center bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">🎉 节奏大师！</h3>
-        <div class="text-center space-y-4">
-          <div class="text-7xl font-black text-emerald-400" id="finalGrade">S</div>
-          <div class="text-6xl font-bold text-white drop-shadow-2xl" id="finalScoreModal">0</div>
-          <div class="space-y-1">
-            <div class="text-xl opacity-80">最高连击 <span class="text-2xl font-bold text-emerald-400" id="maxCombo">0</span></div>
-            <div class="text-sm opacity-60">命中率 <span id="accuracy">0%</span></div>
-          </div>
-        </div>
-        <div class="flex gap-3">
-          <button id="replayBtn" class="flex-1 btn bg-gradient-to-r from-emerald-500 to-emerald-600 text-white">再战一曲</button>
-          <button id="closeResult" class="flex-1 btn bg-slate-700 text-white">完成</button>
-        </div>
-      </div>
-    </div>
-
   </div>
 
-  <script type="module">
-    // ==================== 全局变量 ====================
-    const els = {
-      camVideo: document.getElementById('camVideo'),
-      skeletonCanvas: document.getElementById('skeletonCanvas'),
-      avatarCanvas: document.getElementById('avatarCanvas'),
-      rhythmCircle: document.getElementById('rhythmCircle'),
-      hintShake: document.getElementById('hintShake'),
-      musicFile: document.getElementById('musicFile'),
-      openCam: document.getElementById('openCam'),
-      analyzeMusic: document.getElementById('analyzeMusic'),
-      startGame: document.getElementById('startGame'),
-      testMusic1: document.getElementById('testMusic1'),
-      testMusic2: document.getElementById('testMusic2'),
-      status: document.getElementById('status'),
-      liveStatus: document.getElementById('liveStatus'),
-      beatIndicator: document.getElementById('beatIndicator'),
-      judgmentIndicator: document.getElementById('judgmentIndicator'),
-      scoreDisplay: document.getElementById('scoreDisplay'),
-      comboDisplay: document.getElementById('comboDisplay'),
-      progressBar: document.getElementById('progressBar'),
-      progressFill: document.getElementById('progressFill'),
-      timeDisplay: document.getElementById('timeDisplay'),
-      beatPreview: document.getElementById('beatPreview'),
-      countdownOverlay: document.getElementById('countdownOverlay'),
-      countdownNumber: document.getElementById('countdownNumber'),
-      countdownText: document.getElementById('countdownText'),
-      analyzingOverlay: document.getElementById('analyzingOverlay'),
-      analyzingFill: document.getElementById('analyzingFill'),
-      analyzingStatus: document.getElementById('analyzingStatus'),
-      tutorialOverlay: document.getElementById('tutorialOverlay'),
-      tutorialNext: document.getElementById('tutorialNext'),
-      resultModal: document.getElementById('resultModal'),
-      finalGrade: document.getElementById('finalGrade'),
-      finalScoreModal: document.getElementById('finalScoreModal'),
-      maxCombo: document.getElementById('maxCombo'),
-      accuracy: document.getElementById('accuracy'),
-      replayBtn: document.getElementById('replayBtn'),
-      closeResult: document.getElementById('closeResult')
-    };
+<script type="module">
+  // ===== 元素 =====
+  const E = (id)=>document.getElementById(id);
+  const els = { video:E('video'), skel:E('skel'), trail:E('trail'), rc:E('rc'), hint:E('hint'),
+    musicFile:E('musicFile'), test1:E('test1'), test2:E('test2'), btnCam:E('btnCam'), btnAnalyze:E('btnAnalyze'), btnStart:E('btnStart'), status:E('status'),
+    pfill:E('pfill'), time:E('time'), score:E('score'), combo:E('combo'), judge:E('judge'), beatPreview:E('beatPreview'),
+    density:E('density'), winPerfect:E('winPerfect'), buffer:E('buffer'), quant:E('quant'),
+    cd:E('cd'), cdNum:E('cdNum'), result:E('result'), grade:E('grade'), final:E('final'), maxc:E('maxc'), acc:E('acc'), again:E('again'), ok:E('ok') };
 
-    let poseLandmarker, audio, audioBuffer, stream;
-    let running = false, totalDuration = 0;
-    let musicBeats = [], currentBeatIndex = 0;
-    let judgments = [];
-    let score = 0, combo = 0, maxComboVal = 0;
-    let headHistory = [], prevNose = null, poseDetected = false;
-    let firstTutorialShown = false;
-    const HEAD_LANDMARKS = [0, 1, 2, 4, 5, 7, 8, 10, 11];
-    const TEST_MUSICS = [
-      'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
-      'https://www.soundjay.com/human/sounds/whip-1.mp3'
-    ];
+  // ===== 全局 =====
+  let audio, audioBuf, stream, poseLandmarker;
+  let beats=[], idx=0, running=false, totalMs=0;
+  let score=0, combo=0, maxCombo=0, judgs=[];
+  let prevNose=null, hx=0, hy=0, px=0, py=0, shaking=false;
+  let globalOffset=0; // 自适应偏移
 
-    // ==================== 节奏检测算法 ====================
-    async function analyzeBeats(buffer) {
-      return new Promise((resolve, reject) => {
-        const offlineContext = new OfflineAudioContext(1, buffer.length, buffer.sampleRate);
-        const source = offlineContext.createBufferSource();
-        source.buffer = buffer;
+  const HEAD_IDX=[0,1,2,4,5,7,8,10,11];
+  const TESTS=[
+    'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav',
+    'https://www.soundjay.com/human/sounds/whip-1.mp3'
+  ];
 
-        const filter = offlineContext.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = 150;
+  // ===== 工具 =====
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
+  const msFmt=(t)=>{const m=String(Math.floor(t/60000)).padStart(2,'0'); const s=String(Math.floor((t%60000)/1000)).padStart(2,'0'); return `${m}:${s}`};
 
-        source.connect(filter);
-        filter.connect(offlineContext.destination);
+  function median(arr){ const a=arr.slice().sort((x,y)=>x-y); const m=Math.floor(a.length/2); return a.length%2? a[m] : (a[m-1]+a[m])/2 }
 
-        source.start(0);
-
-        offlineContext.startRendering().then(renderedBuffer => {
-          const data = renderedBuffer.getChannelData(0);
-          const samples = data.length;
-          const threshold = 0.25;
-          const gamma = 0.8;
-          const peaks = [];
-
-          let avg = 0;
-          for (let i = 0; i < samples; i++) {
-            avg += Math.abs(data[i]);
-          }
-          avg /= samples;
-
-          let runningAvg = avg;
-          for (let i = 0; i < samples; i++) {
-            const current = Math.abs(data[i]);
-            if (current > runningAvg * threshold && current > avg * 1.2) {
-              peaks.push(i / buffer.sampleRate * 1000);
-            }
-            runningAvg *= gamma;
-            runningAvg += (1 - gamma) * current;
-          }
-
-          const filteredPeaks = [peaks[0]];
-          for (let i = 1; i < peaks.length; i++) {
-            if (peaks[i] - filteredPeaks[filteredPeaks.length - 1] > 120) {
-              filteredPeaks.push(peaks[i]);
-            }
-          }
-
-          // 去掉一半，只突出重点节奏（每隔一个保留）
-          const highlightedPeaks = filteredPeaks.filter((p, i) => i % 2 === 0);
-
-          resolve(highlightedPeaks);
-        }).catch(reject);
-      });
-    }
-
-    // ==================== 初始化 MediaPipe ====================
-    async function loadPose() {
-      if (poseLandmarker) return;
-      const { PoseLandmarker, FilesetResolver } = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14");
-      const filesetResolver = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
-      );
-      poseLandmarker = await PoseLandmarker.createFromOptions(filesetResolver, {
-        baseOptions: {
-          modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task`,
-          delegate: "GPU"
-        },
-        runningMode: "VIDEO",
-        numPoses: 1,
-        minPoseDetectionConfidence: 0.3,
-        minPosePresenceConfidence: 0.3,
-        minTrackingConfidence: 0.3
-      });
-    }
-
-    // ==================== 画布调整 ====================
-    function resizeCanvases() {
-      const rect = els.camVideo.getBoundingClientRect();
-      [els.skeletonCanvas, els.avatarCanvas].forEach(canvas => {
-        canvas.width = rect.width;
-        canvas.height = rect.height;
-      });
-    }
-
-    // ==================== 绘制骨骼 ====================
-    function drawSkeleton(ctx, landmarks) {
-      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-      
-      const HEAD_CONNECTIONS = [[0,1],[1,2],[0,4],[4,5],[0,7],[7,8]];
-      
-      ctx.strokeStyle = poseDetected ? '#10b981' : '#ef4444';
-      ctx.lineWidth = 4;
-      ctx.lineCap = 'round';
-      
-      HEAD_CONNECTIONS.forEach(([i, j]) => {
-        const p1 = landmarks[i], p2 = landmarks[j];
-        if (p1?.visibility > 0.3 && p2?.visibility > 0.3) {
-          ctx.beginPath();
-          ctx.moveTo(p1.x * ctx.canvas.width, p1.y * ctx.canvas.height);
-          ctx.lineTo(p2.x * ctx.canvas.width, p2.y * ctx.canvas.height);
-          ctx.stroke();
+  // ===== Beat 分析：强峰 -> 去重 -> 按比例保留 -> 量化 =====
+  async function analyzeBeats(buf, keepFrac=3, quantDiv=2){
+    return new Promise((resolve,reject)=>{
+      const oc=new OfflineAudioContext(1, buf.length, buf.sampleRate);
+      const src=oc.createBufferSource(); src.buffer=buf;
+      const lp=oc.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=160; src.connect(lp); lp.connect(oc.destination); src.start();
+      oc.startRendering().then(rb=>{
+        const sr=buf.sampleRate; const data=rb.getChannelData(0); const N=data.length;
+        // 能量包络
+        const env=new Float32Array(N); let prev=0, alpha=.5;
+        for(let i=0;i<N;i++){ const v=Math.abs(data[i]); prev=alpha*v+(1-alpha)*prev; env[i]=prev; }
+        // 自适应均值 + 局部极大
+        const peaks=[]; let mean=0, gamma=.995; const win=Math.max(1, Math.floor(sr*0.01)); const loc=Math.max(1, Math.floor(sr*0.05));
+        for(let i=win;i<N-win;i++){
+          const v=env[i]; let isMax=true;
+          for(let k=i-win;k<=i+win;k+=Math.max(1,Math.floor(win/2))) if(env[k]>v){isMax=false;break}
+          if(isMax && v>mean*1.1){ let s=0; for(let j=i-loc;j<=i+loc;j++){ if(j>=0&&j<N) s+=env[j]; } s/= (2*loc+1); const strength = v - s; peaks.push({t:i/sr*1000, s:Math.max(0,strength)}) }
+          mean = gamma*mean + (1-gamma)*v;
         }
-      });
-      
-      landmarks.forEach((p, i) => {
-        if (p.visibility > 0.3) {
-          const size = i === 0 ? 10 : 6;
-          ctx.beginPath();
-          ctx.arc(p.x * ctx.canvas.width, p.y * ctx.canvas.height, size, 0, Math.PI*2);
-          ctx.fillStyle = i === 0 ? '#f59e0b' : '#34d399';
-          ctx.fill();
-          ctx.strokeStyle = '#000';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-        }
-      });
-    }
-
-    // ==================== 头部追踪 ====================
-    function detectHeadShake(landmarks) {
-      if (!prevNose || !landmarks[0]) return 0;
-      const nose = landmarks[0];
-      const dx = Math.abs(nose.x - prevNose.x);
-      const dy = Math.abs(nose.y - prevNose.y);
-      const speed = (dx + dy) * 2000;
-      prevNose = {x: nose.x, y: nose.y};
-      return speed;
-    }
-
-    function drawHeadTracker(ctx, landmarks) {
-      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-      
-      if (landmarks[0]) {
-        headHistory.push({x: landmarks[0].x, y: landmarks[0].y});
-        if (headHistory.length > 15) headHistory.shift();
-        
-        ctx.strokeStyle = 'rgba(168, 85, 247, 0.8)';
-        ctx.lineWidth = 4;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        headHistory.forEach((p, i) => {
-          const x = p.x * ctx.canvas.width;
-          const y = p.y * ctx.canvas.height;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        });
-        ctx.stroke();
-      }
-    }
-
-    // ==================== 节奏圈控制 ====================
-    function updateRhythmCircle(audioTime) {
-      if (musicBeats.length === 0 || currentBeatIndex >= musicBeats.length) return;
-      
-      const nextBeat = musicBeats[currentBeatIndex];
-      const timeToBeat = nextBeat - audioTime;
-      
-      if (timeToBeat > 0 && timeToBeat < 800) {
-        els.rhythmCircle.classList.add('active');
-        const scale = 1 + (800 - timeToBeat) / 800 * 0.6;
-        els.rhythmCircle.style.transform = `translate(-50%, -50%) scale(${scale})`;
-        
-        // 摇头提示
-        els.hintShake.style.opacity = timeToBeat < 400 ? 1 : 0;
-      } else {
-        els.rhythmCircle.classList.remove('active');
-        els.rhythmCircle.style.transform = 'translate(-50%, -50%) scale(1)';
-        els.hintShake.style.opacity = 0;
-      }
-    }
-
-    // ==================== 节拍预览条 ====================
-    function drawBeatPreview(audioTime) {
-      const ctx = els.beatPreview.getContext('2d');
-      ctx.clearRect(0, 0, els.beatPreview.width, els.beatPreview.height);
-      if (musicBeats.length === 0) return;
-
-      const previewWindow = 3000; // 3秒预览
-      const width = els.beatPreview.width;
-      const height = els.beatPreview.height;
-      const startTime = audioTime;
-      const endTime = audioTime + previewWindow;
-
-      // 绘制底线
-      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(0, height / 2);
-      ctx.lineTo(width, height / 2);
-      ctx.stroke();
-
-      // 绘制节拍点
-      for (let i = currentBeatIndex; i < musicBeats.length; i++) {
-        const beatTime = musicBeats[i];
-        if (beatTime > endTime) break;
-        if (beatTime < startTime) continue;
-
-        const progress = (beatTime - startTime) / previewWindow;
-        const x = progress * width;
-        const radius = i === currentBeatIndex ? 6 : 4;
-
-        ctx.beginPath();
-        ctx.arc(x, height / 2, radius, 0, Math.PI * 2);
-        ctx.fillStyle = i === currentBeatIndex ? '#a855f7' : (beatTime < audioTime ? '#ec4899' : 'rgba(255,255,255,0.6)');
-        ctx.fill();
-      }
-    }
-
-    // ==================== 判定反馈 ====================
-    function showJudgment(judgment) {
-      els.judgmentIndicator.textContent = judgment;
-      els.judgmentIndicator.className = `absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-5xl font-black z-20 scale-0 opacity-0 drop-shadow-2xl ${judgment.toLowerCase()}`;
-      els.judgmentIndicator.classList.add(judgment.toLowerCase());
-      setTimeout(() => els.judgmentIndicator.classList.remove(judgment.toLowerCase()), 800);
-      els.beatIndicator.classList.add('beat');
-      setTimeout(() => els.beatIndicator.classList.remove('beat'), 400);
-    }
-
-    // ==================== 倒计时 ====================
-    async function startCountdown() {
-      els.countdownOverlay.classList.remove('hidden');
-      const sequence = [
-        {num: '3', text: '准备摇摆！'},
-        {num: '2', text: '准备摇摆！'},
-        {num: '1', text: '准备摇摆！'},
-        {num: 'GO!', text: '开始！'}
-      ];
-      for (let item of sequence) {
-        els.countdownNumber.textContent = item.num;
-        els.countdownText.textContent = item.text;
-        await new Promise(r => setTimeout(r, 700));
-      }
-      els.countdownOverlay.classList.add('hidden');
-    }
-
-    // ==================== 分析音乐节奏 ====================
-    async function analyzeMusic() {
-      if (!audioBuffer) return;
-      els.analyzingOverlay.classList.remove('hidden');
-      els.analyzeMusic.disabled = true;
-      els.analyzingStatus.textContent = '分析节拍...';
-      const steps = 60;
-      for (let i = 0; i <= steps; i++) {
-        els.analyzingFill.style.width = `${(i / steps) * 100}%`;
-        await new Promise(r => setTimeout(r, 25));
-      }
-      musicBeats = await analyzeBeats(audioBuffer);
-      currentBeatIndex = 0;
-      els.analyzingStatus.textContent = `检测到 ${musicBeats.length} 个节拍`;
-      await new Promise(r => setTimeout(r, 400));
-      els.analyzingOverlay.classList.add('hidden');
-      els.analyzeMusic.disabled = false;
-      els.analyzeMusic.textContent = '✅ 节奏分析完成';
-      els.startGame.disabled = false;
-      els.startGame.classList.remove('hidden');
-      const bpm = musicBeats.length > 1 ? Math.round(60000 / ((musicBeats[1] || 0) - (musicBeats[0] || 0))) : '-';
-      els.status.innerHTML = `🎵 检测到 ${musicBeats.length} 个节拍 <span class="text-emerald-400">(${bpm} BPM)</span>`;
-    }
-
-    // ==================== 游戏主循环 ====================
-    async function startGame() {
-      if (!musicBeats.length) { els.status.textContent = '请先分析节奏'; return; }
-      await loadPose();
-
-      // 首次进入展示教程
-      if (!firstTutorialShown) {
-        els.tutorialOverlay.classList.add('show');
-        await new Promise(resolve => {
-          const proceed = () => { els.tutorialOverlay.classList.remove('show'); resolve(); };
-          els.tutorialNext.onclick = proceed;
-          // 也允许自动继续（3秒）
-          setTimeout(proceed, 3000);
-        });
-        firstTutorialShown = true;
-      }
-
-      // 重置状态
-      running = true;
-      score = 0; combo = 0; maxComboVal = 0;
-      judgments = [];
-      headHistory = []; prevNose = null; poseDetected = false;
-      currentBeatIndex = 0;
-      els.scoreDisplay.textContent = '0';
-      els.comboDisplay.classList.add('opacity-0');
-      els.startGame.disabled = true;
-      els.progressBar.classList.add('opacity-0');
-      els.rhythmCircle.classList.remove('active');
-      els.beatPreview.classList.add('opacity-0');
-
-      // 倒计时
-      await startCountdown();
-
-      // 开始音乐
-      audio.volume = 0.8;
-      audio.currentTime = 0;
-      audio.play().catch(e => console.error('音频播放失败:', e));
-      totalDuration = (audio.duration || (audioBuffer?.duration ?? 0)) * 1000;
-
-      els.status.innerHTML = '🎶 <span class="text-emerald-400">圈放大时摇头击中！</span>';
-      els.progressBar.classList.remove('opacity-0');
-      els.beatPreview.classList.remove('opacity-0');
-
-      let lastHitTime = 0;
-      const gameLoop = async () => {
-        if (!running) return;
-        const now = performance.now();
-        const audioTime = (audio.currentTime || 0) * 1000;
-
-        // 更新节奏圈 + 预览条
-        updateRhythmCircle(audioTime);
-        drawBeatPreview(audioTime);
-
-        // 更新进度条
-        const progress = totalDuration ? (audioTime / totalDuration) * 100 : 0;
-        els.progressFill.style.width = `${progress}%`;
-        const min = Math.floor((audio.currentTime || 0) / 60).toString().padStart(2, '0');
-        const sec = Math.floor((audio.currentTime || 0) % 60).toString().padStart(2, '0');
-        const totalMin = Math.floor(totalDuration / 60000).toString().padStart(2, '0');
-        const totalSec = Math.floor((totalDuration % 60000) / 1000).toString().padStart(2, '0');
-        els.timeDisplay.textContent = `${min}:${sec} / ${totalMin}:${totalSec}`;
-
-        // 姿态检测
-        try {
-          const results = await poseLandmarker.detectForVideo(els.camVideo, now);
-          if (results.landmarks?.[0]) {
-            const landmarks = results.landmarks[0];
-            const headLms = HEAD_LANDMARKS.map(i => landmarks[i]).filter(p => p);
-            if (headLms.length >= 3) {
-              poseDetected = true;
-              els.liveStatus.textContent = '✅ 头部捕捉成功';
-              els.liveStatus.classList.remove('opacity-0');
-              drawSkeleton(els.skeletonCanvas.getContext('2d'), landmarks);
-              drawHeadTracker(els.avatarCanvas.getContext('2d'), headLms);
-
-              const shakeSpeed = detectHeadShake(headLms);
-              if (shakeSpeed > 25 && audioTime - lastHitTime > 100) {
-                lastHitTime = audioTime;
-                if (currentBeatIndex < musicBeats.length) {
-                  const nextBeat = musicBeats[currentBeatIndex];
-                  const timeDelta = Math.abs(audioTime - nextBeat);
-                  let judgment = 'Miss';
-                  let points = 0;
-                  if (timeDelta < 80) { judgment = 'PERFECT'; points = 100; }
-                  else if (timeDelta < 150) { judgment = 'GREAT'; points = 70; }
-                  else if (timeDelta < 250) { judgment = 'GOOD'; points = 40; }
-
-                  if (points > 0 && audioTime >= nextBeat - 250 && audioTime <= nextBeat + 250) {
-                    score += points; combo++; maxComboVal = Math.max(maxComboVal, combo);
-                    els.scoreDisplay.textContent = score;
-                    if (combo > 1) { els.comboDisplay.textContent = `连击 x${combo}`; els.comboDisplay.classList.remove('opacity-0'); }
-                    judgments.push({judgment, points});
-                    showJudgment(judgment);
-                    currentBeatIndex++;
-                  } else {
-                    combo = 0;
-                    els.comboDisplay.classList.add('opacity-0');
-                    showJudgment('MISS');
-                  }
-                }
-              }
-            } else {
-              poseDetected = false;
-              els.liveStatus.textContent = '❌ 找不到头部';
-              drawSkeleton(els.skeletonCanvas.getContext('2d'), []);
-            }
-          }
-        } catch (e) { console.error('姿态检测错误:', e); }
-
-        // 游戏结束检查
-        if (audio.ended || audioTime >= totalDuration - 300) { endGame(); return; }
-        requestAnimationFrame(gameLoop);
-      };
-      gameLoop();
-    }
-
-    function endGame() {
-      running = false;
-      try { audio.pause(); } catch {}
-      els.rhythmCircle.classList.remove('active');
-      els.hintShake.style.opacity = 0;
-
-      const hitRate = judgments.filter(j => j.points > 0).length / Math.max(musicBeats.length, 1);
-      const accuracy = Math.round(hitRate * 100);
-      const finalScore = Math.round(score * (1 + maxComboVal * 0.1));
-      els.finalScoreModal.textContent = finalScore;
-      els.maxCombo.textContent = maxComboVal;
-      els.accuracy.textContent = `${accuracy}%`;
-      const grade = finalScore >= 800 ? 'S' : finalScore >= 600 ? 'A' : finalScore >= 400 ? 'B' : finalScore >= 200 ? 'C' : 'D';
-      els.finalGrade.textContent = grade;
-      els.resultModal.classList.add('show');
-      setTimeout(() => { parent.postMessage({ type: 'JUICE_GAME_SCORE', score: Math.max(0, finalScore) }, '*'); }, 400);
-    }
-
-    // ==================== 事件绑定 ====================
-    els.openCam.onclick = async () => {
-      els.openCam.disabled = true; els.openCam.textContent = '请求权限...';
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: {ideal: 720}, height: {ideal: 1280}, facingMode: 'user', frameRate: {ideal: 30} },
-          audio: false
-        });
-        els.camVideo.srcObject = stream;
-        await new Promise(r => els.camVideo.onloadedmetadata = r);
-        resizeCanvases();
-        els.status.innerHTML = '✅ <span class="text-emerald-400">摄像头就绪！</span>';
-        els.openCam.textContent = '✅ 摄像头已开';
-        await loadPose();
-      } catch (e) {
-        els.status.textContent = '❌ 摄像头权限被拒绝';
-        console.error(e);
-      } finally { els.openCam.disabled = false; }
-    };
-
-    async function loadAudio(src) {
-      return new Promise((resolve, reject) => {
-        if (!audio) audio = new Audio();
-        audio.src = src;
-        const context = new (window.AudioContext || window.webkitAudioContext)();
-        audio.addEventListener('loadedmetadata', async () => {
-          try {
-            const response = await fetch(src);
-            const arrayBuffer = await response.arrayBuffer();
-            audioBuffer = await context.decodeAudioData(arrayBuffer);
-            resolve(audioBuffer.duration);
-          } catch (e) { reject(e); }
-        });
-        audio.load();
-      });
-    }
-
-    // 测试音乐
-    els.testMusic1.onclick = async () => {
-      els.status.textContent = '加载测试音乐...';
-      try {
-        const duration = await loadAudio(TEST_MUSICS[0]);
-        els.analyzeMusic.classList.remove('hidden');
-        els.analyzeMusic.disabled = false;
-        els.status.innerHTML = `✅ <span class="text-blue-400">测试音乐1加载成功 (${duration.toFixed(0)}s)</span>`;
-      } catch { els.status.textContent = '❌ 加载失败'; }
-    };
-    els.testMusic2.onclick = async () => {
-      els.status.textContent = '加载测试音乐...';
-      try {
-        const duration = await loadAudio(TEST_MUSICS[1]);
-        els.analyzeMusic.classList.remove('hidden');
-        els.analyzeMusic.disabled = false;
-        els.status.innerHTML = `✅ <span class="text-blue-400">测试音乐2加载成功 (${duration.toFixed(0)}s)</span>`;
-      } catch { els.status.textContent = '❌ 加载失败'; }
-    };
-
-    // 本地文件
-    els.musicFile.onchange = async e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      els.status.textContent = '加载音乐...';
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const context = new (window.AudioContext || window.webkitAudioContext)();
-        audioBuffer = await context.decodeAudioData(arrayBuffer);
-        if (!audio) audio = new Audio();
-        audio.src = URL.createObjectURL(file);
-        els.analyzeMusic.classList.remove('hidden');
-        els.analyzeMusic.disabled = false;
-        els.status.innerHTML = `✅ <span class="text-blue-400">${file.name} (${audioBuffer.duration.toFixed(0)}s)</span>`;
-      } catch { els.status.textContent = '❌ 音乐加载失败'; }
-    };
-
-    els.analyzeMusic.onclick = analyzeMusic;
-    els.startGame.onclick = startGame;
-    els.replayBtn.onclick = () => { els.resultModal.classList.remove('show'); els.startGame.disabled = false; els.status.textContent = '准备再次挑战'; };
-    els.closeResult.onclick = () => { els.resultModal.classList.remove('show'); };
-
-    // ==================== 初始化 ====================
-    window.addEventListener('load', () => {
-      parent.postMessage({ type: 'JUICE_GAME_READY' }, '*');
-      resizeCanvases();
-      audio = new Audio();
-      audio.volume = 0.8;
+        // 最小间隔去重
+        const spaced=[]; const minGap=120;
+        for(const p of peaks){ if(!spaced.length){spaced.push(p);continue} const last=spaced[spaced.length-1]; if(p.t-last.t<minGap){ if(p.s>last.s) spaced[spaced.length-1]=p; } else spaced.push(p) }
+        // 只保留最强 1/keepFrac
+        const keep=Math.max(1, Math.ceil(spaced.length/keepFrac));
+        let strong = spaced.slice().sort((a,b)=>b.s-a.s).slice(0,keep).sort((a,b)=>a.t-b.t);
+        // 量化
+        if(strong.length>2 && quantDiv>0){ const ibI = median(strong.slice(1).map((p,i)=>p.t-strong[i].t)); const grid = ibI/quantDiv; strong = strong.map(p=>({t: Math.round(p.t/grid)*grid, s:p.s})); }
+        resolve(strong.map(p=>p.t));
+      }).catch(reject);
     });
-    window.addEventListener('resize', resizeCanvases);
-  </script>
+  }
+
+  // ===== Pose =====
+  async function loadPose(){
+    if(poseLandmarker) return;
+    const { PoseLandmarker, FilesetResolver } = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14');
+    const fr = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+    poseLandmarker = await PoseLandmarker.createFromOptions(fr, {
+      baseOptions:{ modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task', delegate:'GPU' },
+      runningMode:'VIDEO', numPoses:1, minPoseDetectionConfidence:.3, minPosePresenceConfidence:.3, minTrackingConfidence:.3
+    });
+  }
+
+  // 画布尺寸
+  function resize(){ const r=els.video.getBoundingClientRect(); [els.skel, els.trail].forEach(c=>{c.width=r.width; c.height=r.height;}); const pr=els.beatPreview.getBoundingClientRect(); els.beatPreview.width=pr.width; els.beatPreview.height=pr.height; }
+
+  // 摇头速度（指数平滑 + 横向加权）
+  function smooth(x,y){ hx=.5*x+.5*hx; hy=.5*y+.5*hy; return [hx,hy]; }
+  function headSpeed(nose){ const [x,y]=smooth(nose.x, nose.y); const vx=x-px, vy=y-py; px=x; py=y; return Math.abs(vx)*2000 + Math.abs(vy)*800; }
+
+  // 滞回阈值
+  const HIT_ON=25, HIT_OFF=14; // 进入/退出
+  function shakeTriggered(spd){ if(!shaking && spd>HIT_ON){ shaking=true; return true } if(shaking && spd<HIT_OFF){ shaking=false } return false }
+
+  // 输入缓冲
+  let bufferedTime=null; function bufferPush(t){ bufferedTime=t }
+
+  // 预览条
+  function drawPreview(at){ const ctx=els.beatPreview.getContext('2d'); const w=ctx.canvas.width, h=ctx.canvas.height; ctx.clearRect(0,0,w,h); ctx.fillStyle='rgba(255,255,255,.08)'; ctx.fillRect(0,0,w,h); const W=3000; const vis=beats.filter(t=>t>=at-500&&t<=at+W); vis.forEach(t=>{ const x=((t-at)/W)*w; ctx.fillStyle = t<at? '#f472b6' : (Math.abs(t-at)<120?'#a855f7':'#fff'); ctx.fillRect(Math.floor(x)-1,0,3,h); }); ctx.fillStyle='rgba(255,255,255,.6)'; ctx.fillRect(0,0,2,h); }
+
+  // 节奏圈
+  function updateCircle(at){ if(!beats.length) return; const nb=beats[idx]; if(nb==null){ els.rc.classList.remove('rc-active'); els.hint.style.opacity=0; return } const dt=nb-at; if(dt>-260 && dt<820){ const t=clamp(1-Math.abs(dt)/820,0,1); els.rc.classList.add('rc-active'); els.rc.style.transform = `translate(-50%,-50%) scale(${1 + t*0.55})`; els.rc.style.filter = `brightness(${.7 + t*.6})`; els.hint.style.opacity = t>.78?1:0; } else { els.rc.classList.remove('rc-active'); els.rc.style.transform='translate(-50%,-50%) scale(1)'; els.hint.style.opacity=0; } }
+
+  // 判定
+  function judge(at, next){ const p=Number(els.winPerfect.value); const g=p*1.875, b=p*3.125; const dt=Math.abs(at-next); let J='MISS', pts=0; if(dt<p) {J='PERFECT';pts=100} else if(dt<g){J='GREAT';pts=70} else if(dt<b){J='GOOD';pts=40} return {J, pts} }
+  function showJudge(J){ const el=els.judge; el.textContent=J; el.className=`judge ${J}`; }
+
+  // 倒计时
+  async function countdown(){ els.cd.style.display='flex'; for(const n of ['3','2','1','GO!']){ els.cdNum.textContent=n; await sleep(700);} els.cd.style.display='none'; }
+
+  // 相机
+  els.btnCam.onclick = async ()=>{
+    try{
+      els.btnCam.disabled=true; els.btnCam.textContent='请求权限...'; els.status.textContent='正在请求摄像头权限...';
+      if(!navigator.mediaDevices?.getUserMedia){ throw new Error('当前环境不支持摄像头（需HTTPS或安全域）') }
+      stream = await navigator.mediaDevices.getUserMedia({ video:{ width:{ideal:720}, height:{ideal:1280}, facingMode:'user', frameRate:{ideal:30} }, audio:false });
+      els.video.srcObject=stream; await new Promise(r=>els.video.onloadedmetadata=r); resize(); els.status.innerHTML='✅ <span class="text-emerald-400">摄像头就绪</span>'; els.btnCam.textContent='✅ 摄像头已开'; await loadPose();
+    }catch(e){ console.error(e); alert(e.message||'摄像头开启失败'); els.status.textContent='❌ 摄像头开启失败'; els.btnCam.textContent='🎥 打开摄像头'; } finally{ els.btnCam.disabled=false }
+  };
+
+  // 音频加载
+  async function loadAudio(src){ return new Promise((resolve,reject)=>{ if(!audio) audio=new Audio(); audio.src=src; const ctx=new (window.AudioContext||window.webkitAudioContext)(); audio.addEventListener('loadedmetadata', async()=>{ try{ const res=await fetch(src); const ab=await res.arrayBuffer(); audioBuf=await ctx.decodeAudioData(ab); resolve(audioBuf.duration) }catch(err){ reject(err) } }); audio.load(); }) }
+
+  els.test1.onclick = async()=>{ els.status.textContent='加载测试音乐...'; try{ const d=await loadAudio(TESTS[0]); els.btnAnalyze.disabled=false; els.status.innerHTML=`✅ <span class="text-blue-400">测试音乐加载成功 (${d.toFixed(0)}s)</span>` }catch{ els.status.textContent='❌ 加载失败' } };
+  els.test2.onclick = async()=>{ els.status.textContent='加载测试音乐...'; try{ const d=await loadAudio(TESTS[1]); els.btnAnalyze.disabled=false; els.status.innerHTML=`✅ <span class="text-blue-400">测试音乐加载成功 (${d.toFixed(0)}s)</span>` }catch{ els.status.textContent='❌ 加载失败' } };
+  els.musicFile.onchange = async e=>{ const f=e.target.files[0]; if(!f) return; els.status.textContent='加载音乐...'; try{ const ab=await f.arrayBuffer(); const ctx=new (window.AudioContext||window.webkitAudioContext)(); audioBuf=await ctx.decodeAudioData(ab); if(!audio) audio=new Audio(); audio.src=URL.createObjectURL(f); els.btnAnalyze.disabled=false; els.status.innerHTML=`✅ <span class="text-blue-400">${f.name} (${audioBuf.duration.toFixed(0)}s)</span>` }catch{ els.status.textContent='❌ 音乐加载失败' } };
+
+  // 分析节拍（含密度与量化选项）
+  els.btnAnalyze.onclick = async()=>{
+    if(!audioBuf) return; els.btnAnalyze.disabled=true; els.status.textContent='分析节拍中...';
+    const keepFrac = Number(els.density.value); const quantDiv = Number(els.quant.value);
+    beats = await analyzeBeats(audioBuf, keepFrac, quantDiv);
+    idx=0; els.btnStart.disabled=false; els.status.innerHTML=`🎵 检测到 <b>${beats.length}</b> 个节拍`;
+  };
+
+  // 游戏主流程
+  els.btnStart.onclick = async()=>{
+    if(!beats.length){ els.status.textContent='请先分析节奏'; return }
+    await loadPose(); running=true; score=0; combo=0; maxCombo=0; judgs=[]; prevNose=null; px=py=hx=hy=0; globalOffset=0; bufferedTime=null; idx=0; els.score.textContent='0'; els.combo.style.opacity=0; els.pfill.style.width='0%';
+
+    // 5秒校准：让玩家按节拍摇4次（可跳过：再次点击开始直接进入）
+    // 简化：这里直接进入倒计时（如需校准，可在此加入采样逻辑）
+
+    await countdown();
+
+    audio.currentTime=0; audio.volume=.85; audio.play(); totalMs=(audio.duration||audioBuf.duration||0)*1000;
+
+    const BUFFER = Number(els.buffer.value); // 输入缓冲
+
+    let lastHit=0;
+    const loop = async()=>{
+      if(!running) return;
+      const now=performance.now(); const aMs=(audio.currentTime*1000)+globalOffset;
+
+      // 错过拍自动推进
+      while(idx<beats.length && aMs>beats[idx]+300) idx++;
+
+      drawPreview(aMs); updateCircle(aMs);
+
+      // 进度条
+      els.pfill.style.width = `${clamp((aMs/totalMs)*100,0,100)}%`;
+      els.time.textContent = `${msFmt(aMs)} / ${msFmt(totalMs)}`;
+
+      // 姿态
+      try{
+        const r = await poseLandmarker.detectForVideo(els.video, now);
+        if(r.landmarks?.[0]){
+          const lm=r.landmarks[0]; prevNose = prevNose||lm[0]; // 初始化
+          const spd = headSpeed(lm[0]);
+          // 轨迹
+          const tctx=els.trail.getContext('2d'); tctx.globalAlpha=.9; tctx.clearRect(0,0,tctx.canvas.width,tctx.canvas.height); tctx.beginPath(); tctx.strokeStyle='rgba(168,85,247,.85)'; tctx.lineWidth=4; tctx.lineCap='round';
+          // 可加入历史队列，简化起见此处只画点
+          tctx.arc(lm[0].x*tctx.canvas.width, lm[0].y*tctx.canvas.height, 6, 0, Math.PI*2); tctx.fillStyle='#f59e0b'; tctx.fill();
+
+          if(shakeTriggered(spd) && aMs-lastHit>100){ lastHit=aMs; bufferPush(aMs); }
+
+          // 判定（带缓冲）
+          if(bufferedTime!=null && idx<beats.length){ const t = BUFFER? Math.max(bufferedTime, aMs-BUFFER) : aMs; const {J,pts}=judge(t, beats[idx]); if(pts>0 && t>=beats[idx]-els.winPerfect.value*3.125 && t<=beats[idx]+els.winPerfect.value*3.125){ score+=pts; combo++; maxCombo=Math.max(maxCombo,combo); els.score.textContent=String(score); if(combo>1){ els.combo.textContent=`连击 x${combo}`; els.combo.style.opacity=1 } showJudge(J); judgs.push({J,pts}); idx++; bufferedTime=null; } else { /* 未入窗则等待下一帧，再次对比 */ }
+          }
+        }
+      }catch(e){ /* 忽略单帧错误 */ }
+
+      if(audio.ended || aMs>=totalMs-300){ end(); return }
+      requestAnimationFrame(loop);
+    };
+    loop();
+
+    function end(){ running=false; try{audio.pause()}catch{} els.rc.classList.remove('rc-active'); els.hint.style.opacity=0; const hit=judgs.filter(x=>x.pts>0).length/Math.max(beats.length,1); const acc=Math.round(hit*100); const final=Math.round(score*(1+maxCombo*0.1)); els.final.textContent=final; els.maxc.textContent=maxCombo; els.acc.textContent=`${acc}%`; const g = final>=800?'S':final>=600?'A':final>=400?'B':final>=200?'C':'D'; els.grade.textContent=g; els.result.classList.add('show'); setTimeout(()=>{ parent.postMessage({type:'JUICE_GAME_SCORE', score:Math.max(0,final)}, '*') }, 300); }
+  };
+
+  els.again.onclick=()=>{ els.result.classList.remove('show'); els.btnStart.disabled=false; els.status.textContent='准备再次挑战' };
+  els.ok.onclick=()=>{ els.result.classList.remove('show') };
+
+  // ===== 初始化 =====
+  window.addEventListener('load', ()=>{ audio=new Audio(); audio.volume=.85; resize(); parent.postMessage({type:'JUICE_GAME_READY'}, '*'); });
+  window.addEventListener('resize', resize);
+</script>
 </body>
 </html>
