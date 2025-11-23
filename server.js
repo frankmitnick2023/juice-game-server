@@ -1,4 +1,4 @@
-// server.js - Juice Game (终极修复版：强制HTTPS+跨域兼容)
+// server.js - Juice Game (CORS + Session 终极修正版)
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
@@ -6,48 +6,51 @@ const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const fs = require('fs');
 const session = require('express-session');
+const cors = require('cors'); // 新增：引入 CORS
 
 // === 初始化 ===
 const app = express();
 const PORT = process.env.PORT || 3000;
+const isProduction = process.env.NODE_ENV === 'production';
 
-// === 关键修复 1: 必须信任 Railway 的反向代理 ===
-// 没有这一行，Express 认为连接是 HTTP，从而拒绝发送 Secure Cookie
+// === 1. 信任代理 (必须放在最前面) ===
 app.set('trust proxy', 1);
+
+// === 2. CORS 配置 (允许携带凭证) ===
+app.use(cors({
+  origin: true, // 自动匹配请求来源
+  credentials: true // 允许发送 Cookie
+}));
 
 // === PostgreSQL 连接池 ===
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  ssl: isProduction ? { rejectUnauthorized: false } : false
 });
 
 // === 中间件 ===
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// === 关键修复 2: 强力 Session 配置 ===
+// === 3. Session 配置 (Lax + Secure) ===
 app.use(session({
   secret: 'juice-game-secret-key-2025',
   resave: false,
   saveUninitialized: false,
-  proxy: true, // 强制允许代理
+  proxy: true,
   cookie: {
     maxAge: 24 * 60 * 60 * 1000, // 24小时
-    // 无论本地还是线上，只要是 Railway 环境都强制 Secure
-    // 注意：Secure: true 要求网站必须是 HTTPS (Railway 默认就是)
-    secure: true, 
-    // 'none' + 'secure' 是最不容易被浏览器拦截的组合
-    sameSite: 'none',
+    secure: true, // Railway 强制 HTTPS，必须为 true
+    sameSite: 'lax', // Lax 是最稳定的现代标准，兼顾安全与兼容
     httpOnly: true
   }
 }));
 
-// === 调试中间件：监控 Cookie 是否成功传输 ===
+// 调试中间件
 app.use((req, res, next) => {
-  // 只监控 API 请求
   if (req.url.startsWith('/api/')) {
-    const hasSession = req.session && req.session.user;
-    console.log(`📡 [${req.method}] ${req.url} | SessionID: ${req.sessionID} | 用户: ${hasSession ? req.session.user.email : '未登录'}`);
+    const userEmail = req.session?.user?.email || '未登录';
+    console.log(`📡 [${req.method}] ${req.url} | User: ${userEmail} | ID: ${req.sessionID}`);
   }
   next();
 });
@@ -76,7 +79,7 @@ app.post('/api/register', async (req, res) => {
 
     if (result.rowCount > 0) {
       req.session.user = result.rows[0];
-      await new Promise((resolve) => req.session.save(resolve)); // 等待保存完成
+      req.session.save();
       return res.status(201).json({ message: '注册成功', user: result.rows[0] });
     }
 
@@ -92,10 +95,10 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// === API: 登录 ===
+// === API: 登录 (简化版) ===
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: '缺少参数' });
+  if (!email || !password) return res.status(400).json({ error: '参数缺失' });
 
   const emailNorm = normalizeEmail(email);
 
@@ -113,18 +116,17 @@ app.post('/api/login', async (req, res) => {
 
     delete user.password_hash;
     
-    // 重新生成 Session 以防止固定攻击，并强制保存
-    req.session.regenerate(async (err) => {
-        if (err) return res.status(500).json({ error: 'Session生成失败' });
-        
-        req.session.user = user;
-        
-        // 手动保存，确保 Cookie 在响应头里
-        req.session.save((err) => {
-            if (err) return res.status(500).json({ error: 'Session保存失败' });
-            console.log(`✅ 登录成功: ${user.email} | SessionID: ${req.sessionID}`);
-            return res.json({ message: '登录成功', user });
-        });
+    // 直接赋值 Session (不使用 regenerate 以避免竞态条件)
+    req.session.user = user;
+    
+    // 强制保存
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session保存失败:', err);
+        return res.status(500).json({ error: '登录失败' });
+      }
+      console.log(`✅ 登录成功: ${user.email}`);
+      return res.json({ message: '登录成功', user });
     });
 
   } catch (err) {
@@ -138,17 +140,25 @@ app.get('/api/me', (req, res) => {
   if (req.session && req.session.user) {
     return res.json({ user: req.session.user });
   }
-  // 这里返回 401 导致了你的页面跳转，如果 Session 没存住，就会一直 401
   res.status(401).json({ user: null, message: "未登录" });
 });
 
-// === API: 退出 ===
+// === 新增：Session 调试接口 ===
+// 如果登录失败，在浏览器直接访问 /api/debug-session 看看显示什么
+app.get('/api/debug-session', (req, res) => {
+  res.json({
+    sessionID: req.sessionID,
+    hasUser: !!(req.session && req.session.user),
+    user: req.session?.user || null,
+    cookie: req.session?.cookie
+  });
+});
+
 app.post('/api/logout', (req, res) => {
   req.session.destroy();
   res.json({ message: '已退出' });
 });
 
-// === API: 游戏列表 ===
 app.get('/api/games', async (req, res) => {
   try {
     const manifestPath = path.join(__dirname, 'games', 'game-manifest.json');
@@ -164,15 +174,13 @@ app.get('/api/games', async (req, res) => {
     }));
     res.json(enriched);
   } catch (err) {
-    console.error('清单错误:', err);
-    res.status(500).json({ error: '列表加载失败' });
+    console.error(err);
+    res.status(500).json({ error: 'Error' });
   }
 });
 
-// === 路由 ===
 app.get('/play/:id', (req, res) => {
   const { id } = req.params;
-  if (id.includes('..')) return res.status(403).send('Denied');
   const filePath = path.join(__dirname, 'games', id, 'index.html');
   const singlePath = path.join(__dirname, 'games', `${id}.html`);
   if (fs.existsSync(filePath)) return res.sendFile(filePath);
@@ -183,7 +191,7 @@ app.get('/play/:id', (req, res) => {
 app.get('/', (req, res) => {
     const indexPath = path.join(__dirname, 'public', 'index.html');
     if (fs.existsSync(indexPath)) res.sendFile(indexPath);
-    else res.send('Juice Game Server Running');
+    else res.send('Server Running');
 });
 
 const startServer = () => {
@@ -192,13 +200,11 @@ const startServer = () => {
   });
 };
 
-pool.connect()
-  .then(client => {
-    console.log('✅ DB Connected');
-    client.release();
-    startServer();
-  })
-  .catch(err => {
-    console.error('⚠️ DB Failed:', err.message);
-    startServer();
-  });
+pool.connect().then(client => {
+  console.log('✅ DB Connected');
+  client.release();
+  startServer();
+}).catch(err => {
+  console.error('DB Failed:', err);
+  startServer();
+});
