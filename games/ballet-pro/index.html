@@ -1,481 +1,495 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>舞力全开 - 双摄跟跳版</title>
-  
-  <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
-
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DanceCam - 节奏跟舞版</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { margin: 0; background: #000; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+    /* 游戏专用动效 */
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+    
+    body { background: #000; overflow: hidden; font-family: 'Orbitron', sans-serif; user-select: none; }
+    
+    /* 游戏舞台 */
+    #stage { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+    
+    /* 背景参考视频 (老师) */
+    #refVideo { 
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+        object-fit: contain; opacity: 0.8; z-index: 1; 
+    }
+    
+    /* 玩家骨架层 (叠在老师上面) */
+    #gameCanvas { 
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+        object-fit: contain; z-index: 2; pointer-events: none;
+    }
+
+    /* 摄像头预览 (小窗口) */
+    #camPreview {
+        position: absolute; bottom: 20px; right: 20px; width: 160px; height: 240px;
+        border-radius: 12px; border: 2px solid rgba(255,255,255,0.3); 
+        object-fit: cover; z-index: 10; transform: scaleX(-1);
+        box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    }
+
+    /* UI 层 */
+    #uiLayer { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
+    
+    /* 连击展示 */
+    .combo-box { 
+        position: absolute; top: 10%; left: 5%; 
+        text-align: center; transform: rotate(-5deg);
+    }
+    .combo-num { font-size: 5rem; font-weight: 900; color: #fbbf24; text-shadow: 0 0 20px #d97706; line-height: 1;}
+    .combo-label { font-size: 1.5rem; color: #fff; letter-spacing: 0.2em; }
+
+    /* 判定反馈文字 (Perfect/Miss) */
+    #feedback {
+        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        font-size: 6rem; font-weight: 900; opacity: 0;
+        text-shadow: 0 0 30px currentColor;
+        transition: transform 0.1s;
+    }
+    .fb-perfect { color: #34d399; animation: pop-text 0.5s forwards; }
+    .fb-good { color: #60a5fa; animation: pop-text 0.5s forwards; }
+    .fb-miss { color: #f87171; animation: shake 0.4s forwards; }
+
+    /* 节奏条 (Timeline) */
+    .timeline-track {
+        position: absolute; bottom: 100px; left: 10%; width: 80%; height: 4px;
+        background: rgba(255,255,255,0.2); border-radius: 2px;
+        display: flex; align-items: center;
+    }
+    .hit-zone {
+        position: absolute; left: 20%; width: 60px; height: 60px;
+        border: 4px solid #fff; border-radius: 50%; transform: translate(-50%, 0);
+        box-shadow: 0 0 20px rgba(255,255,255,0.5);
+        background: rgba(255,255,255,0.1);
+    }
+    .note {
+        position: absolute; width: 30px; height: 30px; border-radius: 50%;
+        background: #34d399; box-shadow: 0 0 10px #34d399;
+        transform: translate(-50%, 0);
+        transition: left 0.1s linear;
+    }
+
+    /* 菜单/遮罩 */
+    #menu { 
+        position: absolute; inset: 0; background: rgba(15, 23, 42, 0.95); 
+        z-index: 50; display: flex; flex-direction: column; 
+        align-items: center; justify-content: center; pointer-events: auto;
+    }
+
+    /* 动画 */
+    @keyframes pop-text {
+        0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+        50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+        100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); }
+    }
+    @keyframes shake {
+        0%, 100% { transform: translate(-50%, -50%) translateX(0); opacity: 1;}
+        25% { transform: translate(-50%, -50%) translateX(-10px); }
+        75% { transform: translate(-50%, -50%) translateX(10px); opacity: 0;}
+    }
     .hidden { display: none !important; }
-    
-    /* 首页 */
-    #screen-select { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; background: linear-gradient(135deg, #2c3e50, #000); }
-    .btn { padding: 15px 40px; font-size: 20px; border-radius: 30px; border: none; font-weight: bold; cursor: pointer; transition: transform 0.2s; text-transform: uppercase; letter-spacing: 1px;}
-    .btn:active { transform: scale(0.95); }
-    .btn-main { background: #f1c40f; color: #000; box-shadow: 0 0 20px rgba(241, 196, 15, 0.4); }
-    .btn-side { background: #3498db; color: white; }
-
-    /* 主机界面 */
-    #screen-main { position: relative; width: 100vw; height: 100vh; background: #000; }
-    
-    #video-container { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center;}
-    video#video-main { display: none; }
-    canvas#canvas-main { width: 100%; height: 100%; object-fit: contain; }
-
-    /* 游戏UI */
-    #game-ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-    
-    /* 顶部信息栏 */
-    .top-bar { position: absolute; top: 0; left: 0; width: 100%; height: 80px; background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent); display: flex; justify-content: space-between; align-items: center; padding: 0 30px; box-sizing: border-box;}
-    
-    .score-box { font-size: 32px; font-weight: 900; color: #f1c40f; text-shadow: 0 0 10px rgba(241,196,15,0.5); }
-    .streak-box { font-size: 24px; color: #e67e22; font-style: italic; }
-    
-    /* 节奏条 */
-    #beat-bar-container { position: absolute; top: 100px; left: 50%; transform: translateX(-50%); width: 400px; height: 10px; background: rgba(255,255,255,0.2); border-radius: 5px; overflow: hidden; }
-    #beat-bar { width: 100%; height: 100%; background: #00ffea; transform-origin: left; transition: transform 0.1s linear; }
-
-    /* 判定文字特效 */
-    #judge-feedback { 
-        position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%) scale(0); 
-        font-size: 80px; font-weight: 900; text-transform: uppercase; 
-        text-shadow: 0 5px 20px rgba(0,0,0,0.8); pointer-events: none; transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-    .judge-perfect { color: #2ecc71; text-shadow: 0 0 30px #2ecc71; }
-    .judge-good { color: #f1c40f; }
-    .judge-miss { color: #e74c3c; }
-
-    /* 目标提示文字 */
-    #target-instruction {
-        position: absolute; bottom: 150px; left: 50%; transform: translateX(-50%);
-        font-size: 36px; font-weight: bold; color: white; text-shadow: 0 2px 4px black;
-        background: rgba(0,0,0,0.5); padding: 10px 30px; border-radius: 30px;
-    }
-
-    /* 控制区 */
-    .controls { position: absolute; bottom: 20px; right: 20px; display: flex; gap: 10px; pointer-events: auto;}
-    .icon-btn { background: rgba(0,0,0,0.6); border: 1px solid #555; color: white; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px;}
-
-    /* 侧面画中画 */
-    #side-pip { position: absolute; bottom: 20px; left: 20px; width: 200px; height: 150px; background: #000; border: 2px solid #333; border-radius: 10px; overflow: hidden; display: none; }
-    #video-remote { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-    
-    /* 侧面状态指示 */
-    #side-warning { position: absolute; bottom: 180px; left: 20px; color: #e74c3c; font-weight: bold; font-size: 24px; display: none; text-shadow: 0 0 10px black; animation: blink 0.5s infinite; }
-    @keyframes blink { 50% { opacity: 0; } }
-
-    #qr-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 200; }
-    .qr-box { background: white; padding: 30px; border-radius: 16px; text-align: center; color: black; }
-
-    /* 遮罩 */
-    #overlay-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; z-index: 50;}
-
-    /* 辅机界面 */
-    #screen-side { height: 100vh; background: #111; display: flex; flex-direction: column; align-items: center; padding-top: 40px; }
-    #video-side { width: 60vw; height: 80vw; object-fit: cover; border-radius: 12px; border: 2px solid #3498db; transform: scaleX(-1); background: #000;}
   </style>
 </head>
 <body>
 
-  <div id="screen-select">
-    <h1>舞力全开 - 双摄跟跳</h1>
-    <button class="btn btn-main" onclick="initMain()">主机 (显示)</button>
-    <button class="btn btn-side" onclick="initSide()">辅机 (监控)</button>
-  </div>
+  <div id="stage">
+    <video id="refVideo" playsinline></video>
+    <canvas id="gameCanvas"></canvas>
+    
+    <video id="camPreview" autoplay muted playsinline></video>
 
-  <div id="screen-main" class="hidden">
-    <div id="video-container">
-        <video id="video-main" playsinline muted autoplay></video>
-        <canvas id="canvas-main"></canvas>
-    </div>
-
-    <div id="game-ui">
-        <div class="top-bar">
-            <div class="score-box">Score: <span id="score">0</span></div>
-            <div class="streak-box">Streak: <span id="streak">0</span></div>
+    <div id="uiLayer">
+        <div class="absolute top-6 right-8 text-right">
+            <div class="text-xl text-blue-300">SCORE</div>
+            <div id="scoreVal" class="text-5xl font-bold text-white tabular-nums">000000</div>
         </div>
 
-        <div id="beat-bar-container"><div id="beat-bar"></div></div>
-
-        <div id="judge-feedback">PERFECT</div>
-        
-        <div id="target-instruction">准备开始...</div>
-
-        <div id="side-warning">⚠ 侧面: 弯腰/后仰!</div>
-
-        <div id="side-pip">
-            <video id="video-remote" autoplay playsinline muted></video>
-            <div style="position:absolute; bottom:0; left:0; background:rgba(0,0,0,0.5); color:white; font-size:10px; padding:2px;">侧面监控</div>
+        <div class="combo-box">
+            <div id="comboVal" class="combo-num">0</div>
+            <div class="combo-label">COMBO</div>
         </div>
 
-        <div class="controls">
-            <button class="icon-btn" onclick="showQrCode()">🔗</button>
-        </div>
-    </div>
+        <div id="feedback"></div>
 
-    <div id="overlay-screen">
-        <h1 style="font-size:50px; color:#f1c40f">Ready?</h1>
-        <p style="color:#ccc">模仿绿色老师的动作，倒计时结束时定格！</p>
-        <button class="btn btn-main" onclick="startGame()">Let's Dance!</button>
-    </div>
-
-    <div id="qr-modal" class="hidden">
-        <div class="qr-box">
-            <h3>扫码连接侧面辅机</h3>
-            <div id="qrcode"></div>
-            <br><button onclick="document.getElementById('qr-modal').classList.add('hidden')">关闭</button>
-        </div>
+        <div class="timeline-track" id="timeline">
+            <div class="hit-zone"></div>
+            </div>
     </div>
   </div>
 
-  <div id="screen-side" class="hidden">
-    <h3 style="color:#3498db">侧面监控中</h3>
-    <div id="side-status" style="color:#aaa">连接中...</div>
-    <video id="video-side" playsinline muted autoplay></video>
-    <div id="side-log" style="font-family:monospace; color:#2ecc71; margin-top:20px;">Ready</div>
+  <div id="menu">
+    <h1 class="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 mb-8 drop-shadow-2xl">
+        DANCE CAM
+    </h1>
+    <p class="text-slate-400 mb-12 text-xl">让你的动作与影子重合</p>
+    
+    <div class="flex flex-col gap-4 w-64">
+        <input id="fileInput" type="file" accept="video/*" class="hidden">
+        <button id="btnLoad" class="bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-xl font-bold transition-all ring-1 ring-white/20">
+            1. 选择舞蹈视频
+        </button>
+        <button id="btnCam" class="bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-xl font-bold transition-all ring-1 ring-white/20">
+            2. 打开摄像头
+        </button>
+        <button id="btnStart" class="bg-gradient-to-r from-emerald-500 to-teal-600 hover:scale-105 text-white py-4 rounded-xl font-bold text-xl shadow-lg shadow-emerald-500/30 transition-all disabled:opacity-50 disabled:hover:scale-100" disabled>
+            3. 开始游戏
+        </button>
+    </div>
+    <div id="status" class="mt-6 text-slate-500 font-mono text-sm">等待资源...</div>
   </div>
 
-  <script>
-    // --- 动作库定义 ---
-    // 定义几个简单的动作，目标角度为：肩-肘-腕 的夹角，以及 肩膀角度
-    // 这里的角度是简化版，主要验证机制
-    const POSES = [
-        { name: "双手上举 (High V)", l_arm: 160, r_arm: 160, l_shoulder: 160, r_shoulder: 160 },
-        { name: "大字张开 (T-Pose)", l_arm: 170, r_arm: 170, l_shoulder: 90, r_shoulder: 90 },
-        { name: "大力士 (Muscle)", l_arm: 90, r_arm: 90, l_shoulder: 90, r_shoulder: 90 },
-        { name: "左手敬礼 (Salute L)", l_arm: 45, r_arm: 170, l_shoulder: 45, r_shoulder: 90 },
-    ];
+  <script type="module">
+    import { FilesetResolver, PoseLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0";
 
-    // --- 游戏状态 ---
-    let gameState = 'menu';
-    let currentPoseIndex = 0;
-    let score = 0;
-    let streak = 0;
-    let poseStartTime = 0;
-    const POSE_DURATION = 4000; // 每个动作4秒
-    let currentTarget = null;
+    // ===== 全局变量 =====
+    let poseLandmarker;
+    let videoFile = null;
+    let refAnalysis = { frames: [], beats: [] }; // 存储分析好的骨架数据
+    let gameState = 'idle'; // idle, analyzing, playing
+    let score = 0, combo = 0, maxCombo = 0;
+    
+    // 节奏条配置
+    const TIMELINE_LOOKAHEAD = 2000; // 提前2秒显示音符
+    const HIT_WINDOW = 300; // 判定窗口 ms
 
-    // 侧面数据
-    let sideData = { active: false, errors: [] };
+    // DOM
+    const els = {
+        menu: document.getElementById('menu'),
+        btnLoad: document.getElementById('btnLoad'),
+        fileInput: document.getElementById('fileInput'),
+        btnCam: document.getElementById('btnCam'),
+        btnStart: document.getElementById('btnStart'),
+        status: document.getElementById('status'),
+        refVideo: document.getElementById('refVideo'),
+        camPreview: document.getElementById('camPreview'),
+        canvas: document.getElementById('gameCanvas'),
+        timeline: document.getElementById('timeline'),
+        feedback: document.getElementById('feedback'),
+        score: document.getElementById('scoreVal'),
+        combo: document.getElementById('comboVal')
+    };
+    const ctx = els.canvas.getContext('2d');
 
-    // Mediapipe & WebRTC
-    let poseMain, peer, conn;
+    // ===== 1. 初始化 AI =====
+    async function initAI() {
+        els.status.textContent = "正在加载 AI 模型...";
+        const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm");
+        poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+            baseOptions: {
+                modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task`,
+                delegate: "GPU"
+            },
+            runningMode: "VIDEO",
+            numPoses: 1
+        });
+        els.status.textContent = "AI 就绪。请选择视频。";
+    }
+    initAI();
 
-    // --- 核心游戏循环 ---
-    function startGame() {
-        document.getElementById('overlay-screen').classList.add('hidden');
-        gameState = 'playing';
-        score = 0;
-        streak = 0;
-        nextPose();
-        requestAnimationFrame(gameLoop);
+    // ===== 2. UI 交互 =====
+    els.btnLoad.onclick = () => els.fileInput.click();
+    els.fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if(file) {
+            videoFile = file;
+            els.refVideo.src = URL.createObjectURL(file);
+            els.btnLoad.textContent = `✅ ${file.name.substring(0,15)}...`;
+            checkReady();
+        }
+    };
+
+    els.btnCam.onclick = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+            els.camPreview.srcObject = stream;
+            els.camPreview.play();
+            els.btnCam.textContent = "✅ 摄像头已开启";
+            els.btnCam.classList.add('ring-emerald-500');
+            checkReady();
+        } catch(e) {
+            alert("无法开启摄像头: " + e.message);
+        }
+    };
+
+    function checkReady() {
+        if(videoFile && els.camPreview.srcObject && poseLandmarker) {
+            els.btnStart.disabled = false;
+            els.status.textContent = "准备就绪！点击开始自动分析舞蹈。";
+        }
     }
 
-    function nextPose() {
-        // 随机选一个动作
-        currentPoseIndex = Math.floor(Math.random() * POSES.length);
-        currentTarget = POSES[currentPoseIndex];
-        poseStartTime = Date.now();
+    els.btnStart.onclick = async () => {
+        if(gameState === 'analyzing') return;
+        // 预分析舞蹈动作
+        await analyzeReferenceVideo();
+    };
+
+    // ===== 3. 核心：预分析视频 (生成"谱面") =====
+    async function analyzeReferenceVideo() {
+        gameState = 'analyzing';
+        els.btnStart.textContent = "正在分析动作 (请稍候)...";
+        els.status.textContent = "AI 正在学习老师的动作...";
         
-        document.getElementById('target-instruction').innerText = currentTarget.name;
+        refAnalysis.frames = [];
+        refAnalysis.beats = [];
         
-        // 重置反馈文字
-        const feedback = document.getElementById('judge-feedback');
-        feedback.style.transform = "translate(-50%, -50%) scale(0)";
+        // 快速静音播放视频进行分析
+        els.refVideo.muted = true;
+        els.refVideo.playbackRate = 2.0; // 加速分析
+        await els.refVideo.play();
+        
+        let lastTime = -1;
+        let lastPoseEnergy = 0;
+
+        // 分析循环
+        const analyzeLoop = async () => {
+            if(els.refVideo.paused || els.refVideo.ended) {
+                finishAnalysis();
+                return;
+            }
+
+            const now = els.refVideo.currentTime;
+            if(now > lastTime + 0.1) { // 每 100ms 采样一次
+                const res = poseLandmarker.detectForVideo(els.refVideo, performance.now());
+                if(res.landmarks[0]) {
+                    // 存储这一帧的骨架数据
+                    refAnalysis.frames.push({
+                        time: now,
+                        pose: res.landmarks[0] // 存储归一化坐标
+                    });
+
+                    // 简单的"重拍"检测：计算动作幅度变化
+                    // 这里简化逻辑：每隔 2 秒生成一个判定点 (实际应该用更复杂的动量算法)
+                    // 或者检测手部/脚部的剧烈位移
+                }
+                lastTime = now;
+            }
+            requestAnimationFrame(analyzeLoop);
+        };
+        analyzeLoop();
+    }
+
+    function finishAnalysis() {
+        // 简单的生成拍子：每隔 1.5s 一个 Note
+        const duration = els.refVideo.duration;
+        for(let t = 2; t < duration - 2; t += 1.5) {
+            refAnalysis.beats.push({ time: t, hit: false });
+        }
+
+        els.refVideo.pause();
+        els.refVideo.currentTime = 0;
+        els.refVideo.playbackRate = 1.0;
+        els.refVideo.muted = false;
+        
+        startGame();
+    }
+
+    // ===== 4. 游戏循环 =====
+    function startGame() {
+        gameState = 'playing';
+        els.menu.classList.add('hidden');
+        score = 0; combo = 0;
+        
+        // 调整画布尺寸
+        els.canvas.width = els.stage.clientWidth;
+        els.canvas.height = els.stage.clientHeight;
+
+        els.refVideo.play();
+        gameLoop();
     }
 
     function gameLoop() {
-        if (gameState !== 'playing') return;
+        if(gameState !== 'playing') return;
 
-        const now = Date.now();
-        const elapsed = now - poseStartTime;
-        const timeLeft = POSE_DURATION - elapsed;
+        const currentTime = els.refVideo.currentTime;
+        
+        // 1. 绘制 UI：节奏条
+        updateTimeline(currentTime);
 
-        // 更新进度条
-        const pct = Math.max(0, timeLeft / POSE_DURATION);
-        document.getElementById('beat-bar').style.transform = `scaleX(${pct})`;
+        // 2. 实时 AI 捕捉玩家
+        const playerRes = poseLandmarker.detectForVideo(els.camPreview, performance.now());
+        
+        // 3. 获取当前的老师动作 (插值查找)
+        const refFrame = refAnalysis.frames.find(f => Math.abs(f.time - currentTime) < 0.1);
 
-        // 判定时间点
-        if (timeLeft <= 0) {
-            judgePose(); // 结算分数
-            nextPose();  // 下一个动作
+        // 4. 渲染画面
+        ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
+        
+        if (refFrame && playerRes.landmarks[0]) {
+            const playerPose = playerRes.landmarks[0];
+            const refPose = refFrame.pose;
+
+            // 绘制玩家骨架 (绿色) - 叠加在画面上
+            drawPose(ctx, playerPose, '#34d399', 4); 
+            
+            // 绘制老师骨架 (白色幽灵) - 稍微透明
+            // 注意：如果 refVideo 已经在背景播放，其实不需要画骨架，
+            // 但为了提示，我们可以画一个"目标骨架"提示用户动作幅度
+            // drawPose(ctx, refPose, 'rgba(255,255,255,0.3)', 2);
+
+            // 5. 判定逻辑
+            checkHit(currentTime, playerPose, refPose);
+        }
+
+        // 检查结束
+        if(els.refVideo.ended) {
+            alert(`游戏结束！得分: ${score}`);
+            location.reload();
+            return;
         }
 
         requestAnimationFrame(gameLoop);
     }
 
-    // 计算三个点的角度
-    function getAngle(a, b, c) {
-        if(!a || !b || !c) return 0;
-        let radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
-        let angle = Math.abs(radians * 180.0 / Math.PI);
-        if (angle > 180.0) angle = 360 - angle;
-        return angle;
-    }
+    // ===== 5. 辅助功能 =====
 
-    // --- 核心判定逻辑 ---
-    let latestResults = null;
-
-    function judgePose() {
-        if (!latestResults || !latestResults.poseLandmarks) return;
+    // 绘制骨架
+    function drawPose(ctx, landmarks, color, width) {
+        const w = ctx.canvas.width;
+        const h = ctx.canvas.height;
         
-        const lm = latestResults.poseLandmarks;
-        const t = currentTarget;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
 
-        // 1. 计算玩家当前角度
-        // 11:左肩, 13:左肘, 15:左腕 | 12:右肩, 14:右肘, 16:右腕
-        // 23:左跨, 24:右跨
-        const l_arm = getAngle(lm[11], lm[13], lm[15]);
-        const r_arm = getAngle(lm[12], lm[14], lm[16]);
+        // MediaPipe 连线索引
+        const connections = PoseLandmarker.POSE_CONNECTIONS;
         
-        // 肩膀抬起角度 (肘-肩-跨)
-        const l_sh = getAngle(lm[13], lm[11], lm[23]);
-        const r_sh = getAngle(lm[14], lm[12], lm[24]);
-
-        // 2. 计算误差 (绝对差值之和)
-        let error = 
-            Math.abs(l_arm - t.l_arm) + 
-            Math.abs(r_arm - t.r_arm) + 
-            Math.abs(l_sh - t.l_shoulder) + 
-            Math.abs(r_sh - t.r_shoulder);
-        
-        // 平均每个关节的误差
-        let avgError = error / 4; 
-
-        // 3. 侧面扣分 (Pro Check)
-        let isSideBad = sideData.active && sideData.errors.length > 0;
-        
-        // 4. 评级
-        let result = "MISS";
-        let scoreAdd = 0;
-        let cssClass = "judge-miss";
-
-        if (avgError < 25 && !isSideBad) { // 完美范围
-            result = "PERFECT";
-            scoreAdd = 100;
-            cssClass = "judge-perfect";
-            streak++;
-        } else if (avgError < 45) { // 还可以
-            result = "GOOD";
-            scoreAdd = 50;
-            cssClass = "judge-good";
-            streak = 0;
-        } else {
-            result = "MISS";
-            streak = 0;
+        // 绘制连线
+        for(const conn of connections) {
+            const start = landmarks[conn.start];
+            const end = landmarks[conn.end];
+            // 只要有一个点置信度不够就不画
+            if(start.visibility > 0.5 && end.visibility > 0.5) {
+                ctx.beginPath();
+                ctx.moveTo(start.x * w, start.y * h);
+                ctx.lineTo(end.x * w, end.y * h);
+                ctx.stroke();
+            }
         }
-
-        if(isSideBad && result !== "MISS") {
-            result = "POSTURE!"; // 姿态错误警告
-            scoreAdd = Math.floor(scoreAdd / 2);
-            cssClass = "judge-miss";
+        
+        // 绘制关节
+        ctx.fillStyle = color;
+        for(const lm of landmarks) {
+            if(lm.visibility > 0.5) {
+                ctx.beginPath();
+                ctx.arc(lm.x * w, lm.y * h, width * 1.5, 0, 2*Math.PI);
+                ctx.fill();
+            }
         }
-
-        // 更新 UI
-        score += scoreAdd;
-        document.getElementById('score').innerText = score;
-        document.getElementById('streak').innerText = streak;
-        
-        const fb = document.getElementById('judge-feedback');
-        fb.innerText = result;
-        fb.className = ""; // reset
-        fb.classList.add(cssClass);
-        fb.style.transform = "translate(-50%, -50%) scale(1.5)";
-        setTimeout(() => fb.style.transform = "translate(-50%, -50%) scale(1)", 100);
     }
 
-    // ================= 渲染与AI =================
-
-    function onMainResults(results) {
-        latestResults = results; // 保存最新一帧用于判定
-        const canvas = document.getElementById('canvas-main');
-        const ctx = canvas.getContext('2d');
+    // 更新节奏条
+    function updateTimeline(currentTime) {
+        // 清空旧的 Notes
+        els.timeline.innerHTML = '<div class="hit-zone"></div>';
         
-        ctx.save();
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // 渲染即将到来的 Notes
+        // 这里的 20% 是 hit-zone 的 left 属性
+        const trackWidth = els.timeline.clientWidth;
         
-        // 绘制视频 (镜像)
-        ctx.scale(-1, 1);
-        ctx.translate(-canvas.width, 0);
-        ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-        
-        // 绘制玩家骨骼
-        if (results.poseLandmarks) {
-            const lm = results.poseLandmarks;
-            drawConnectors(ctx, lm, POSE_CONNECTIONS, {color: 'rgba(255, 255, 255, 0.6)', lineWidth: 4});
-            drawLandmarks(ctx, lm, {color: '#fff', lineWidth: 2});
-        }
-
-        // 绘制“幽灵老师” (Ghost Teacher) - 简单的绿色线条指引
-        if (gameState === 'playing' && currentTarget) {
-            drawGhostTeacher(ctx, currentTarget);
-        }
-
-        ctx.restore();
-    }
-
-    // 简单的根据目标角度画一个绿色火柴人
-    function drawGhostTeacher(ctx, target) {
-        // 这里为了简化，我们不画全身，只画上半身的关键线条作为提示
-        // 实际上应该用预录制的 Keyframes
-        // 我们简单地在画面角落画一个示意图，或者直接覆盖在玩家身上
-        
-        // 简单实现：在屏幕中心画一个半透明的绿色引导线
-        // 这是一个极其简化的几何模拟
-        
-        const cx = ctx.canvas.width / 2;
-        const cy = ctx.canvas.height / 2;
-        const scale = 150; // 骨骼长度
-
-        ctx.strokeStyle = "rgba(0, 255, 0, 0.5)";
-        ctx.lineWidth = 10;
-        ctx.lineCap = "round";
-
-        // 躯干
-        ctx.beginPath();
-        ctx.moveTo(cx, cy - 100); // 脖子
-        ctx.lineTo(cx, cy + 100); // 跨
-        ctx.stroke();
-
-        // 根据 target 角度算手臂位置 (简单的三角函数)
-        // 左臂 (镜像后在右侧绘制)
-        let radL = (target.l_shoulder - 90) * Math.PI / 180; 
-        // 这里简化处理，仅仅为了视觉提示，不需要精确物理对应
-        // 实际项目建议用图片代替
-    }
-
-    // ================= 初始化与网络 =================
-
-    function initMain() {
-        document.getElementById('screen-select').classList.add('hidden');
-        document.getElementById('screen-main').classList.remove('hidden');
-        startMainCamera();
-        initHostNetwork();
-    }
-
-    async function startMainCamera() {
-        const video = document.getElementById('video-main');
-        const canvas = document.getElementById('canvas-main');
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: {ideal: 1280}, height: {ideal: 720} } });
-            video.srcObject = stream;
-            video.onloadedmetadata = () => {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-            };
-            poseMain = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
-            poseMain.setOptions({modelComplexity: 1});
-            poseMain.onResults(onMainResults);
-            const camera = new Camera(video, {
-                onFrame: async () => { await poseMain.send({image: video}); },
-                width: 1280, height: 720
-            });
-            camera.start();
-        } catch(e) { alert("Camera Error: " + e); }
-    }
-
-    // PeerJS & Side Camera Logic (Standard)
-    function generateRoomId() { return Math.floor(10000 + Math.random() * 90000).toString(); }
-    function showQrCode() { document.getElementById('qr-modal').classList.remove('hidden'); }
-
-    function initHostNetwork() {
-      const roomId = generateRoomId();
-      const sideUrl = `${window.location.href.split('?')[0]}?role=side&room=${roomId}`;
-      document.getElementById("qrcode").innerHTML = "";
-      new QRCode(document.getElementById("qrcode"), { text: sideUrl, width: 180, height: 180 });
-
-      peer = new Peer(`dance-host-${roomId}`);
-      peer.on('connection', (c) => {
-        conn = c;
-        handleSideConnection();
-      });
-      peer.on('call', (call) => {
-          call.answer();
-          call.on('stream', (s) => {
-              document.getElementById('side-pip').style.display = 'block';
-              document.getElementById('video-remote').srcObject = s;
-          });
-      });
-    }
-
-    function handleSideConnection() {
-        document.getElementById('qr-modal').classList.add('hidden');
-        conn.on('data', (data) => { 
-            sideData = data;
-            const warning = document.getElementById('side-warning');
-            if (data.errors.length > 0) {
-                warning.style.display = 'block';
-                warning.innerText = `⚠ ${data.errors[0]}`;
-            } else {
-                warning.style.display = 'none';
+        refAnalysis.beats.forEach(beat => {
+            const diff = beat.time - currentTime;
+            // 只显示未来 2秒内的 Note
+            if(diff >= -0.2 && diff <= 2) {
+                // 计算位置: 0s 在 20% 处 (hit-zone), 2s 在 100% 处
+                // 公式：left% = 20% + (diff / 2s) * 80%
+                const leftPercent = 20 + (diff / 2) * 80;
+                
+                const note = document.createElement('div');
+                note.className = 'note';
+                note.style.left = `${leftPercent}%`;
+                // 如果已经判定过，变色
+                if(beat.hit) note.style.background = '#fbbf24'; 
+                els.timeline.appendChild(note);
             }
         });
     }
 
-    // --- 辅机逻辑 ---
-    function initSide() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const roomId = urlParams.get('room');
-        if(!roomId) return alert("请扫码");
-        document.getElementById('screen-select').classList.add('hidden');
-        document.getElementById('screen-side').classList.remove('hidden');
+    // 判定核心
+    function checkHit(currentTime, playerPose, refPose) {
+        // 找到最近的一个 Beat
+        const beat = refAnalysis.beats.find(b => Math.abs(b.time - currentTime) < 0.15 && !b.hit);
         
-        peer = new Peer();
-        peer.on('open', () => {
-            document.getElementById('side-status').innerText = "连接中...";
-            conn = peer.connect(`dance-host-${roomId}`);
-            conn.on('open', () => {
-                document.getElementById('side-status').innerText = "✅ 已连接";
-                startSideCameraAndCall(`dance-host-${roomId}`);
-            });
-        });
+        if(beat) {
+            // 计算相似度 (简单余弦相似度)
+            const sim = calculateSimilarity(playerPose, refPose);
+            
+            let feedbackClass = '';
+            let feedbackText = '';
+            let points = 0;
+
+            if(sim > 0.85) {
+                feedbackText = 'PERFECT';
+                feedbackClass = 'fb-perfect';
+                points = 1000;
+                combo++;
+            } else if(sim > 0.70) {
+                feedbackText = 'GOOD';
+                feedbackClass = 'fb-good';
+                points = 500;
+                combo++;
+            } else {
+                feedbackText = 'MISS';
+                feedbackClass = 'fb-miss';
+                combo = 0;
+            }
+
+            // 标记这个 beat 已经处理过
+            beat.hit = true;
+            showFeedback(feedbackText, feedbackClass);
+            
+            score += points + (combo * 10);
+            els.score.textContent = score.toString().padStart(6, '0');
+            els.combo.textContent = combo;
+        }
     }
 
-    async function startSideCameraAndCall(hostId) {
-      const video = document.getElementById('video-side');
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 }, audio: false });
-      video.srcObject = stream;
-      peer.call(hostId, stream);
+    // 简易相似度算法 (只算上半身关键向量)
+    function calculateSimilarity(poseA, poseB) {
+        // 定义要对比的关键向量对 (索引)
+        const vectors = [
+            [11, 13], [13, 15], // 左臂
+            [12, 14], [14, 16], // 右臂
+            [11, 12],           // 肩膀
+            [23, 24]            // 髋部
+        ];
 
-      let poseSide = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
-      poseSide.setOptions({modelComplexity: 0});
-      poseSide.onResults(onSideResults);
-      
-      const camera = new Camera(video, {
-          onFrame: async () => { await poseSide.send({image: video}); },
-          width: 640, height: 480
-      });
-      camera.start();
+        let totalSim = 0;
+        let count = 0;
+
+        for(const [i, j] of vectors) {
+            const vA = { x: poseA[j].x - poseA[i].x, y: poseA[j].y - poseA[i].y };
+            const vB = { x: poseB[j].x - poseB[i].x, y: poseB[j].y - poseB[i].y };
+            
+            // 归一化
+            const magA = Math.sqrt(vA.x**2 + vA.y**2) + 0.0001;
+            const magB = Math.sqrt(vB.x**2 + vB.y**2) + 0.0001;
+            
+            // 点积
+            const dot = (vA.x * vB.x + vA.y * vB.y) / (magA * magB);
+            totalSim += dot;
+            count++;
+        }
+
+        return (totalSim / count + 1) / 2; // 映射到 0~1
     }
 
-    let lastSend = 0;
-    function onSideResults(results) {
-      if (!conn || !conn.open) return;
-      if (Date.now() - lastSend < 100) return;
-      lastSend = Date.now();
-
-      let errors = [];
-      if (results.poseLandmarks) {
-        const lm = results.poseLandmarks;
-        let isLeft = lm[7].visibility > lm[8].visibility;
-        let shoulder = isLeft ? lm[11] : lm[12];
-        let hip = isLeft ? lm[23] : lm[24];
-        let lean = shoulder.x - hip.x;
-        if (Math.abs(lean) > 0.08) errors.push(lean > 0 ? "身体后仰" : "身体前倾");
-        document.getElementById('side-log').innerText = errors.length > 0 ? errors[0] : "正常";
-      }
-      conn.send({ active: true, errors: errors });
+    function showFeedback(text, cls) {
+        const el = els.feedback;
+        el.textContent = text;
+        el.className = '';
+        void el.offsetWidth; // trigger reflow
+        el.classList.add(cls);
     }
 
-    if(new URLSearchParams(window.location.search).get('role') === 'side') initSide();
   </script>
 </body>
 </html>
