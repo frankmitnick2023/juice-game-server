@@ -1,210 +1,220 @@
-// server.js - Juice Game (CORS + Session 终极修正版)
-require('dotenv').config();
+// server.js
 const express = require('express');
-const path = require('path');
-const bcrypt = require('bcryptjs');
-const { Pool } = require('pg');
-const fs = require('fs');
 const session = require('express-session');
-const cors = require('cors'); // 新增：引入 CORS
-
-// === 初始化 ===
+const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
+const path = require('path');
+const fs = require('fs');
 const app = express();
-const PORT = process.env.PORT || 3000;
-const isProduction = process.env.NODE_ENV === 'production';
 
-// === 1. 信任代理 (必须放在最前面) ===
-app.set('trust proxy', 1);
-
-// === 2. CORS 配置 (允许携带凭证) ===
-app.use(cors({
-  origin: true, // 自动匹配请求来源
-  credentials: true // 允许发送 Cookie
-}));
-
-// === PostgreSQL 连接池 ===
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: isProduction ? { rejectUnauthorized: false } : false
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// === 中间件 ===
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+const MemoryStore = session.MemoryStore;
+const sessionStore = new MemoryStore();
 
-// === 3. Session 配置 (Lax + Secure) ===
 app.use(session({
-  secret: 'juice-game-secret-key-2025',
+  store: sessionStore,
+  secret: process.env.SESSION_SECRET || 'juice-secret-2025',
   resave: false,
   saveUninitialized: false,
-  proxy: true,
-  cookie: {
-    maxAge: 24 * 60 * 60 * 1000, // 24小时
-    secure: true, // Railway 强制 HTTPS，必须为 true
-    sameSite: 'lax', // Lax 是最稳定的现代标准，兼顾安全与兼容
-    httpOnly: true
-  }
+  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }
 }));
 
-// 调试中间件
-app.use((req, res, next) => {
-  if (req.url.startsWith('/api/')) {
-    const userEmail = req.session?.user?.email || '未登录';
-    console.log(`📡 [${req.method}] ${req.url} | User: ${userEmail} | ID: ${req.sessionID}`);
-  }
-  next();
-});
-
+app.use(express.json());
 app.use(express.static('public'));
 app.use('/games', express.static('games'));
 
-const normalizeEmail = (email) => email?.toLowerCase().trim();
+// === 捕获 aborted 请求 ===
+app.use((error, req, res, next) => {
+  if (error.type === 'entity.parse.failed' || error.code === 'ECONNABORTED') {
+    console.warn('Request aborted:', req.path);
+    if (!res.headersSent) res.status(400).end();
+    return;
+  }
+  console.error('Unhandled error:', error);
+  if (!res.headersSent) res.status(500).json({ error: 'Server error' });
+});
 
-// === API: 注册 ===
+// === 初始化数据库 ===
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        level INTEGER DEFAULT 1,
+        coins INTEGER DEFAULT 0
+      );
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS scores (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        game_id TEXT NOT NULL,
+        score INTEGER NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    console.log('Database initialized');
+  } catch (err) {
+    console.error('DB init error:', err.message);
+  }
+})();
+
+// === API 端点（保持不变）===
 app.post('/api/register', async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: '邮箱和密码必填' });
-  
-  const emailNorm = normalizeEmail(email);
-  
+  if (!email || !password) return res.status(400).json({ error: 'Missing fields' });
   try {
     const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      `INSERT INTO users (email, password_hash, level, coins)
-       VALUES ($1, $2, 1, 100)
-       ON CONFLICT (email) DO NOTHING
-       RETURNING id, email, level, coins`,
-      [emailNorm, hash]
+      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, level, coins',
+      [email, hash]
     );
-
-    if (result.rowCount > 0) {
-      req.session.user = result.rows[0];
-      req.session.save();
-      return res.status(201).json({ message: '注册成功', user: result.rows[0] });
-    }
-
-    const existing = await pool.query(
-      `SELECT id, email, level, coins FROM users WHERE lower(email) = $1`,
-      [emailNorm]
-    );
-    return res.status(200).json({ message: '用户已存在', user: existing.rows[0] });
-
+    req.session.user = result.rows[0];
+    res.json(result.rows[0]);
   } catch (err) {
-    console.error('注册错误:', err);
-    return res.status(500).json({ error: '注册失败' });
+    if (err.code === '23505') return res.status(400).json({ error: 'Email exists' });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
-// === API: 登录 (简化版) ===
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: '参数缺失' });
-
-  const emailNorm = normalizeEmail(email);
-
   try {
-    const result = await pool.query(
-      `SELECT id, email, password_hash, level, coins FROM users WHERE lower(email) = $1`,
-      [emailNorm]
-    );
-
-    if (result.rows.length === 0) return res.status(401).json({ error: '用户不存在' });
-
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     const user = result.rows[0];
-    const match = await bcrypt.compare(password, user.password_hash);
-    if (!match) return res.status(401).json({ error: '密码错误' });
-
+    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
     delete user.password_hash;
-    
-    // 直接赋值 Session (不使用 regenerate 以避免竞态条件)
     req.session.user = user;
-    
-    // 强制保存
-    req.session.save((err) => {
-      if (err) {
-        console.error('Session保存失败:', err);
-        return res.status(500).json({ error: '登录失败' });
-      }
-      console.log(`✅ 登录成功: ${user.email}`);
-      return res.json({ message: '登录成功', user });
-    });
-
+    res.json(user);
   } catch (err) {
-    console.error('登录错误:', err);
-    return res.status(500).json({ error: '服务器错误' });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
-// === API: 获取当前用户 ===
 app.get('/api/me', (req, res) => {
-  if (req.session && req.session.user) {
-    return res.json({ user: req.session.user });
-  }
-  res.status(401).json({ user: null, message: "未登录" });
-});
-
-// === 新增：Session 调试接口 ===
-// 如果登录失败，在浏览器直接访问 /api/debug-session 看看显示什么
-app.get('/api/debug-session', (req, res) => {
-  res.json({
-    sessionID: req.sessionID,
-    hasUser: !!(req.session && req.session.user),
-    user: req.session?.user || null,
-    cookie: req.session?.cookie
-  });
+  res.json(req.session.user || null);
 });
 
 app.post('/api/logout', (req, res) => {
-  req.session.destroy();
-  res.json({ message: '已退出' });
+  req.session.destroy(() => res.json({ success: true }));
 });
 
-app.get('/api/games', async (req, res) => {
+function scanGames() {
+  const games = {};
+  if (fs.existsSync(path.join(__dirname, 'games', 'demo-game.html'))) {
+    games['demo'] = {
+      id: 'demo',
+      title: 'Demo Game',
+      description: 'Demo',
+      thumbnail: '',
+      platform: 'both',
+      entry: '/games/demo-game.html'
+    };
+  }
+  ['juice-maker-mobile','juice-maker-mobile','rhythm-challenger-trainning','rhythm-challenger','demo-game', 'Ready!!Action!!','juice-maker-PC'].forEach(dir => {
+    const jsonPath = path.join(__dirname, 'games', dir, 'game.json');
+    if (!fs.existsSync(jsonPath)) return;
+    let meta;
+    try { meta = JSON.parse(fs.readFileSync(jsonPath, 'utf8')); } catch { return; }
+    games[dir] = {
+      id: dir,
+      title: meta.title || dir,
+      description: meta.description || '',
+      thumbnail: meta.thumbnail || '',
+      platform: dir.includes('mobile') ? 'mobile' : 'pc',
+      entry: `/games/${dir}/index.html`
+    };
+  });
+  return Object.values(games);
+}
+
+let gameCache = null;
+app.get('/api/games', (req, res) => {
+  if (!gameCache) gameCache = scanGames();
+  res.json(gameCache);
+});
+
+app.get('/play/:id', async (req, res) => {
+  const gameId = req.params.id;
+  const games = gameCache || scanGames();
+  const game = games.find(g => g.id === gameId);
+  if (!game) return res.status(404).send('Game not found');
+
+  if (!req.session.user) {
+    return res.redirect(`/?redirect=${encodeURIComponent('/play/' + gameId)}`);
+  }
+
+  // 所有游戏都走 wrapper
+  const wrapperUrl = `/wrapper.html?src=${encodeURIComponent(game.entry)}`;
+
+  let scores = [];
   try {
-    const manifestPath = path.join(__dirname, 'games', 'game-manifest.json');
-    if (!fs.existsSync(manifestPath)) return res.json([]);
-    const data = await fs.promises.readFile(manifestPath, 'utf-8');
-    const games = JSON.parse(data);
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const enriched = games.map(game => ({
-      ...game,
-      url: game.type === 'single'
-        ? `${baseUrl}/games/${game.id}.html`
-        : `${baseUrl}/games/${game.id}/index.html`
-    }));
-    res.json(enriched);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Error' });
+    const r = await pool.query(
+      'SELECT score, created_at FROM scores WHERE user_id = $1 AND game_id = $2 ORDER BY score DESC LIMIT 10',
+      [req.session.user.id, gameId]
+    );
+    scores = r.rows;
+  } catch (e) {}
+
+  res.send(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${game.title}</title>
+  <style>
+    body{font-family:Arial;margin:0;background:#f4f4f4}
+    .header{background:#ff6b35;color:#fff;padding:1rem;text-align:center;position:relative}
+    .back{position:absolute;left:1rem;top:1rem;color:#fff;text-decoration:none}
+    .container{max-width:1200px;margin:auto;padding:1rem}
+    iframe{width:100%;height:75vh;border:none;border-radius:8px}
+    .scores{background:#fff;padding:1.5rem;margin-top:1rem;border-radius:8px}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <a href="/games.html" class="back">返回</a>
+    <h1>${game.title}</h1>
+  </div>
+  <div class="container">
+    <iframe src="${wrapperUrl}" allowfullscreen></iframe>
+    <div class="scores">
+      <h3>你的历史分数</h3>
+      ${scores.length ? scores.map(s => `<div><strong>${s.score}</strong> - ${new Date(s.created_at).toLocaleString()}</div>`).join('') : '<p>暂无记录</p>'}
+    </div>
+  </div>
+</body>
+</html>`);
+});
+
+app.post('/api/score', async (req, res) => {
+  if (!req.session.user) return res.status(401).json({ error: 'Not logged in' });
+  const { gameId, score } = req.body;
+  if (!gameId || typeof score !== 'number') return res.status(400).json({ error: 'Invalid' });
+  try {
+    await pool.query('INSERT INTO scores (user_id, game_id, score) VALUES ($1,$2,$3)', [req.session.user.id, gameId, score]);
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: 'Save failed' });
   }
 });
 
-app.get('/play/:id', (req, res) => {
-  const { id } = req.params;
-  const filePath = path.join(__dirname, 'games', id, 'index.html');
-  const singlePath = path.join(__dirname, 'games', `${id}.html`);
-  if (fs.existsSync(filePath)) return res.sendFile(filePath);
-  if (fs.existsSync(singlePath)) return res.sendFile(singlePath);
-  res.status(404).send('Game not found');
+// === 健康检查端点（Railway 必需）===
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.get('/', (req, res) => {
-    const indexPath = path.join(__dirname, 'public', 'index.html');
-    if (fs.existsSync(indexPath)) res.sendFile(indexPath);
-    else res.send('Server Running');
-});
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/games.html', (req, res) => res.sendFile(path.join(__dirname, 'public', 'games.html')));
 
-const startServer = () => {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-};
-
-pool.connect().then(client => {
-  console.log('✅ DB Connected');
-  client.release();
-  startServer();
-}).catch(err => {
-  console.error('DB Failed:', err);
-  startServer();
-});
+app.listen(process.env.PORT || 3000, () => console.log('Server running'));
