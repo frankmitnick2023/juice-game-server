@@ -150,16 +150,13 @@
     // ===== 全局变量 =====
     let poseLandmarker;
     let videoFile = null;
-    let refAnalysis = { frames: [], beats: [] }; // 存储分析好的骨架数据
-    let gameState = 'idle'; // idle, analyzing, playing
-    let score = 0, combo = 0, maxCombo = 0;
+    let refAnalysis = { frames: [], beats: [] };
+    let gameState = 'idle';
+    let score = 0, combo = 0;
     
-    // 节奏条配置
-    const TIMELINE_LOOKAHEAD = 2000; // 提前2秒显示音符
-    const HIT_WINDOW = 300; // 判定窗口 ms
-
-    // DOM
+    // DOM (关键修复：添加了 stage)
     const els = {
+        stage: document.getElementById('stage'), // <--- 修复了这里
         menu: document.getElementById('menu'),
         btnLoad: document.getElementById('btnLoad'),
         fileInput: document.getElementById('fileInput'),
@@ -226,28 +223,24 @@
 
     els.btnStart.onclick = async () => {
         if(gameState === 'analyzing') return;
-        // 预分析舞蹈动作
         await analyzeReferenceVideo();
     };
 
-    // ===== 3. 核心：预分析视频 (生成"谱面") =====
+    // ===== 3. 核心：预分析视频 =====
     async function analyzeReferenceVideo() {
         gameState = 'analyzing';
-        els.btnStart.textContent = "正在分析动作 (请稍候)...";
-        els.status.textContent = "AI 正在学习老师的动作...";
+        els.btnStart.textContent = "正在分析 (AI Learning)...";
+        els.status.textContent = "AI 正在提取老师动作...";
         
         refAnalysis.frames = [];
         refAnalysis.beats = [];
         
-        // 快速静音播放视频进行分析
         els.refVideo.muted = true;
-        els.refVideo.playbackRate = 2.0; // 加速分析
+        els.refVideo.playbackRate = 2.0; 
         await els.refVideo.play();
         
         let lastTime = -1;
-        let lastPoseEnergy = 0;
 
-        // 分析循环
         const analyzeLoop = async () => {
             if(els.refVideo.paused || els.refVideo.ended) {
                 finishAnalysis();
@@ -255,18 +248,13 @@
             }
 
             const now = els.refVideo.currentTime;
-            if(now > lastTime + 0.1) { // 每 100ms 采样一次
+            if(now > lastTime + 0.1) { 
                 const res = poseLandmarker.detectForVideo(els.refVideo, performance.now());
                 if(res.landmarks[0]) {
-                    // 存储这一帧的骨架数据
                     refAnalysis.frames.push({
                         time: now,
-                        pose: res.landmarks[0] // 存储归一化坐标
+                        pose: res.landmarks[0] 
                     });
-
-                    // 简单的"重拍"检测：计算动作幅度变化
-                    // 这里简化逻辑：每隔 2 秒生成一个判定点 (实际应该用更复杂的动量算法)
-                    // 或者检测手部/脚部的剧烈位移
                 }
                 lastTime = now;
             }
@@ -276,9 +264,9 @@
     }
 
     function finishAnalysis() {
-        // 简单的生成拍子：每隔 1.5s 一个 Note
         const duration = els.refVideo.duration;
-        for(let t = 2; t < duration - 2; t += 1.5) {
+        // 生成节奏点 (每2秒一个，作为测试)
+        for(let t = 3; t < duration - 2; t += 2.0) {
             refAnalysis.beats.push({ time: t, hit: false });
         }
 
@@ -296,7 +284,7 @@
         els.menu.classList.add('hidden');
         score = 0; combo = 0;
         
-        // 调整画布尺寸
+        // 修复点：现在 els.stage 已经定义了
         els.canvas.width = els.stage.clientWidth;
         els.canvas.height = els.stage.clientHeight;
 
@@ -309,35 +297,32 @@
 
         const currentTime = els.refVideo.currentTime;
         
-        // 1. 绘制 UI：节奏条
+        // UI更新
         updateTimeline(currentTime);
 
-        // 2. 实时 AI 捕捉玩家
+        // AI捕捉
         const playerRes = poseLandmarker.detectForVideo(els.camPreview, performance.now());
         
-        // 3. 获取当前的老师动作 (插值查找)
+        // 查找参考动作
         const refFrame = refAnalysis.frames.find(f => Math.abs(f.time - currentTime) < 0.1);
 
-        // 4. 渲染画面
+        // 渲染
         ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
         
         if (refFrame && playerRes.landmarks[0]) {
             const playerPose = playerRes.landmarks[0];
             const refPose = refFrame.pose;
 
-            // 绘制玩家骨架 (绿色) - 叠加在画面上
-            drawPose(ctx, playerPose, '#34d399', 4); 
+            // 绘制玩家骨架 (绿色高亮)
+            drawPose(ctx, playerPose, '#34d399', 6); 
             
-            // 绘制老师骨架 (白色幽灵) - 稍微透明
-            // 注意：如果 refVideo 已经在背景播放，其实不需要画骨架，
-            // 但为了提示，我们可以画一个"目标骨架"提示用户动作幅度
-            // drawPose(ctx, refPose, 'rgba(255,255,255,0.3)', 2);
-
-            // 5. 判定逻辑
+            // 判定
             checkHit(currentTime, playerPose, refPose);
+        } else if (refFrame) {
+            // 如果没检测到人，画一个半透明的老师骨架提示位置
+            // drawPose(ctx, refFrame.pose, 'rgba(255,255,255,0.2)', 2);
         }
 
-        // 检查结束
         if(els.refVideo.ended) {
             alert(`游戏结束！得分: ${score}`);
             location.reload();
@@ -348,8 +333,6 @@
     }
 
     // ===== 5. 辅助功能 =====
-
-    // 绘制骨架
     function drawPose(ctx, landmarks, color, width) {
         const w = ctx.canvas.width;
         const h = ctx.canvas.height;
@@ -359,14 +342,10 @@
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
-        // MediaPipe 连线索引
         const connections = PoseLandmarker.POSE_CONNECTIONS;
-        
-        // 绘制连线
         for(const conn of connections) {
             const start = landmarks[conn.start];
             const end = landmarks[conn.end];
-            // 只要有一个点置信度不够就不画
             if(start.visibility > 0.5 && end.visibility > 0.5) {
                 ctx.beginPath();
                 ctx.moveTo(start.x * w, start.y * h);
@@ -374,77 +353,50 @@
                 ctx.stroke();
             }
         }
-        
-        // 绘制关节
-        ctx.fillStyle = color;
-        for(const lm of landmarks) {
-            if(lm.visibility > 0.5) {
-                ctx.beginPath();
-                ctx.arc(lm.x * w, lm.y * h, width * 1.5, 0, 2*Math.PI);
-                ctx.fill();
-            }
-        }
     }
 
-    // 更新节奏条
     function updateTimeline(currentTime) {
-        // 清空旧的 Notes
         els.timeline.innerHTML = '<div class="hit-zone"></div>';
-        
-        // 渲染即将到来的 Notes
-        // 这里的 20% 是 hit-zone 的 left 属性
-        const trackWidth = els.timeline.clientWidth;
+        const lookahead = 2.0; // 提前显示2秒
         
         refAnalysis.beats.forEach(beat => {
             const diff = beat.time - currentTime;
-            // 只显示未来 2秒内的 Note
-            if(diff >= -0.2 && diff <= 2) {
-                // 计算位置: 0s 在 20% 处 (hit-zone), 2s 在 100% 处
-                // 公式：left% = 20% + (diff / 2s) * 80%
-                const leftPercent = 20 + (diff / 2) * 80;
+            if(diff >= -0.5 && diff <= lookahead) {
+                // 20% 是判定线位置
+                // 0s diff -> 20%
+                // 2s diff -> 100%
+                const leftPercent = 20 + (diff / lookahead) * 80;
                 
                 const note = document.createElement('div');
                 note.className = 'note';
                 note.style.left = `${leftPercent}%`;
-                // 如果已经判定过，变色
-                if(beat.hit) note.style.background = '#fbbf24'; 
+                if(beat.hit) {
+                    note.style.background = '#fbbf24';
+                    note.style.boxShadow = '0 0 15px #fbbf24';
+                }
                 els.timeline.appendChild(note);
             }
         });
     }
 
-    // 判定核心
     function checkHit(currentTime, playerPose, refPose) {
-        // 找到最近的一个 Beat
-        const beat = refAnalysis.beats.find(b => Math.abs(b.time - currentTime) < 0.15 && !b.hit);
+        // 寻找当前时间窗口内的未击中 beat
+        const beat = refAnalysis.beats.find(b => Math.abs(b.time - currentTime) < 0.2 && !b.hit);
         
         if(beat) {
-            // 计算相似度 (简单余弦相似度)
             const sim = calculateSimilarity(playerPose, refPose);
-            
-            let feedbackClass = '';
-            let feedbackText = '';
-            let points = 0;
+            let text = '', cls = '', points = 0;
 
             if(sim > 0.85) {
-                feedbackText = 'PERFECT';
-                feedbackClass = 'fb-perfect';
-                points = 1000;
-                combo++;
+                text = 'PERFECT'; cls = 'fb-perfect'; points = 1000; combo++;
             } else if(sim > 0.70) {
-                feedbackText = 'GOOD';
-                feedbackClass = 'fb-good';
-                points = 500;
-                combo++;
+                text = 'GOOD'; cls = 'fb-good'; points = 500; combo++;
             } else {
-                feedbackText = 'MISS';
-                feedbackClass = 'fb-miss';
-                combo = 0;
+                text = 'MISS'; cls = 'fb-miss'; combo = 0;
             }
 
-            // 标记这个 beat 已经处理过
             beat.hit = true;
-            showFeedback(feedbackText, feedbackClass);
+            showFeedback(text, cls);
             
             score += points + (combo * 10);
             els.score.textContent = score.toString().padStart(6, '0');
@@ -452,9 +404,8 @@
         }
     }
 
-    // 简易相似度算法 (只算上半身关键向量)
     function calculateSimilarity(poseA, poseB) {
-        // 定义要对比的关键向量对 (索引)
+        // 简化版余弦相似度 (只计算上半身关键向量)
         const vectors = [
             [11, 13], [13, 15], // 左臂
             [12, 14], [14, 16], // 右臂
@@ -463,33 +414,26 @@
         ];
 
         let totalSim = 0;
-        let count = 0;
-
         for(const [i, j] of vectors) {
             const vA = { x: poseA[j].x - poseA[i].x, y: poseA[j].y - poseA[i].y };
             const vB = { x: poseB[j].x - poseB[i].x, y: poseB[j].y - poseB[i].y };
             
-            // 归一化
-            const magA = Math.sqrt(vA.x**2 + vA.y**2) + 0.0001;
-            const magB = Math.sqrt(vB.x**2 + vB.y**2) + 0.0001;
+            const magA = Math.sqrt(vA.x**2 + vA.y**2) + 1e-5;
+            const magB = Math.sqrt(vB.x**2 + vB.y**2) + 1e-5;
             
-            // 点积
             const dot = (vA.x * vB.x + vA.y * vB.y) / (magA * magB);
             totalSim += dot;
-            count++;
         }
-
-        return (totalSim / count + 1) / 2; // 映射到 0~1
+        return (totalSim / vectors.length + 1) / 2;
     }
 
     function showFeedback(text, cls) {
         const el = els.feedback;
         el.textContent = text;
         el.className = '';
-        void el.offsetWidth; // trigger reflow
+        void el.offsetWidth;
         el.classList.add(cls);
     }
-
   </script>
 </body>
 </html>
