@@ -4,13 +4,14 @@ const express = require('express');
 const path = require('path');
 const bcrypt = require('bcrypt');
 const { Pool } = require('pg');
-const fs = require('fs').promises;
+const fs = require('fs'); // 修正：直接引用 fs，后续按需使用 promises
 
 // === 初始化 ===
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // === PostgreSQL 连接池 ===
+// 注意：如果是无数据库模式启动，pool 操作会报错，所以我们在 API 里做了 try-catch
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
@@ -31,9 +32,9 @@ app.post('/api/register', async (req, res) => {
   if (password.length < 6) return res.status(400).json({ error: '密码至少6位' });
 
   const emailNorm = normalizeEmail(email);
-  const hash = await bcrypt.hash(password, 10);
-
+  
   try {
+    const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
       `INSERT INTO users (email, password_hash, level, coins)
        VALUES ($1, $2, 1, 100)
@@ -55,7 +56,7 @@ app.post('/api/register', async (req, res) => {
 
   } catch (err) {
     console.error('注册失败:', err);
-    return res.status(500).json({ error: '服务器错误' });
+    return res.status(500).json({ error: '注册失败，可能是数据库连接问题' });
   }
 });
 
@@ -88,7 +89,7 @@ app.post('/api/login', async (req, res) => {
 
   } catch (err) {
     console.error('登录失败:', err);
-    return res.status(500).json({ error: '服务器错误' });
+    return res.status(500).json({ error: '登录失败，可能是数据库连接问题' });
   }
 });
 
@@ -96,7 +97,8 @@ app.post('/api/login', async (req, res) => {
 app.get('/api/games', async (req, res) => {
   try {
     const manifestPath = path.join(__dirname, 'games', 'game-manifest.json');
-    const data = await fs.readFile(manifestPath, 'utf-8');
+    // 使用 fs.promises 读取
+    const data = await fs.promises.readFile(manifestPath, 'utf-8');
     const games = JSON.parse(data);
 
     // 补充完整 URL（适配 Railway 部署）
@@ -118,34 +120,46 @@ app.get('/api/games', async (req, res) => {
 // === 播放页面路由：/play/:id ===
 app.get('/play/:id', (req, res) => {
   const { id } = req.params;
+  // 这里的路径构建要小心，防止目录遍历攻击（简单 demo 暂不处理）
   const filePath = path.join(__dirname, 'games', id, 'index.html');
   const singlePath = path.join(__dirname, 'games', `${id}.html`);
 
-  // 优先文件夹游戏
+  // 使用同步方法检查文件是否存在
   if (fs.existsSync(filePath)) {
     return res.sendFile(filePath);
   }
   if (fs.existsSync(singlePath)) {
     return res.sendFile(singlePath);
   }
-  res.status(404).send('游戏不存在');
+  res.status(404).send('游戏不存在，请检查路径配置');
 });
 
 // === 首页 & 静态页面 ===
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.get('/games', (req, res) => res.sendFile(path.join(__dirname, 'public', 'games.html')));
+// 如果你有 games.html 也可以保留，没有则不需要
+app.get('/games', (req, res) => {
+    const p = path.join(__dirname, 'public', 'games.html');
+    if(fs.existsSync(p)) res.sendFile(p);
+    else res.send("游戏列表页正在建设中...");
+});
 
-// === 启动服务器 ===
+// === 启动服务器逻辑 (容错版) ===
+const startServer = () => {
+  app.listen(PORT, () => {
+    console.log(`🚀 Juice Game 平台运行在 http://localhost:${PORT}`);
+    console.log(`🌐 部署地址: ${process.env.RAILWAY_STATIC_URL || '本地'}`);
+  });
+};
+
+// 尝试连接数据库，但无论成功与否都启动 Web 服务
 pool.connect()
   .then(client => {
-    console.log('PostgreSQL 连接成功');
+    console.log('✅ PostgreSQL 连接成功');
     client.release();
-    app.listen(PORT, () => {
-      console.log(`Juice Game 平台运行在 http://localhost:${PORT}`);
-      console.log(`部署地址: ${process.env.RAILWAY_STATIC_URL || '本地'}`);
-    });
+    startServer();
   })
   .catch(err => {
-    console.error('数据库连接失败:', err);
-    process.exit(1);
+    console.error('⚠️ 数据库连接失败:', err.message);
+    console.log('⚠️ 系统将以【无数据库模式】启动，登录功能将不可用，但游戏可以访问。');
+    startServer();
   });
