@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>舞蹈防拐范儿 - 智能双摄系统 (HD版)</title>
+  <title>皇家蛋糕塔 - 双摄体感游戏</title>
   
   <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -13,78 +13,58 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
 
   <style>
-    body { margin: 0; background: #1e1e1e; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+    body { margin: 0; background: #000; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
     .hidden { display: none !important; }
     
-    /* 首页 */
-    #screen-select { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; background: linear-gradient(135deg, #1e1e1e, #2a2a2a); }
-    .btn { padding: 18px 36px; font-size: 18px; border-radius: 12px; border: none; font-weight: bold; width: 80%; max-width: 350px; cursor: pointer; transition: transform 0.2s;}
+    /* 首页 & UI */
+    #screen-select { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; background: linear-gradient(135deg, #2c3e50, #000); }
+    .btn { padding: 15px 40px; font-size: 20px; border-radius: 30px; border: none; font-weight: bold; cursor: pointer; transition: transform 0.2s; text-transform: uppercase; letter-spacing: 1px;}
     .btn:active { transform: scale(0.95); }
-    .btn-main { background: #f1c40f; color: #000; box-shadow: 0 4px 15px rgba(241, 196, 15, 0.3); }
-    .btn-side { background: #3498db; color: white; box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3); }
+    .btn-main { background: #f1c40f; color: #000; box-shadow: 0 0 20px rgba(241, 196, 15, 0.4); }
+    .btn-side { background: #3498db; color: white; }
 
-    /* 主机界面 */
-    #screen-main { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; background: #000; }
+    /* 游戏主界面 */
+    #screen-main { position: relative; width: 100vw; height: 100vh; background: #000; }
     
-    /* 视频容器：确保 Canvas 居中且保持比例 */
-    #video-container { 
-        position: relative; 
-        width: 100%; 
-        height: 100%; 
-        display: flex; 
-        justify-content: center; 
-        align-items: center;
-    }
-    
-    /* 隐藏原始视频 */
+    /* 视频与画布 */
+    #video-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
     video#video-main { display: none; }
+    canvas#canvas-main { width: 100%; height: 100%; object-fit: contain; }
 
-    /* 画布：保持宽高比 (Aspect Ratio) */
-    canvas#canvas-main { 
-        max-width: 100%; 
-        max-height: 100%; 
-        object-fit: contain;
-        /* 高清画质关键：不要强制拉伸到100%，而是让它自然适应 */
-    }
+    /* 游戏UI层 */
+    #game-ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
     
-    /* UI 层 */
-    #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+    /* 顶部仪表盘 */
+    .hud-panel { position: absolute; top: 20px; left: 20px; display: flex; gap: 15px; }
+    .hud-box { background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 12px; border: 2px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; align-items: center;}
+    .hud-label { font-size: 12px; color: #aaa; }
+    .hud-value { font-size: 24px; font-weight: bold; color: #f1c40f; }
 
-    .status-badge { position: absolute; top: 20px; left: 20px; display: flex; gap: 10px; }
-    .badge { background: rgba(0,0,0,0.6); padding: 8px 16px; border-radius: 20px; border: 1px solid #555; display: flex; align-items: center; gap: 6px; font-size: 14px;}
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: #666; }
-    .badge.active { border-color: #2ecc71; color: #2ecc71; }
-    .badge.active .dot { background: #2ecc71; box-shadow: 0 0 8px #2ecc71; }
+    /* 侧面状态灯 */
+    .side-indicator { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); padding: 8px 16px; border-radius: 20px; display: flex; align-items: center; gap: 8px; border: 1px solid #555;}
+    .led { width: 10px; height: 10px; border-radius: 50%; background: #555; transition: all 0.3s; }
+    .led.on { background: #2ecc71; box-shadow: 0 0 10px #2ecc71; }
+    .led.error { background: #e74c3c; box-shadow: 0 0 10px #e74c3c; }
 
-    .top-right-controls { position: absolute; top: 20px; right: 20px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; pointer-events: auto; }
+    /* 平衡条 */
+    .balance-meter { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); width: 300px; height: 10px; background: rgba(255,255,255,0.2); border-radius: 5px; overflow: hidden;}
+    .balance-fill { height: 100%; background: #f1c40f; width: 50%; margin-left: 25%; transition: width 0.1s, margin-left 0.1s; }
+
+    /* 游戏开始/结束遮罩 */
+    #overlay-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; z-index: 100;}
+    .title-text { font-size: 60px; font-weight: 900; color: #f1c40f; margin-bottom: 10px; text-shadow: 0 0 20px rgba(241,196,15,0.5); }
+    .subtitle-text { font-size: 24px; color: #ddd; margin-bottom: 40px; }
     
-    #btn-connect { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 14px;}
-    
-    .toggle-switch { display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.7); padding: 8px 12px; border-radius: 20px; border: 1px solid #555; cursor: pointer; opacity: 0.5; pointer-events: none; transition: opacity 0.3s;}
-    .toggle-switch.enabled { opacity: 1; pointer-events: auto; border-color: #3498db; }
-    .toggle-label { font-size: 14px; font-weight: bold; }
-    .switch-track { width: 36px; height: 20px; background: #555; border-radius: 10px; position: relative; transition: background 0.3s;}
-    .switch-knob { width: 16px; height: 16px; background: white; border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: left 0.3s; }
-    .toggle-switch.on .switch-track { background: #3498db; }
-    .toggle-switch.on .switch-knob { left: 18px; }
+    /* 右下角控制 */
+    .controls { position: absolute; bottom: 20px; right: 20px; display: flex; gap: 10px; pointer-events: auto;}
+    .icon-btn { background: rgba(0,0,0,0.6); border: 1px solid #555; color: white; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px;}
 
-    #side-pip { 
-        position: absolute; bottom: 20px; right: 20px; width: 200px; height: 150px; 
-        background: #000; border: 2px solid #333; border-radius: 10px; overflow: hidden; 
-        display: none; box-shadow: 0 5px 20px rgba(0,0,0,0.5);
-    }
+    /* 侧面画中画 */
+    #side-pip { position: absolute; bottom: 80px; right: 20px; width: 160px; height: 120px; background: #000; border: 2px solid #333; border-radius: 8px; overflow: hidden; display: none; }
     #video-remote { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-    .pip-label { position: absolute; bottom: 5px; left: 5px; background: rgba(0,0,0,0.6); font-size: 10px; padding: 2px 6px; border-radius: 4px; }
 
-    #feedback-msg { 
-        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-        font-size: 48px; font-weight: 900; text-shadow: 0 2px 10px rgba(0,0,0,0.8); 
-        white-space: nowrap; text-align: center; pointer-events: none;
-    }
-
-    #qr-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 100; }
-    .qr-box { background: white; padding: 30px; border-radius: 16px; text-align: center; color: #333; animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);}
-    @keyframes popUp { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    #qr-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 200; }
+    .qr-box { background: white; padding: 30px; border-radius: 16px; text-align: center; color: black; }
 
     /* 辅机界面 */
     #screen-side { height: 100vh; background: #111; display: flex; flex-direction: column; align-items: center; padding-top: 40px; }
@@ -94,9 +74,10 @@
 <body>
 
   <div id="screen-select">
-    <h1>英皇芭蕾 - 智能双摄 (HD版)</h1>
-    <button class="btn btn-main" onclick="initMain()">我是主机 (正面)</button>
-    <button class="btn btn-side" onclick="initSide()">我是辅机 (侧面)</button>
+    <h1 style="font-size: 40px; margin-bottom: 10px;">👑 皇家蛋糕塔</h1>
+    <p style="color:#aaa; margin-bottom: 40px;">双摄体感平衡挑战</p>
+    <button class="btn btn-main" onclick="initMain()">我是主机 (开始游戏)</button>
+    <button class="btn btn-side" onclick="initSide()">我是辅机 (侧面裁判)</button>
   </div>
 
   <div id="screen-main" class="hidden">
@@ -105,71 +86,288 @@
         <canvas id="canvas-main"></canvas>
     </div>
 
-    <div id="ui-layer">
-        <div class="status-badge">
-            <div class="badge active"><div class="dot"></div>正面: 720P</div>
-            <div class="badge" id="badge-side"><div class="dot"></div>侧面</div>
-        </div>
-
-        <div class="top-right-controls">
-            <button id="btn-connect" onclick="showQrCode()">+ 连接侧面辅机</button>
-            <div id="toggle-side" class="toggle-switch" onclick="toggleSideCheck()">
-                <div class="toggle-label">侧面纠错</div>
-                <div class="switch-track"><div class="switch-knob"></div></div>
+    <div id="game-ui">
+        <div class="hud-panel">
+            <div class="hud-box">
+                <span class="hud-label">得分</span>
+                <span class="hud-value" id="score-display">0</span>
+            </div>
+            <div class="hud-box">
+                <span class="hud-label">时间</span>
+                <span class="hud-value" id="time-display">00:00</span>
             </div>
         </div>
 
-        <div id="feedback-msg">准备就绪</div>
+        <div class="side-indicator">
+            <div id="side-led" class="led"></div>
+            <span id="side-text">侧面未连接</span>
+        </div>
+
+        <div class="balance-meter">
+            <div id="balance-bar" class="balance-fill"></div>
+        </div>
 
         <div id="side-pip">
             <video id="video-remote" autoplay playsinline muted></video>
-            <div class="pip-label">侧面机位</div>
         </div>
+
+        <div class="controls">
+            <button class="icon-btn" onclick="showQrCode()" title="连接辅机">🔗</button>
+            <button class="icon-btn" onclick="toggleDebug()" title="骨骼开关">💀</button>
+        </div>
+    </div>
+
+    <div id="overlay-screen">
+        <div class="title-text" id="overlay-title">皇家蛋糕塔</div>
+        <div class="subtitle-text" id="overlay-sub">保持正直，不要让蛋糕掉下来！</div>
+        <button class="btn btn-main" id="btn-start-game" onclick="startGame()">开始挑战</button>
     </div>
 
     <div id="qr-modal" class="hidden">
         <div class="qr-box">
-            <h3 style="margin-top:0">扫码接入侧面辅机</h3>
+            <h3>扫码连接侧面裁判</h3>
             <div id="qrcode"></div>
-            <p style="font-size:12px; color:#666; margin-bottom:15px;">请使用微信或相机扫码</p>
-            <button onclick="document.getElementById('qr-modal').classList.add('hidden')" style="padding:8px 20px; border:1px solid #ccc; background:none; border-radius:5px; cursor:pointer;">关闭</button>
+            <br>
+            <button onclick="document.getElementById('qr-modal').classList.add('hidden')" style="padding:5px 20px;">关闭</button>
         </div>
     </div>
   </div>
 
   <div id="screen-side" class="hidden">
-    <h3 style="color: #3498db;">侧面监控运行中</h3>
-    <div id="side-status" style="color: #aaa; font-size: 14px; margin-bottom: 10px;">正在连接...</div>
+    <h3 style="color: #3498db;">侧面裁判运行中</h3>
+    <div id="side-status" style="color: #aaa;">正在连接...</div>
     <video id="video-side" playsinline muted autoplay></video>
-    <div id="side-log" style="font-family: monospace; color: #2ecc71; margin-top: 20px; font-size: 14px;">初始化...</div>
+    <div id="side-log" style="font-family: monospace; color: #2ecc71; margin-top: 20px;">等待开始...</div>
   </div>
 
   <script>
-    function generateRoomId() { return Math.floor(10000 + Math.random() * 90000).toString(); }
-    let peer, conn;
+    // --- 游戏引擎配置 ---
+    const GAME_CONFIG = {
+        gravity: 0.2,
+        balanceDecay: 0.5, // 倾斜时的扣血速度
+        scoreRate: 10,     // 每秒得分
+        sidePenalty: 2.0   // 侧面错误时的扣血倍率
+    };
+
+    // --- 全局变量 ---
+    let gameState = 'menu'; // menu, playing, gameover
+    let score = 0;
+    let gameTime = 0;
+    let gameInterval;
+    let cakeBalance = 50; // 0-100, 50 is center
+    let cakeSway = 0; // 当前晃动角度
+    let showDebugSkeleton = true;
+
+    // 侧面数据
+    let sideData = { active: false, errors: [] };
     
-    let poseMain;
-    let sideData = { active: false, errors: [] }; 
-    let isSideCheckEnabled = false;
+    // Mediapipe & WebRTC
+    let poseMain, peer, conn;
+
+    // ================= 游戏逻辑核心 =================
+
+    function startGame() {
+        document.getElementById('overlay-screen').classList.add('hidden');
+        gameState = 'playing';
+        score = 0;
+        gameTime = 0;
+        cakeBalance = 50;
+        cakeSway = 0;
+        
+        // 启动计时器
+        if (gameInterval) clearInterval(gameInterval);
+        gameInterval = setInterval(updateGameLoop, 100);
+    }
+
+    function updateGameLoop() {
+        if (gameState !== 'playing') return;
+
+        // 1. 增加时间
+        gameTime += 0.1;
+        let mins = Math.floor(gameTime / 60);
+        let secs = Math.floor(gameTime % 60);
+        document.getElementById('time-display').innerText = `${mins}:${secs < 10 ? '0'+secs : secs}`;
+
+        // 2. 增加分数 (如果平衡好)
+        if (Math.abs(cakeBalance - 50) < 10 && sideData.errors.length === 0) {
+            score += GAME_CONFIG.scoreRate / 10;
+            document.getElementById('score-display').innerText = Math.floor(score);
+        }
+
+        // 3. 侧面惩罚逻辑
+        if (sideData.active && sideData.errors.length > 0) {
+            // 侧面有问题，蛋糕剧烈晃动，平衡条缩减
+            cakeSway = (Math.random() - 0.5) * 40; // 剧烈抖动
+            // 自动偏向一边导致掉落
+            if (cakeBalance > 50) cakeBalance += GAME_CONFIG.sidePenalty;
+            else cakeBalance -= GAME_CONFIG.sidePenalty;
+        } else {
+            // 恢复平稳
+            cakeSway *= 0.9;
+        }
+
+        // 4. 检查失败
+        if (cakeBalance <= 0 || cakeBalance >= 100) {
+            gameOver();
+        }
+
+        // 更新UI条
+        const bar = document.getElementById('balance-bar');
+        bar.style.marginLeft = `${cakeBalance / 2}%`; // 0-100 map to 0-50 margin
+        
+        // 变色预警
+        if (Math.abs(cakeBalance - 50) > 30) bar.style.background = '#e74c3c';
+        else bar.style.background = '#f1c40f';
+    }
+
+    function gameOver() {
+        gameState = 'gameover';
+        clearInterval(gameInterval);
+        
+        document.getElementById('overlay-title').innerText = "蛋糕掉了！😭";
+        document.getElementById('overlay-sub').innerText = `最终得分: ${Math.floor(score)}`;
+        document.getElementById('btn-start-game').innerText = "再试一次";
+        document.getElementById('overlay-screen').classList.remove('hidden');
+    }
+
+    function toggleDebug() {
+        showDebugSkeleton = !showDebugSkeleton;
+    }
+
+    // ================= 渲染逻辑 (Canvas) =================
+
+    function onMainResults(results) {
+        const canvas = document.getElementById('canvas-main');
+        const ctx = canvas.getContext('2d');
+        
+        ctx.save();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // 1. 绘制视频背景 (镜像)
+        ctx.scale(-1, 1);
+        ctx.translate(-canvas.width, 0);
+        ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+        
+        if (results.poseLandmarks) {
+            const lm = results.poseLandmarks;
+            
+            // 2. 绘制骨骼 (可选)
+            if (showDebugSkeleton) {
+                drawConnectors(ctx, lm, POSE_CONNECTIONS, {color: 'rgba(255, 255, 255, 0.3)', lineWidth: 2});
+            }
+
+            // 3. 游戏逻辑：计算肩膀倾斜
+            // 左肩(11), 右肩(12)
+            const leftShoulder = lm[11];
+            const rightShoulder = lm[12];
+            
+            // 计算倾斜角度 (简单 Y 差值)
+            // 注意：镜像后，左边是右肩，右边是左肩
+            const tilt = (leftShoulder.y - rightShoulder.y) * 500; // 放大系数
+            
+            if (gameState === 'playing') {
+                // 物理引擎：倾斜影响平衡
+                // 如果左肩高 (y小)，tilt 是负数，蛋糕往右滑
+                cakeBalance += tilt * 0.1; 
+                // 限制范围
+                cakeBalance = Math.max(0, Math.min(100, cakeBalance));
+            }
+
+            // 4. 绘制蛋糕塔 (Inject Game Assets)
+            drawCakeTower(ctx, lm, tilt);
+        }
+        ctx.restore();
+    }
+
+    function drawCakeTower(ctx, lm, tilt) {
+        // 找到头顶坐标 (以鼻尖为基准向上)
+        const nose = lm[0];
+        const earL = lm[7];
+        const earR = lm[8];
+        
+        // 计算头部宽度作为蛋糕比例尺
+        const headWidth = Math.abs(earL.x - earR.x) * ctx.canvas.width;
+        const centerX = nose.x * ctx.canvas.width;
+        const centerY = (nose.y * ctx.canvas.height) - (headWidth * 0.8);
+
+        // 蛋糕参数
+        const wobble = (cakeBalance - 50) * 0.5 + cakeSway; // 倾斜角度
+        
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(wobble * Math.PI / 180); // 蛋糕随平衡摇摆
+
+        // 第一层 (底)
+        ctx.fillStyle = "#f1c40f";
+        ctx.fillRect(-headWidth, -40, headWidth * 2, 40);
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-headWidth, -40, headWidth * 2, 40);
+
+        // 第二层 (中)
+        ctx.fillStyle = "#e67e22";
+        ctx.fillRect(-headWidth*0.8, -80, headWidth * 1.6, 40);
+        ctx.strokeRect(-headWidth*0.8, -80, headWidth * 1.6, 40);
+
+        // 第三层 (顶)
+        ctx.fillStyle = "#e74c3c";
+        ctx.fillRect(-headWidth*0.6, -110, headWidth * 1.2, 30);
+        ctx.strokeRect(-headWidth*0.6, -110, headWidth * 1.2, 30);
+
+        // 蜡烛/樱桃
+        ctx.beginPath();
+        ctx.arc(0, -120, 10, 0, Math.PI*2);
+        ctx.fillStyle = "red";
+        ctx.fill();
+
+        // 侧面错误提示 (如果侧面报警，蛋糕冒烟)
+        if (sideData.active && sideData.errors.length > 0) {
+            ctx.fillStyle = "rgba(0,0,0,0.5)";
+            ctx.font = "bold 40px Arial";
+            ctx.fillText("⚠️", -20, -150);
+        }
+
+        ctx.restore();
+    }
+
+    // ================= 系统初始化 =================
 
     function initMain() {
-      document.getElementById('screen-select').classList.add('hidden');
-      document.getElementById('screen-main').classList.remove('hidden');
-      startMainCamera();
-      initHostNetwork();
+        document.getElementById('screen-select').classList.add('hidden');
+        document.getElementById('screen-main').classList.remove('hidden');
+        startMainCamera();
+        initHostNetwork();
     }
 
-    function showQrCode() {
-      document.getElementById('qr-modal').classList.remove('hidden');
+    async function startMainCamera() {
+        const video = document.getElementById('video-main');
+        const canvas = document.getElementById('canvas-main');
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: 'user', width: {ideal: 1280}, height: {ideal: 720} } 
+            });
+            video.srcObject = stream;
+            video.onloadedmetadata = () => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+            };
+            
+            poseMain = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
+            poseMain.setOptions({modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6});
+            poseMain.onResults(onMainResults);
+            
+            const camera = new Camera(video, {
+                onFrame: async () => { await poseMain.send({image: video}); },
+                width: 1280, height: 720
+            });
+            camera.start();
+        } catch(e) { alert("摄像头错误: " + e); }
     }
 
-    function toggleSideCheck() {
-        const toggle = document.getElementById('toggle-side');
-        if (!toggle.classList.contains('enabled')) return;
-        isSideCheckEnabled = !isSideCheckEnabled;
-        if (isSideCheckEnabled) toggle.classList.add('on');
-        else toggle.classList.remove('on');
-    }
+    // ... (此处保留 PeerJS 网络连接逻辑，与上一版相同) ...
+    function generateRoomId() { return Math.floor(10000 + Math.random() * 90000).toString(); }
+    
+    function showQrCode() { document.getElementById('qr-modal').classList.remove('hidden'); }
 
     function initHostNetwork() {
       const roomId = generateRoomId();
@@ -182,178 +380,66 @@
         conn = c;
         handleSideConnection();
       });
-      peer.on('call', (incomingCall) => {
-        incomingCall.answer();
-        incomingCall.on('stream', (remoteStream) => {
-            const pip = document.getElementById('side-pip');
-            const vid = document.getElementById('video-remote');
-            pip.style.display = 'block';
-            vid.srcObject = remoteStream;
-        });
+      peer.on('call', (call) => {
+          call.answer();
+          call.on('stream', (s) => {
+              document.getElementById('side-pip').style.display = 'block';
+              document.getElementById('video-remote').srcObject = s;
+          });
       });
     }
 
     function handleSideConnection() {
-      document.getElementById('qr-modal').classList.add('hidden');
-      document.getElementById('btn-connect').style.display = 'none';
-      const badge = document.getElementById('badge-side');
-      badge.classList.add('active');
-      badge.innerHTML = '<div class="dot"></div>侧面视觉 (已连接)';
-      const toggle = document.getElementById('toggle-side');
-      toggle.classList.add('enabled');
-      isSideCheckEnabled = true;
-      toggle.classList.add('on');
-
-      conn.on('data', (data) => { sideData = data; });
-      conn.on('close', () => {
-        document.getElementById('badge-side').classList.remove('active');
-        document.getElementById('toggle-side').classList.remove('enabled');
-        document.getElementById('side-pip').style.display = 'none';
-        isSideCheckEnabled = false;
-      });
-    }
-
-    // === 关键修改：启动高清摄像头 ===
-    async function startMainCamera() {
-      const video = document.getElementById('video-main');
-      const canvas = document.getElementById('canvas-main');
-      
-      try {
-        // 请求 1280x720 (720p HD)
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { 
-                facingMode: 'user', 
-                width: { ideal: 1280 }, // 理想宽度
-                height: { ideal: 720 }  // 理想高度
-            } 
-        });
-        video.srcObject = stream;
-
-        // 关键：等待元数据加载，获取真实分辨率
-        video.onloadedmetadata = () => {
-            // 你的摄像头可能不支持精准的 1280x720，这里获取它实际给出的分辨率
-            const vw = video.videoWidth;
-            constvh = video.videoHeight;
+        document.getElementById('qr-modal').classList.add('hidden');
+        document.getElementById('side-led').classList.add('on');
+        document.getElementById('side-text').innerText = "侧面已连接";
+        document.getElementById('side-text').style.color = "#2ecc71";
+        
+        conn.on('data', (data) => { 
+            sideData = data; 
+            const led = document.getElementById('side-led');
+            const text = document.getElementById('side-text');
             
-            console.log(`摄像头实际分辨率: ${vw} x ${vh}`);
-            
-            // 强制 Canvas 分辨率 = 摄像头实际分辨率
-            canvas.width = vw;
-            canvas.height = vh;
-        };
-
-        poseMain = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
-        // 高清模式下，建议提高一点点模型复杂度以匹配画质
-        poseMain.setOptions({modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6});
-        poseMain.onResults(onMainResults);
-
-        const camera = new Camera(video, {
-          onFrame: async () => { await poseMain.send({image: video}); },
-          width: 1280, height: 720
+            if (data.errors.length > 0) {
+                led.className = "led error";
+                text.innerText = data.errors[0]; // 显示具体错误 (前倾/后仰)
+                text.style.color = "#e74c3c";
+            } else {
+                led.className = "led on";
+                text.innerText = "侧面正常";
+                text.style.color = "#2ecc71";
+            }
         });
-        camera.start();
-      } catch (e) {
-          alert("无法启动高清摄像头，请检查设备: " + e);
-      }
     }
 
-    function onMainResults(results) {
-      const canvas = document.getElementById('canvas-main');
-      const ctx = canvas.getContext('2d');
-      
-      ctx.save();
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // 画高清视频流
-      ctx.scale(-1, 1);
-      ctx.translate(-canvas.width, 0);
-      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-      
-      if (results.poseLandmarks) {
-        const lm = results.poseLandmarks;
-        
-        // 绘制精细骨骼
-        drawConnectors(ctx, lm, POSE_CONNECTIONS, {color: 'rgba(255, 255, 255, 0.5)', lineWidth: 2});
-        drawLandmarks(ctx, lm, {color: '#ffffff', fillColor: 'rgba(255,255,255,0.8)', lineWidth: 1, radius: 2});
-        
-        evaluateDance(lm, ctx);
-      }
-      ctx.restore();
-    }
-
-    function evaluateDance(frontLm, ctx) {
-      let msg = "";
-      let isGood = true;
-      const feedbackEl = document.getElementById('feedback-msg');
-      let color = "#f1c40f"; // 默认金色
-
-      const shoulderTilt = Math.abs(frontLm[11].y - frontLm[12].y);
-      if (shoulderTilt > 0.05) {
-        isGood = false;
-        msg = "肩膀歪了";
-        color = "#e74c3c";
-        
-        ctx.beginPath();
-        ctx.moveTo(frontLm[11].x * ctx.canvas.width, frontLm[11].y * ctx.canvas.height);
-        ctx.lineTo(frontLm[12].x * ctx.canvas.width, frontLm[12].y * ctx.canvas.height);
-        ctx.strokeStyle = "#e74c3c";
-        ctx.lineWidth = 6;
-        ctx.stroke();
-      }
-
-      if (isSideCheckEnabled && sideData.active) {
-        if (sideData.errors.length > 0) {
-            isGood = false;
-            msg = msg ? `${msg} + ${sideData.errors[0]}` : sideData.errors[0];
-            color = "#e74c3c";
-        }
-      }
-
-      if (isGood) {
-          feedbackEl.innerText = "✨ 完美范儿 ✨";
-          feedbackEl.style.color = "#f1c40f";
-      } else {
-          feedbackEl.innerText = msg;
-          feedbackEl.style.color = color;
-      }
-    }
-
-    // ====================== 辅机 ======================
-    let poseSide;
-    let lastSend = 0;
-
+    // === 辅机逻辑 (保持不变) ===
     function initSide() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const roomId = urlParams.get('room');
-      if(!roomId) return alert("请先在主机生成二维码");
-
-      document.getElementById('screen-select').classList.add('hidden');
-      document.getElementById('screen-side').classList.remove('hidden');
-
-      peer = new Peer();
-      peer.on('open', () => {
-        document.getElementById('side-status').innerText = "正在连接主机...";
-        conn = peer.connect(`dance-host-${roomId}`);
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomId = urlParams.get('room');
+        if(!roomId) return alert("请先扫码");
         
-        conn.on('open', () => {
-            document.getElementById('side-status').innerText = "✅ 连接成功";
-            document.getElementById('side-status').style.color = "#2ecc71";
-            startSideCameraAndCall(`dance-host-${roomId}`);
+        document.getElementById('screen-select').classList.add('hidden');
+        document.getElementById('screen-side').classList.remove('hidden');
+
+        peer = new Peer();
+        peer.on('open', () => {
+            document.getElementById('side-status').innerText = "连接中...";
+            conn = peer.connect(`dance-host-${roomId}`);
+            conn.on('open', () => {
+                document.getElementById('side-status').innerText = "✅ 已连接 (前置监控)";
+                startSideCameraAndCall(`dance-host-${roomId}`);
+            });
         });
-      });
     }
 
     async function startSideCameraAndCall(hostId) {
       const video = document.getElementById('video-side');
       try {
-        // 辅机依然使用前置摄像头，但保持 480p 节省性能
         const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: 'user', width: 640, height: 480 },
-            audio: false 
+            video: { facingMode: 'user', width: 640, height: 480 }, audio: false 
         });
         video.srcObject = stream;
-
-        const call = peer.call(hostId, stream);
+        peer.call(hostId, stream); // 推流
 
         poseSide = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
         poseSide.setOptions({modelComplexity: 0});
@@ -364,14 +450,13 @@
           width: 640, height: 480
         });
         camera.start();
-        document.getElementById('side-log').innerText = "侧面AI运行中...";
-
-      } catch(e) { alert("摄像头启动失败: " + e); }
+      } catch(e) { alert("摄像头失败:" + e); }
     }
 
+    let lastSend = 0;
     function onSideResults(results) {
       if (!conn || !conn.open) return;
-      if (Date.now() - lastSend < 100) return; 
+      if (Date.now() - lastSend < 100) return;
       lastSend = Date.now();
 
       let errors = [];
@@ -380,18 +465,17 @@
         let isLeft = lm[7].visibility > lm[8].visibility;
         let shoulder = isLeft ? lm[11] : lm[12];
         let hip = isLeft ? lm[23] : lm[24];
-
         let lean = shoulder.x - hip.x;
-        if (Math.abs(lean) > 0.08) { 
-            errors.push(lean > 0 ? "身体后仰" : "身体前倾");
-        }
-        document.getElementById('side-log').innerText = errors.length > 0 ? `⚠ ${errors[0]}` : "体态正常";
+        
+        // 侧面判定逻辑
+        if (Math.abs(lean) > 0.08) errors.push(lean > 0 ? "⚠ 后仰" : "⚠ 前倾");
+        
+        document.getElementById('side-log').innerText = errors.length > 0 ? errors[0] : "体态正常";
       }
       conn.send({ active: true, errors: errors });
     }
 
-    const urlParams = new URLSearchParams(window.location.search);
-    if(urlParams.get('role') === 'side') initSide();
+    if(new URLSearchParams(window.location.search).get('role') === 'side') initSide();
   </script>
 </body>
 </html>
