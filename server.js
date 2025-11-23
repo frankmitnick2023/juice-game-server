@@ -121,7 +121,7 @@ function scanGames() {
       entry: '/games/demo-game.html'
     };
   }
-  ['juice-maker-mobile','juice-maker-mobile','rhythm-challenger-trainning','rhythm-challenger','demo-game', 'Ready!!Action!!','juice-maker-PC'].forEach(dir => {
+  ['ballet-pro','juice-maker-mobile','juice-maker-mobile','rhythm-challenger-trainning','rhythm-challenger','demo-game', 'Ready!!Action!!','juice-maker-PC'].forEach(dir => {
     const jsonPath = path.join(__dirname, 'games', dir, 'game.json');
     if (!fs.existsSync(jsonPath)) return;
     let meta;
