@@ -26,7 +26,7 @@
     /* 主机界面容器 */
     #screen-main { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; background: #000; }
     
-    /* 关键修复：视频容器，确保 Video 和 Canvas 绝对重叠且比例一致 */
+    /* 关键修改：只显示 Canvas，隐藏 Video (避免双重显示导致的错位) */
     #video-container { 
         position: relative; 
         width: 100%; 
@@ -36,17 +36,18 @@
         align-items: center;
     }
     
-    /* 视频和画布：保持比例，CSS镜像 */
-    video#video-main, canvas#canvas-main { 
-        position: absolute; 
-        /* 这里的 object-fit 不要用 cover，用 contain 确保画面不被裁剪，从而保证骨骼对齐 */
+    /* 原始视频流隐藏，只用于数据采集 */
+    video#video-main { display: none; }
+
+    /* 画布负责所有显示，确保对齐 */
+    canvas#canvas-main { 
         width: 100%; 
         height: 100%; 
         object-fit: contain; 
-        transform: scaleX(-1); /* 仅通过 CSS 镜像，JS 逻辑保持标准坐标 */
+        /* 我们在 JS 里做镜像，这里 CSS 不需要再反转了，防止逻辑混乱 */
     }
     
-    /* UI 悬浮层 (不镜像) */
+    /* UI 悬浮层 */
     #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
 
     /* 状态标牌 */
@@ -59,7 +60,6 @@
     /* 右上角控制区 */
     .top-right-controls { position: absolute; top: 20px; right: 20px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; pointer-events: auto; }
     
-    /* 连接按钮 */
     #btn-connect { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 14px;}
     
     /* 侧面监控开关 */
@@ -68,11 +68,10 @@
     .toggle-label { font-size: 14px; font-weight: bold; }
     .switch-track { width: 36px; height: 20px; background: #555; border-radius: 10px; position: relative; transition: background 0.3s;}
     .switch-knob { width: 16px; height: 16px; background: white; border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: left 0.3s; }
-    /* 开关激活状态 */
     .toggle-switch.on .switch-track { background: #3498db; }
     .toggle-switch.on .switch-knob { left: 18px; }
 
-    /* 侧面画中画 (PiP) */
+    /* 侧面画中画 */
     #side-pip { 
         position: absolute; 
         bottom: 20px; 
@@ -83,7 +82,7 @@
         border: 2px solid #333; 
         border-radius: 10px; 
         overflow: hidden; 
-        display: none; /* 默认隐藏 */
+        display: none; 
         box-shadow: 0 5px 20px rgba(0,0,0,0.5);
     }
     #video-remote { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
@@ -101,7 +100,6 @@
         text-align: center;
     }
 
-    /* 二维码弹窗 */
     #qr-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 100; }
     .qr-box { background: white; padding: 30px; border-radius: 16px; text-align: center; color: #333; animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);}
     @keyframes popUp { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -120,7 +118,6 @@
   </div>
 
   <div id="screen-main" class="hidden">
-    
     <div id="video-container">
         <video id="video-main" playsinline muted autoplay></video>
         <canvas id="canvas-main"></canvas>
@@ -134,7 +131,6 @@
 
         <div class="top-right-controls">
             <button id="btn-connect" onclick="showQrCode()">+ 连接侧面辅机</button>
-            
             <div id="toggle-side" class="toggle-switch" onclick="toggleSideCheck()">
                 <div class="toggle-label">侧面纠错</div>
                 <div class="switch-track"><div class="switch-knob"></div></div>
@@ -170,12 +166,11 @@
     // --- 全局工具 ---
     function generateRoomId() { return Math.floor(10000 + Math.random() * 90000).toString(); }
     let peer, conn;
-    let call; // 用于媒体流通话
     
     // ====================== 主机逻辑 ======================
     let poseMain;
     let sideData = { active: false, errors: [] }; 
-    let isSideCheckEnabled = false; // 侧面检查是否开启
+    let isSideCheckEnabled = false;
 
     function initMain() {
       document.getElementById('screen-select').classList.add('hidden');
@@ -190,9 +185,7 @@
 
     function toggleSideCheck() {
         const toggle = document.getElementById('toggle-side');
-        // 只有当连接了辅机才允许切换 (虽然CSS已经做了限制，这里双重保险)
         if (!toggle.classList.contains('enabled')) return;
-        
         isSideCheckEnabled = !isSideCheckEnabled;
         if (isSideCheckEnabled) toggle.classList.add('on');
         else toggle.classList.remove('on');
@@ -205,18 +198,13 @@
       new QRCode(document.getElementById("qrcode"), { text: sideUrl, width: 180, height: 180 });
 
       peer = new Peer(`dance-host-${roomId}`);
-      
-      // 1. 监听数据连接 (JSON指令)
       peer.on('connection', (c) => {
         conn = c;
         handleSideConnection();
       });
-
-      // 2. 监听视频流连接 (画中画)
       peer.on('call', (incomingCall) => {
-        incomingCall.answer(); // 接听
+        incomingCall.answer();
         incomingCall.on('stream', (remoteStream) => {
-            // 显示画中画
             const pip = document.getElementById('side-pip');
             const vid = document.getElementById('video-remote');
             pip.style.display = 'block';
@@ -228,23 +216,15 @@
     function handleSideConnection() {
       document.getElementById('qr-modal').classList.add('hidden');
       document.getElementById('btn-connect').style.display = 'none';
-      
-      // 激活UI
       const badge = document.getElementById('badge-side');
       badge.classList.add('active');
       badge.innerHTML = '<div class="dot"></div>侧面视觉 (已连接)';
-      
-      // 激活开关
       const toggle = document.getElementById('toggle-side');
       toggle.classList.add('enabled');
-      // 默认自动开启纠错
       isSideCheckEnabled = true;
       toggle.classList.add('on');
 
-      conn.on('data', (data) => {
-        sideData = data;
-      });
-      
+      conn.on('data', (data) => { sideData = data; });
       conn.on('close', () => {
         document.getElementById('badge-side').classList.remove('active');
         document.getElementById('toggle-side').classList.remove('enabled');
@@ -260,10 +240,8 @@
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
       video.srcObject = stream;
 
-      // 等待视频元数据加载，确保尺寸匹配
+      // 确保 Canvas 分辨率与视频源完全一致，防止骨骼错位
       video.onloadedmetadata = () => {
-          // 关键修复：强制画布分辨率等于视频源分辨率
-          // 这样骨骼点的坐标 (x * width) 才会和视频像素一一对应
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
       };
@@ -283,65 +261,74 @@
       const canvas = document.getElementById('canvas-main');
       const ctx = canvas.getContext('2d');
       
-      // 注意：这里不再使用 ctx.scale(-1, 1)
-      // 因为我们在 CSS 里已经把 Canvas 翻转了。
-      // 我们直接按标准坐标画，CSS 会负责把它和视频一起镜像。
-      
+      // 核心修复：专业级渲染流程
+      // 1. 准备画布
+      ctx.save();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // 2. 绘制视频 (镜像翻转) - 直接画在 Canvas 上，确保 100% 对齐
+      ctx.scale(-1, 1); // 翻转 X 轴
+      ctx.translate(-canvas.width, 0); // 移回视野内
+      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
       
       if (results.poseLandmarks) {
         const lm = results.poseLandmarks;
         
-        // 绘制骨骼
-        drawConnectors(ctx, lm, POSE_CONNECTIONS, {color: 'rgba(255, 255, 255, 0.7)', lineWidth: 4});
-        drawLandmarks(ctx, lm, {color: '#ffffff', lineWidth: 2, radius: 4});
+        // 3. 绘制精细骨骼 (在镜像坐标系下绘制)
+        // 修改：把线调细 (lineWidth: 2)，点调小 (radius: 1)
+        drawConnectors(ctx, lm, POSE_CONNECTIONS, {color: 'rgba(255, 255, 255, 0.6)', lineWidth: 2});
+        // 只画关键关节，且非常小
+        drawLandmarks(ctx, lm, {
+            color: '#ffffff', 
+            fillColor: 'rgba(255,255,255,0.8)', 
+            lineWidth: 1, 
+            radius: 2 // 之前是默认 4 或 5，现在改为 2，看起来更精致
+        });
         
-        // 评分
         evaluateDance(lm, ctx);
       }
+      ctx.restore();
     }
 
     function evaluateDance(frontLm, ctx) {
       let msg = "";
       let isGood = true;
       const feedbackEl = document.getElementById('feedback-msg');
-      let color = "#2ecc71"; // 默认绿
+      let color = "#2ecc71";
 
-      // 1. 正面判定
+      // 正面判定
       const shoulderTilt = Math.abs(frontLm[11].y - frontLm[12].y);
       if (shoulderTilt > 0.05) {
         isGood = false;
         msg = "肩膀不平";
         color = "#e74c3c";
-        // 在肩膀画红线强调
+        
+        // 高亮错误部位 (红线)
         ctx.beginPath();
         ctx.moveTo(frontLm[11].x * ctx.canvas.width, frontLm[11].y * ctx.canvas.height);
         ctx.lineTo(frontLm[12].x * ctx.canvas.width, frontLm[12].y * ctx.canvas.height);
-        ctx.strokeStyle = "red";
-        ctx.lineWidth = 8;
+        ctx.strokeStyle = "#e74c3c";
+        ctx.lineWidth = 6; // 错误线可以稍微粗一点，起警示作用
         ctx.stroke();
       }
 
-      // 2. 侧面判定 (受开关控制)
+      // 侧面判定
       if (isSideCheckEnabled && sideData.active) {
         if (sideData.errors.length > 0) {
             isGood = false;
-            // 如果正面也有错，叠加显示
             msg = msg ? `${msg} + ${sideData.errors[0]}` : sideData.errors[0];
             color = "#e74c3c";
         }
       }
 
-      // 显示反馈
       if (isGood) {
           feedbackEl.innerText = "✨ 完美范儿 ✨";
-          feedbackEl.style.color = "#f1c40f"; // 金色
+          feedbackEl.style.color = "#f1c40f";
       } else {
           feedbackEl.innerText = msg;
           feedbackEl.style.color = color;
       }
     }
-
 
     // ====================== 辅机逻辑 ======================
     let poseSide;
@@ -371,17 +358,14 @@
     async function startSideCameraAndCall(hostId) {
       const video = document.getElementById('video-side');
       try {
-        // 1. 获取媒体流 (前置)
         const stream = await navigator.mediaDevices.getUserMedia({ 
             video: { facingMode: 'user', width: 640, height: 480 },
             audio: false 
         });
         video.srcObject = stream;
 
-        // 2. 发起视频通话 (推流给主机做画中画)
         const call = peer.call(hostId, stream);
 
-        // 3. 启动本地AI分析
         poseSide = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
         poseSide.setOptions({modelComplexity: 0});
         poseSide.onResults(onSideResults);
@@ -398,31 +382,26 @@
 
     function onSideResults(results) {
       if (!conn || !conn.open) return;
-      if (Date.now() - lastSend < 100) return; // 10FPS 限制
+      if (Date.now() - lastSend < 100) return; 
       lastSend = Date.now();
 
       let errors = [];
       if (results.poseLandmarks) {
         const lm = results.poseLandmarks;
-        // 左耳(7) vs 右耳(8) 判断朝向
         let isLeft = lm[7].visibility > lm[8].visibility;
         let shoulder = isLeft ? lm[11] : lm[12];
         let hip = isLeft ? lm[23] : lm[24];
 
-        // 倾斜判定
         let lean = shoulder.x - hip.x;
-        // 这里的阈值 0.08 比较严格，如果误报太多可以调大到 0.1
         if (Math.abs(lean) > 0.08) { 
             errors.push(lean > 0 ? "身体后仰" : "身体前倾");
         }
-        
-        document.getElementById('side-log').innerText = errors.length > 0 ? `⚠ 检测到: ${errors[0]}` : "体态正常";
+        document.getElementById('side-log').innerText = errors.length > 0 ? `⚠ ${errors[0]}` : "体态正常";
       }
 
       conn.send({ active: true, errors: errors });
     }
 
-    // 自动路由
     const urlParams = new URLSearchParams(window.location.search);
     if(urlParams.get('role') === 'side') initSide();
   </script>
