@@ -1,34 +1,42 @@
-// server.js - Juice Game 舞蹈游戏平台 (修复登录记忆功能版)
+// server.js - Juice Game 舞蹈游戏平台 (Railway HTTPS 适配修复版)
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const fs = require('fs');
-const session = require('express-session'); // 恢复 session
+const session = require('express-session');
 
 // === 初始化 ===
 const app = express();
 const PORT = process.env.PORT || 3000;
+const isProduction = process.env.NODE_ENV === 'production';
+
+// === 关键修复 1: 信任代理 ===
+// Railway 位于反向代理之后，必须开启此选项，否则 Cookie 无法在 HTTPS 下写入
+app.set('trust proxy', 1);
 
 // === PostgreSQL 连接池 ===
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  ssl: isProduction ? { rejectUnauthorized: false } : false
 });
 
 // === 中间件配置 ===
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 核心修复：配置 Session (让服务器记住登录状态)
+// === 关键修复 2: Session 配置 ===
 app.use(session({
-  secret: 'juice-game-secret-key-2025', // 签名密钥
+  secret: 'juice-game-secret-key-2025', 
   resave: false,
   saveUninitialized: false,
   cookie: {
-    maxAge: 24 * 60 * 60 * 1000, // 24小时有效
-    secure: false, // Railway 内部转发可能不需要 secure: true，先设为 false 保证能用
+    maxAge: 24 * 60 * 60 * 1000, // 24小时
+    // 在 Railway (Production) 环境下必须为 true，否则浏览器会因为跨协议问题丢弃 Cookie
+    secure: isProduction, 
+    // 配合 secure: true 使用，防止浏览器拦截跨站请求
+    sameSite: isProduction ? 'none' : 'lax',
     httpOnly: true
   }
 }));
@@ -57,8 +65,9 @@ app.post('/api/register', async (req, res) => {
     );
 
     if (result.rowCount > 0) {
-      // 注册成功后直接自动登录
+      // 注册成功自动登录
       req.session.user = result.rows[0];
+      req.session.save(); // 强制保存
       return res.status(201).json({ message: '注册成功', user: result.rows[0] });
     }
 
@@ -74,7 +83,7 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// === API: 登录 (核心修复) ===
+// === API: 登录 ===
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: '邮箱和密码必填' });
@@ -82,7 +91,6 @@ app.post('/api/login', async (req, res) => {
   const emailNorm = normalizeEmail(email);
 
   try {
-    // 1. 查用户
     const result = await pool.query(
       `SELECT id, email, password_hash, level, coins FROM users WHERE lower(email) = $1`,
       [emailNorm]
@@ -93,20 +101,23 @@ app.post('/api/login', async (req, res) => {
     }
 
     const user = result.rows[0];
-
-    // 2. 验密码
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
       return res.status(401).json({ error: '密码错误' });
     }
 
-    // 3. 存 Session (这一步最关键！之前少了这一步)
     delete user.password_hash;
-    req.session.user = user; 
     
-    // 4. 保存 session 并返回
+    // 保存 Session
+    req.session.user = user;
+    
+    // 手动 save 确保 Cookie 写入后再返回响应
     req.session.save(err => {
-      if (err) return res.status(500).json({ error: '登录会话保存失败' });
+      if (err) {
+        console.error('Session save error:', err);
+        return res.status(500).json({ error: '登录失败' });
+      }
+      console.log('登录成功，Session已写入:', user.email);
       return res.json({ message: '登录成功', user });
     });
 
@@ -116,13 +127,11 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// === API: 获取当前状态 (修复 401 问题) ===
+// === API: 获取当前状态 ===
 app.get('/api/me', (req, res) => {
-  // 检查 Session 里有没有用户
   if (req.session && req.session.user) {
     return res.json({ user: req.session.user });
   }
-  // 没登录
   res.status(401).json({ user: null, message: "未登录" });
 });
 
@@ -157,8 +166,12 @@ app.get('/api/games', async (req, res) => {
 // === 路由 ===
 app.get('/play/:id', (req, res) => {
   const { id } = req.params;
+  // 增加简单的安全检查
+  if (id.includes('..')) return res.status(403).send('Access denied');
+
   const filePath = path.join(__dirname, 'games', id, 'index.html');
   const singlePath = path.join(__dirname, 'games', `${id}.html`);
+  
   if (fs.existsSync(filePath)) return res.sendFile(filePath);
   if (fs.existsSync(singlePath)) return res.sendFile(singlePath);
   res.status(404).send('Game not found');
@@ -174,6 +187,7 @@ app.get('/', (req, res) => {
 const startServer = () => {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV}`);
   });
 };
 
