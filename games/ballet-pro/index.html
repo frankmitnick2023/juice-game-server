@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>舞蹈防拐范儿 - 自适应双模版</title>
+  
+  <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+
+  <style>
+    body { margin: 0; background: #121212; color: white; font-family: sans-serif; overflow: hidden; }
+    .hidden { display: none !important; }
+    
+    /* 首页 */
+    #screen-select { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; }
+    .btn { padding: 20px 40px; font-size: 20px; border-radius: 12px; border: none; font-weight: bold; width: 80%; max-width: 400px; cursor: pointer;}
+    .btn-main { background: #f1c40f; color: black; }
+    .btn-side { background: #3498db; color: white; }
+
+    /* 主机界面 */
+    #screen-main { position: relative; width: 100vw; height: 100vh; }
+    video, canvas { position: absolute; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    
+    /* 状态面板 */
+    #status-panel { position: absolute; top: 20px; left: 20px; z-index: 100; display: flex; gap: 10px; }
+    .badge { padding: 8px 15px; border-radius: 20px; background: rgba(0,0,0,0.6); font-size: 14px; border: 1px solid #555; display: flex; align-items: center; gap: 5px;}
+    .badge.active { border-color: #2ecc71; color: #2ecc71; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #555; }
+    .active .dot { background: #2ecc71; box-shadow: 0 0 5px #2ecc71; }
+
+    /* 设置按钮（打开二维码） */
+    #btn-connect-side { position: absolute; top: 20px; right: 20px; z-index: 100; background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-size: 14px;}
+
+    /* 二维码弹窗 */
+    #qr-modal { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 12px; z-index: 200; text-align: center; color: black; box-shadow: 0 0 20px black;}
+    #close-qr { margin-top: 15px; background: #eee; border: none; padding: 5px 20px; border-radius: 5px; cursor: pointer;}
+
+    /* 辅机界面 */
+    #screen-side { height: 100vh; background: #000; display: flex; flex-direction: column; align-items: center; padding-top: 50px; }
+    .data-log { font-family: monospace; color: #2ecc71; font-size: 12px; margin-top: 20px; width: 90%; }
+  </style>
+</head>
+<body>
+
+  <div id="screen-select">
+    <h1>舞蹈防拐范儿系统</h1>
+    <button class="btn btn-main" onclick="initMain()">我是主机 (正面)</button>
+    <button class="btn btn-side" onclick="initSide()">我是辅机 (侧面)</button>
+  </div>
+
+  <div id="screen-main" class="hidden">
+    <div id="status-panel">
+      <div class="badge active"><div class="dot"></div>正面视觉</div>
+      <div class="badge" id="badge-side"><div class="dot"></div>侧面视觉 (未连接)</div>
+      <div class="badge" id="badge-mode">休闲模式</div>
+    </div>
+
+    <button id="btn-connect-side" onclick="showQrCode()">+ 连接侧面辅机</button>
+
+    <div id="qr-modal" class="hidden">
+      <h3>扫码接入侧面辅机</h3>
+      <div id="qrcode"></div>
+      <button id="close-qr" onclick="document.getElementById('qr-modal').classList.add('hidden')">关闭</button>
+    </div>
+
+    <video id="video-main" playsinline muted autoplay></video>
+    <canvas id="canvas-main"></canvas>
+    
+    <div id="center-msg" style="position: absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size: 40px; font-weight: bold; text-shadow: 0 0 10px black; z-index: 50;"></div>
+  </div>
+
+  <div id="screen-side" class="hidden">
+    <h2>侧面监控运行中</h2>
+    <p style="color:#aaa">请将手机垂直放置于用户侧面腰高处</p>
+    <div id="side-status">正在连接...</div>
+    <video id="video-side" playsinline muted autoplay style="width: 200px; opacity: 0.5; margin-top: 20px;"></video>
+    <div class="data-log" id="side-log">等待数据...</div>
+  </div>
+
+  <script>
+    // --- 全局工具 ---
+    function generateRoomId() { return Math.floor(10000 + Math.random() * 90000).toString(); }
+    let peer, conn;
+    
+    // 计算三个点的角度 (用于判定)
+    function calculateAngle(a, b, c) {
+        if(!a || !b || !c) return 0;
+        let radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
+        let angle = Math.abs(radians * 180.0 / Math.PI);
+        if (angle > 180.0) angle = 360 - angle;
+        return angle;
+    }
+
+    // ====================== 主机逻辑 ======================
+    let poseMain;
+    let isDualMode = false; // 是否开启双摄模式
+    let sideData = { active: false, errors: [] }; // 侧面发来的数据缓存
+
+    function initMain() {
+      document.getElementById('screen-select').classList.add('hidden');
+      document.getElementById('screen-main').classList.remove('hidden');
+      
+      startMainCamera();
+      initHostNetwork();
+    }
+
+    function showQrCode() {
+      document.getElementById('qr-modal').classList.remove('hidden');
+    }
+
+    function initHostNetwork() {
+      const roomId = generateRoomId();
+      // 生成二维码
+      const sideUrl = `${window.location.href.split('?')[0]}?role=side&room=${roomId}`;
+      document.getElementById("qrcode").innerHTML = "";
+      new QRCode(document.getElementById("qrcode"), { text: sideUrl, width: 180, height: 180 });
+
+      peer = new Peer(`dance-host-${roomId}`);
+      peer.on('connection', (c) => {
+        conn = c;
+        handleSideConnection();
+      });
+    }
+
+    function handleSideConnection() {
+      isDualMode = true;
+      document.getElementById('qr-modal').classList.add('hidden');
+      document.getElementById('btn-connect-side').classList.add('hidden'); // 连接后隐藏按钮
+      
+      // 更新UI状态
+      const badge = document.getElementById('badge-side');
+      badge.classList.add('active');
+      badge.innerHTML = '<div class="dot"></div>侧面视觉 (Pro Mode)';
+      document.getElementById('badge-mode').innerText = "专业考级模式";
+      document.getElementById('badge-mode').style.borderColor = "#f1c40f";
+      document.getElementById('badge-mode').style.color = "#f1c40f";
+
+      // 监听数据
+      conn.on('data', (data) => {
+        sideData = data; // 接收侧面分析结果
+      });
+      
+      conn.on('close', () => {
+        isDualMode = false;
+        document.getElementById('badge-side').classList.remove('active');
+        document.getElementById('badge-side').innerText = "侧面视觉 (已断开)";
+        document.getElementById('badge-mode').innerText = "休闲模式";
+      });
+    }
+
+    async function startMainCamera() {
+      const video = document.getElementById('video-main');
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
+      video.srcObject = stream;
+
+      poseMain = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
+      poseMain.setOptions({modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5});
+      poseMain.onResults(onMainResults);
+
+      const camera = new Camera(video, {
+        onFrame: async () => { await poseMain.send({image: video}); },
+        width: 640, height: 480
+      });
+      camera.start();
+    }
+
+    function onMainResults(results) {
+      const canvas = document.getElementById('canvas-main');
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      
+      ctx.save();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.scale(-1, 1); 
+      ctx.translate(-canvas.width, 0);
+      
+      // 绘制骨骼
+      if (results.poseLandmarks) {
+        const lm = results.poseLandmarks;
+        drawConnectors(ctx, lm, POSE_CONNECTIONS, {color: 'rgba(255,255,255,0.5)', lineWidth: 2});
+        
+        // --- 综合评分逻辑 ---
+        evaluateDance(lm, ctx);
+      }
+      ctx.restore();
+    }
+
+    // *** 核心：判分大脑 ***
+    function evaluateDance(frontLm, ctx) {
+      let msg = "";
+      let isGood = true;
+      const centerMsg = document.getElementById('center-msg');
+
+      // 1. 正面判定 (基础分)
+      // 例如：检测肩膀是否平
+      const shoulderTilt = Math.abs(frontLm[11].y - frontLm[12].y);
+      if (shoulderTilt > 0.05) {
+        isGood = false;
+        msg = "肩膀不平";
+        drawConnectors(ctx, frontLm, POSE_CONNECTIONS, {color: 'red', lineWidth: 4});
+      }
+
+      // 2. 侧面判定 (Pro分) - 仅在双模下启用
+      if (isDualMode && sideData.active) {
+        // 如果侧面发来了错误列表
+        if (sideData.errors.length > 0) {
+            isGood = false;
+            // 叠加侧面错误信息
+            msg = msg ? msg + " + " + sideData.errors[0] : sideData.errors[0];
+        }
+      }
+
+      // 3. 显示结果
+      if (isGood) {
+          centerMsg.innerText = "✨ 完美范儿 ✨";
+          centerMsg.style.color = "#2ecc71";
+      } else {
+          centerMsg.innerText = msg;
+          centerMsg.style.color = "#e74c3c";
+      }
+    }
+
+
+    // ====================== 辅机逻辑 (侧面) ======================
+    let poseSide;
+    let lastSend = 0;
+
+    function initSide() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const roomId = urlParams.get('room');
+      if(!roomId) return alert("请扫码进入");
+
+      document.getElementById('screen-select').classList.add('hidden');
+      document.getElementById('screen-side').classList.remove('hidden');
+
+      peer = new Peer();
+      peer.on('open', () => {
+        document.getElementById('side-status').innerText = "连接主机...";
+        conn = peer.connect(`dance-host-${roomId}`);
+        conn.on('open', () => {
+            document.getElementById('side-status').innerText = "已连接主机 - 监控中";
+            startSideCamera();
+        });
+      });
+    }
+
+    async function startSideCamera() {
+      const video = document.getElementById('video-side');
+      // 尝试开启后置摄像头
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: 640, height: 480 } });
+      video.srcObject = stream;
+
+      poseSide = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
+      poseSide.setOptions({modelComplexity: 0}); // 快速模式
+      poseSide.onResults(onSideResults);
+
+      const camera = new Camera(video, {
+        onFrame: async () => { await poseSide.send({image: video}); },
+        width: 640, height: 480
+      });
+      camera.start();
+    }
+
+    function onSideResults(results) {
+      if (!conn || !conn.open) return;
+      
+      // 降低发送频率 (10FPS)
+      if (Date.now() - lastSend < 100) return;
+      lastSend = Date.now();
+
+      let errors = [];
+      let logTxt = "体态正常";
+
+      if (results.poseLandmarks) {
+        const lm = results.poseLandmarks;
+        
+        // 假设侧面是左侧 (根据可见度判断)
+        // MediaPipe 11/23/25 是左侧 肩/跨/膝
+        // 12/24/26 是右侧
+        
+        // 选取可见度高的一侧
+        let isLeft = lm[11].visibility > lm[12].visibility;
+        let shoulder = isLeft ? lm[11] : lm[12];
+        let hip = isLeft ? lm[23] : lm[24];
+        let knee = isLeft ? lm[25] : lm[26];
+        let ear = isLeft ? lm[7] : lm[8];
+
+        // --- 防拐范儿核心算法 ---
+
+        // 1. 核心垂直度 (Core Alignment) - 这里的阈值根据实际测试微调
+        // 理想状态：耳、肩、跨 X轴接近
+        let upperBodyLean = shoulder.x - hip.x;
+        if (upperBodyLean < -0.1) errors.push("前倾太重");
+        else if (upperBodyLean > 0.1) errors.push("后仰");
+
+        // 2. 骨盆控制 (通过大腿角度推算)
+        // 简单算法：如果站立时，膝盖明显在跨的前面很多，可能是屈膝或松跨
+        if (Math.abs(knee.x - hip.x) > 0.15 && Math.abs(knee.y - hip.y) > 0.3) {
+            // 这里的逻辑需要结合具体动作，假设是站立
+            // errors.push("膝盖松了");
+        }
+
+        // 3. 发送数据给主机
+        // 我们不发送原始坐标，而是发送诊断结果，减轻主机负担
+        if (errors.length > 0) logTxt = errors.join(", ");
+      }
+
+      // 实时更新辅机日志
+      document.getElementById('side-log').innerText = `分析: ${logTxt}`;
+
+      // 发送给主机
+      conn.send({
+        active: true,
+        errors: errors
+      });
+    }
+
+    // 自动入口
+    const urlParams = new URLSearchParams(window.location.search);
+    if(urlParams.get('role') === 'side') {
+        initSide();
+    }
+  </script>
+</body>
+</html>
