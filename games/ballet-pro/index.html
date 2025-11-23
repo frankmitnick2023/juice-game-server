@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>舞蹈防拐范儿 - 自适应双模版</title>
+  <title>舞蹈防拐范儿 - 智能双摄系统</title>
   
   <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -24,7 +24,8 @@
 
     /* 主机界面 */
     #screen-main { position: relative; width: 100vw; height: 100vh; }
-    video, canvas { position: absolute; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    /* 主机画面始终镜像，方便像镜子一样看 */
+    video#video-main, canvas#canvas-main { position: absolute; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
     
     /* 状态面板 */
     #status-panel { position: absolute; top: 20px; left: 20px; z-index: 100; display: flex; gap: 10px; }
@@ -42,15 +43,17 @@
 
     /* 辅机界面 */
     #screen-side { height: 100vh; background: #000; display: flex; flex-direction: column; align-items: center; padding-top: 50px; }
-    .data-log { font-family: monospace; color: #2ecc71; font-size: 12px; margin-top: 20px; width: 90%; }
+    /* 辅机如果用前置摄像头，也最好镜像翻转，方便用户调整位置 */
+    #video-side { width: 60%; max-width: 300px; opacity: 0.7; margin-top: 20px; transform: scaleX(-1); border: 2px solid #3498db; border-radius: 10px;}
+    .data-log { font-family: monospace; color: #2ecc71; font-size: 12px; margin-top: 20px; width: 90%; text-align: center;}
   </style>
 </head>
 <body>
 
   <div id="screen-select">
-    <h1>舞蹈防拐范儿系统</h1>
-    <button class="btn btn-main" onclick="initMain()">我是主机 (正面)</button>
-    <button class="btn btn-side" onclick="initSide()">我是辅机 (侧面)</button>
+    <h1>英皇芭蕾 - 智能陪练</h1>
+    <button class="btn btn-main" onclick="initMain()">我是主机 (正面显示)</button>
+    <button class="btn btn-side" onclick="initSide()">我是辅机 (侧面监控)</button>
   </div>
 
   <div id="screen-main" class="hidden">
@@ -76,10 +79,10 @@
 
   <div id="screen-side" class="hidden">
     <h2>侧面监控运行中</h2>
-    <p style="color:#aaa">请将手机垂直放置于用户侧面腰高处</p>
-    <div id="side-status">正在连接...</div>
-    <video id="video-side" playsinline muted autoplay style="width: 200px; opacity: 0.5; margin-top: 20px;"></video>
-    <div class="data-log" id="side-log">等待数据...</div>
+    <p style="color:#aaa">请使用前置摄像头，将手机放于侧面腰高处</p>
+    <div id="side-status" style="font-size: 18px; font-weight: bold; color: #f1c40f;">正在连接...</div>
+    <video id="video-side" playsinline muted autoplay></video>
+    <div class="data-log" id="side-log">等待指令...</div>
   </div>
 
   <script>
@@ -87,15 +90,6 @@
     function generateRoomId() { return Math.floor(10000 + Math.random() * 90000).toString(); }
     let peer, conn;
     
-    // 计算三个点的角度 (用于判定)
-    function calculateAngle(a, b, c) {
-        if(!a || !b || !c) return 0;
-        let radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
-        let angle = Math.abs(radians * 180.0 / Math.PI);
-        if (angle > 180.0) angle = 360 - angle;
-        return angle;
-    }
-
     // ====================== 主机逻辑 ======================
     let poseMain;
     let isDualMode = false; // 是否开启双摄模式
@@ -184,6 +178,7 @@
       if (results.poseLandmarks) {
         const lm = results.poseLandmarks;
         drawConnectors(ctx, lm, POSE_CONNECTIONS, {color: 'rgba(255,255,255,0.5)', lineWidth: 2});
+        drawLandmarks(ctx, lm, {color: '#ffffff', lineWidth: 1, radius: 3});
         
         // --- 综合评分逻辑 ---
         evaluateDance(lm, ctx);
@@ -198,7 +193,6 @@
       const centerMsg = document.getElementById('center-msg');
 
       // 1. 正面判定 (基础分)
-      // 例如：检测肩膀是否平
       const shoulderTilt = Math.abs(frontLm[11].y - frontLm[12].y);
       if (shoulderTilt > 0.05) {
         isGood = false;
@@ -208,10 +202,8 @@
 
       // 2. 侧面判定 (Pro分) - 仅在双模下启用
       if (isDualMode && sideData.active) {
-        // 如果侧面发来了错误列表
         if (sideData.errors.length > 0) {
             isGood = false;
-            // 叠加侧面错误信息
             msg = msg ? msg + " + " + sideData.errors[0] : sideData.errors[0];
         }
       }
@@ -234,37 +226,59 @@
     function initSide() {
       const urlParams = new URLSearchParams(window.location.search);
       const roomId = urlParams.get('room');
-      if(!roomId) return alert("请扫码进入");
+      if(!roomId) return alert("请先在电脑主机生成二维码并扫描");
 
       document.getElementById('screen-select').classList.add('hidden');
       document.getElementById('screen-side').classList.remove('hidden');
 
       peer = new Peer();
       peer.on('open', () => {
-        document.getElementById('side-status').innerText = "连接主机...";
+        document.getElementById('side-status').innerText = "正在连接主机...";
         conn = peer.connect(`dance-host-${roomId}`);
+        
         conn.on('open', () => {
-            document.getElementById('side-status').innerText = "已连接主机 - 监控中";
+            document.getElementById('side-status').innerText = "✅ 已连接主机 (监控中)";
+            document.getElementById('side-status').style.color = "#2ecc71";
             startSideCamera();
+        });
+
+        conn.on('error', (err) => {
+            document.getElementById('side-status').innerText = "连接中断";
+            document.getElementById('side-status').style.color = "red";
         });
       });
     }
 
     async function startSideCamera() {
       const video = document.getElementById('video-side');
-      // 尝试开启后置摄像头
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: 640, height: 480 } });
-      video.srcObject = stream;
+      
+      try {
+        // --- 修改：使用前置摄像头 (user) ---
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                facingMode: 'user', // 这里改成了前置
+                width: 640, 
+                height: 480 
+            } 
+        });
+        video.srcObject = stream;
 
-      poseSide = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
-      poseSide.setOptions({modelComplexity: 0}); // 快速模式
-      poseSide.onResults(onSideResults);
+        // 启动本地 AI
+        poseSide = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
+        poseSide.setOptions({modelComplexity: 0}); // 快速模式
+        poseSide.onResults(onSideResults);
 
-      const camera = new Camera(video, {
-        onFrame: async () => { await poseSide.send({image: video}); },
-        width: 640, height: 480
-      });
-      camera.start();
+        const camera = new Camera(video, {
+          onFrame: async () => { await poseSide.send({image: video}); },
+          width: 640, height: 480
+        });
+        camera.start();
+        
+        document.getElementById('side-log').innerText = "前置摄像头已启动，分析中...";
+
+      } catch(e) { 
+          alert("无法启动摄像头: " + e.message); 
+      }
     }
 
     function onSideResults(results) {
@@ -280,39 +294,35 @@
       if (results.poseLandmarks) {
         const lm = results.poseLandmarks;
         
-        // 假设侧面是左侧 (根据可见度判断)
-        // MediaPipe 11/23/25 是左侧 肩/跨/膝
-        // 12/24/26 是右侧
+        // 智能判断侧面朝向 (根据可见性)
+        // 左耳(7) vs 右耳(8)
+        let isLeft = lm[7].visibility > lm[8].visibility;
         
-        // 选取可见度高的一侧
-        let isLeft = lm[11].visibility > lm[12].visibility;
+        // 获取关键点
         let shoulder = isLeft ? lm[11] : lm[12];
         let hip = isLeft ? lm[23] : lm[24];
-        let knee = isLeft ? lm[25] : lm[26];
         let ear = isLeft ? lm[7] : lm[8];
 
-        // --- 防拐范儿核心算法 ---
+        // --- 防拐范儿核心算法 (侧面) ---
 
-        // 1. 核心垂直度 (Core Alignment) - 这里的阈值根据实际测试微调
-        // 理想状态：耳、肩、跨 X轴接近
-        let upperBodyLean = shoulder.x - hip.x;
-        if (upperBodyLean < -0.1) errors.push("前倾太重");
-        else if (upperBodyLean > 0.1) errors.push("后仰");
-
-        // 2. 骨盆控制 (通过大腿角度推算)
-        // 简单算法：如果站立时，膝盖明显在跨的前面很多，可能是屈膝或松跨
-        if (Math.abs(knee.x - hip.x) > 0.15 && Math.abs(knee.y - hip.y) > 0.3) {
-            // 这里的逻辑需要结合具体动作，假设是站立
-            // errors.push("膝盖松了");
+        // 1. 上身倾斜 (Upper Body Lean)
+        // 正常站立时，肩膀和跨的 X 坐标应该很接近
+        let lean = shoulder.x - hip.x;
+        
+        // 注意：因为用了前置摄像头且镜像了，坐标方向可能需要根据实际调整
+        // 这里用绝对值判断“不垂直”
+        if (Math.abs(lean) > 0.08) { 
+            // 简单粗暴：只要歪了就报警，不需要区分前后，反正都是错的
+            errors.push("身体不够直");
+            logTxt = "检测到: 身体倾斜";
         }
 
-        // 3. 发送数据给主机
-        // 我们不发送原始坐标，而是发送诊断结果，减轻主机负担
+        // 2. 发送数据
         if (errors.length > 0) logTxt = errors.join(", ");
       }
 
-      // 实时更新辅机日志
-      document.getElementById('side-log').innerText = `分析: ${logTxt}`;
+      // 更新辅机界面日志
+      document.getElementById('side-log').innerText = `分析状态: ${logTxt}`;
 
       // 发送给主机
       conn.send({
@@ -321,7 +331,7 @@
       });
     }
 
-    // 自动入口
+    // 自动路由入口
     const urlParams = new URLSearchParams(window.location.search);
     if(urlParams.get('role') === 'side') {
         initSide();
