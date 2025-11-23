@@ -1,4 +1,4 @@
-// server.js - Juice Game 舞蹈游戏平台 (Railway HTTPS 适配修复版)
+// server.js - Juice Game 舞蹈游戏平台 (Cookie兼容性修复版)
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
@@ -10,36 +10,42 @@ const session = require('express-session');
 // === 初始化 ===
 const app = express();
 const PORT = process.env.PORT || 3000;
-const isProduction = process.env.NODE_ENV === 'production';
 
-// === 关键修复 1: 信任代理 ===
-// Railway 位于反向代理之后，必须开启此选项，否则 Cookie 无法在 HTTPS 下写入
+// === 信任代理 (保留以防万一) ===
 app.set('trust proxy', 1);
 
 // === PostgreSQL 连接池 ===
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: isProduction ? { rejectUnauthorized: false } : false
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
 // === 中间件配置 ===
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// === 关键修复 2: Session 配置 ===
+// === 关键修复：Session 配置 (改为最宽松的兼容模式) ===
 app.use(session({
   secret: 'juice-game-secret-key-2025', 
   resave: false,
   saveUninitialized: false,
   cookie: {
     maxAge: 24 * 60 * 60 * 1000, // 24小时
-    // 在 Railway (Production) 环境下必须为 true，否则浏览器会因为跨协议问题丢弃 Cookie
-    secure: isProduction, 
-    // 配合 secure: true 使用，防止浏览器拦截跨站请求
-    sameSite: isProduction ? 'none' : 'lax',
+    // 关键修改：设为 false，允许在 HTTP/HTTPS 各种环境下传输，防止被浏览器拦截
+    secure: false, 
+    // 关键修改：设为 lax，这是最标准的同站策略，兼容性最好
+    sameSite: 'lax',
     httpOnly: true
   }
 }));
+
+// 增加调试中间件：打印 Session 状态，帮你确认服务器是否收到了 Cookie
+app.use((req, res, next) => {
+  if (req.url.startsWith('/api/')) {
+    console.log(`[${req.method}] ${req.url} - Session User ID: ${req.session?.user?.id || '未登录'}`);
+  }
+  next();
+});
 
 app.use(express.static('public'));
 app.use('/games', express.static('games'));
@@ -65,9 +71,8 @@ app.post('/api/register', async (req, res) => {
     );
 
     if (result.rowCount > 0) {
-      // 注册成功自动登录
       req.session.user = result.rows[0];
-      req.session.save(); // 强制保存
+      req.session.save(); 
       return res.status(201).json({ message: '注册成功', user: result.rows[0] });
     }
 
@@ -108,16 +113,16 @@ app.post('/api/login', async (req, res) => {
 
     delete user.password_hash;
     
-    // 保存 Session
+    // 写入 Session
     req.session.user = user;
     
-    // 手动 save 确保 Cookie 写入后再返回响应
+    // 强制保存
     req.session.save(err => {
       if (err) {
         console.error('Session save error:', err);
         return res.status(500).json({ error: '登录失败' });
       }
-      console.log('登录成功，Session已写入:', user.email);
+      console.log(`用户 ${user.email} 登录成功，Session已建立`);
       return res.json({ message: '登录成功', user });
     });
 
@@ -129,6 +134,7 @@ app.post('/api/login', async (req, res) => {
 
 // === API: 获取当前状态 ===
 app.get('/api/me', (req, res) => {
+  // 这里会触发上面的调试中间件，如果打印"未登录"，说明 Cookie 丢了
   if (req.session && req.session.user) {
     return res.json({ user: req.session.user });
   }
@@ -166,7 +172,6 @@ app.get('/api/games', async (req, res) => {
 // === 路由 ===
 app.get('/play/:id', (req, res) => {
   const { id } = req.params;
-  // 增加简单的安全检查
   if (id.includes('..')) return res.status(403).send('Access denied');
 
   const filePath = path.join(__dirname, 'games', id, 'index.html');
@@ -187,7 +192,6 @@ app.get('/', (req, res) => {
 const startServer = () => {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV}`);
   });
 };
 
