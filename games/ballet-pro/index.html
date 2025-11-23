@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>皇家蛋糕塔 - 双摄体感游戏</title>
+  <title>舞力全开 - 双摄跟跳版</title>
   
   <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -16,55 +16,67 @@
     body { margin: 0; background: #000; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
     .hidden { display: none !important; }
     
-    /* 首页 & UI */
+    /* 首页 */
     #screen-select { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; background: linear-gradient(135deg, #2c3e50, #000); }
     .btn { padding: 15px 40px; font-size: 20px; border-radius: 30px; border: none; font-weight: bold; cursor: pointer; transition: transform 0.2s; text-transform: uppercase; letter-spacing: 1px;}
     .btn:active { transform: scale(0.95); }
     .btn-main { background: #f1c40f; color: #000; box-shadow: 0 0 20px rgba(241, 196, 15, 0.4); }
     .btn-side { background: #3498db; color: white; }
 
-    /* 游戏主界面 */
+    /* 主机界面 */
     #screen-main { position: relative; width: 100vw; height: 100vh; background: #000; }
     
-    /* 视频与画布 */
-    #video-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    #video-container { position: relative; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center;}
     video#video-main { display: none; }
     canvas#canvas-main { width: 100%; height: 100%; object-fit: contain; }
 
-    /* 游戏UI层 */
+    /* 游戏UI */
     #game-ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
     
-    /* 顶部仪表盘 */
-    .hud-panel { position: absolute; top: 20px; left: 20px; display: flex; gap: 15px; }
-    .hud-box { background: rgba(0,0,0,0.6); padding: 10px 20px; border-radius: 12px; border: 2px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; align-items: center;}
-    .hud-label { font-size: 12px; color: #aaa; }
-    .hud-value { font-size: 24px; font-weight: bold; color: #f1c40f; }
-
-    /* 侧面状态灯 */
-    .side-indicator { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); padding: 8px 16px; border-radius: 20px; display: flex; align-items: center; gap: 8px; border: 1px solid #555;}
-    .led { width: 10px; height: 10px; border-radius: 50%; background: #555; transition: all 0.3s; }
-    .led.on { background: #2ecc71; box-shadow: 0 0 10px #2ecc71; }
-    .led.error { background: #e74c3c; box-shadow: 0 0 10px #e74c3c; }
-
-    /* 平衡条 */
-    .balance-meter { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); width: 300px; height: 10px; background: rgba(255,255,255,0.2); border-radius: 5px; overflow: hidden;}
-    .balance-fill { height: 100%; background: #f1c40f; width: 50%; margin-left: 25%; transition: width 0.1s, margin-left 0.1s; }
-
-    /* 游戏开始/结束遮罩 */
-    #overlay-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; z-index: 100;}
-    .title-text { font-size: 60px; font-weight: 900; color: #f1c40f; margin-bottom: 10px; text-shadow: 0 0 20px rgba(241,196,15,0.5); }
-    .subtitle-text { font-size: 24px; color: #ddd; margin-bottom: 40px; }
+    /* 顶部信息栏 */
+    .top-bar { position: absolute; top: 0; left: 0; width: 100%; height: 80px; background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent); display: flex; justify-content: space-between; align-items: center; padding: 0 30px; box-sizing: border-box;}
     
-    /* 右下角控制 */
+    .score-box { font-size: 32px; font-weight: 900; color: #f1c40f; text-shadow: 0 0 10px rgba(241,196,15,0.5); }
+    .streak-box { font-size: 24px; color: #e67e22; font-style: italic; }
+    
+    /* 节奏条 */
+    #beat-bar-container { position: absolute; top: 100px; left: 50%; transform: translateX(-50%); width: 400px; height: 10px; background: rgba(255,255,255,0.2); border-radius: 5px; overflow: hidden; }
+    #beat-bar { width: 100%; height: 100%; background: #00ffea; transform-origin: left; transition: transform 0.1s linear; }
+
+    /* 判定文字特效 */
+    #judge-feedback { 
+        position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%) scale(0); 
+        font-size: 80px; font-weight: 900; text-transform: uppercase; 
+        text-shadow: 0 5px 20px rgba(0,0,0,0.8); pointer-events: none; transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .judge-perfect { color: #2ecc71; text-shadow: 0 0 30px #2ecc71; }
+    .judge-good { color: #f1c40f; }
+    .judge-miss { color: #e74c3c; }
+
+    /* 目标提示文字 */
+    #target-instruction {
+        position: absolute; bottom: 150px; left: 50%; transform: translateX(-50%);
+        font-size: 36px; font-weight: bold; color: white; text-shadow: 0 2px 4px black;
+        background: rgba(0,0,0,0.5); padding: 10px 30px; border-radius: 30px;
+    }
+
+    /* 控制区 */
     .controls { position: absolute; bottom: 20px; right: 20px; display: flex; gap: 10px; pointer-events: auto;}
-    .icon-btn { background: rgba(0,0,0,0.6); border: 1px solid #555; color: white; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px;}
+    .icon-btn { background: rgba(0,0,0,0.6); border: 1px solid #555; color: white; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px;}
 
     /* 侧面画中画 */
-    #side-pip { position: absolute; bottom: 80px; right: 20px; width: 160px; height: 120px; background: #000; border: 2px solid #333; border-radius: 8px; overflow: hidden; display: none; }
+    #side-pip { position: absolute; bottom: 20px; left: 20px; width: 200px; height: 150px; background: #000; border: 2px solid #333; border-radius: 10px; overflow: hidden; display: none; }
     #video-remote { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    
+    /* 侧面状态指示 */
+    #side-warning { position: absolute; bottom: 180px; left: 20px; color: #e74c3c; font-weight: bold; font-size: 24px; display: none; text-shadow: 0 0 10px black; animation: blink 0.5s infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
 
     #qr-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 200; }
     .qr-box { background: white; padding: 30px; border-radius: 16px; text-align: center; color: black; }
+
+    /* 遮罩 */
+    #overlay-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto; z-index: 50;}
 
     /* 辅机界面 */
     #screen-side { height: 100vh; background: #111; display: flex; flex-direction: column; align-items: center; padding-top: 40px; }
@@ -74,10 +86,9 @@
 <body>
 
   <div id="screen-select">
-    <h1 style="font-size: 40px; margin-bottom: 10px;">👑 皇家蛋糕塔</h1>
-    <p style="color:#aaa; margin-bottom: 40px;">双摄体感平衡挑战</p>
-    <button class="btn btn-main" onclick="initMain()">我是主机 (开始游戏)</button>
-    <button class="btn btn-side" onclick="initSide()">我是辅机 (侧面裁判)</button>
+    <h1>舞力全开 - 双摄跟跳</h1>
+    <button class="btn btn-main" onclick="initMain()">主机 (显示)</button>
+    <button class="btn btn-side" onclick="initSide()">辅机 (监控)</button>
   </div>
 
   <div id="screen-main" class="hidden">
@@ -87,250 +98,261 @@
     </div>
 
     <div id="game-ui">
-        <div class="hud-panel">
-            <div class="hud-box">
-                <span class="hud-label">得分</span>
-                <span class="hud-value" id="score-display">0</span>
-            </div>
-            <div class="hud-box">
-                <span class="hud-label">时间</span>
-                <span class="hud-value" id="time-display">00:00</span>
-            </div>
+        <div class="top-bar">
+            <div class="score-box">Score: <span id="score">0</span></div>
+            <div class="streak-box">Streak: <span id="streak">0</span></div>
         </div>
 
-        <div class="side-indicator">
-            <div id="side-led" class="led"></div>
-            <span id="side-text">侧面未连接</span>
-        </div>
+        <div id="beat-bar-container"><div id="beat-bar"></div></div>
 
-        <div class="balance-meter">
-            <div id="balance-bar" class="balance-fill"></div>
-        </div>
+        <div id="judge-feedback">PERFECT</div>
+        
+        <div id="target-instruction">准备开始...</div>
+
+        <div id="side-warning">⚠ 侧面: 弯腰/后仰!</div>
 
         <div id="side-pip">
             <video id="video-remote" autoplay playsinline muted></video>
+            <div style="position:absolute; bottom:0; left:0; background:rgba(0,0,0,0.5); color:white; font-size:10px; padding:2px;">侧面监控</div>
         </div>
 
         <div class="controls">
-            <button class="icon-btn" onclick="showQrCode()" title="连接辅机">🔗</button>
-            <button class="icon-btn" onclick="toggleDebug()" title="骨骼开关">💀</button>
+            <button class="icon-btn" onclick="showQrCode()">🔗</button>
         </div>
     </div>
 
     <div id="overlay-screen">
-        <div class="title-text" id="overlay-title">皇家蛋糕塔</div>
-        <div class="subtitle-text" id="overlay-sub">保持正直，不要让蛋糕掉下来！</div>
-        <button class="btn btn-main" id="btn-start-game" onclick="startGame()">开始挑战</button>
+        <h1 style="font-size:50px; color:#f1c40f">Ready?</h1>
+        <p style="color:#ccc">模仿绿色老师的动作，倒计时结束时定格！</p>
+        <button class="btn btn-main" onclick="startGame()">Let's Dance!</button>
     </div>
 
     <div id="qr-modal" class="hidden">
         <div class="qr-box">
-            <h3>扫码连接侧面裁判</h3>
+            <h3>扫码连接侧面辅机</h3>
             <div id="qrcode"></div>
-            <br>
-            <button onclick="document.getElementById('qr-modal').classList.add('hidden')" style="padding:5px 20px;">关闭</button>
+            <br><button onclick="document.getElementById('qr-modal').classList.add('hidden')">关闭</button>
         </div>
     </div>
   </div>
 
   <div id="screen-side" class="hidden">
-    <h3 style="color: #3498db;">侧面裁判运行中</h3>
-    <div id="side-status" style="color: #aaa;">正在连接...</div>
+    <h3 style="color:#3498db">侧面监控中</h3>
+    <div id="side-status" style="color:#aaa">连接中...</div>
     <video id="video-side" playsinline muted autoplay></video>
-    <div id="side-log" style="font-family: monospace; color: #2ecc71; margin-top: 20px;">等待开始...</div>
+    <div id="side-log" style="font-family:monospace; color:#2ecc71; margin-top:20px;">Ready</div>
   </div>
 
   <script>
-    // --- 游戏引擎配置 ---
-    const GAME_CONFIG = {
-        gravity: 0.2,
-        balanceDecay: 0.5, // 倾斜时的扣血速度
-        scoreRate: 10,     // 每秒得分
-        sidePenalty: 2.0   // 侧面错误时的扣血倍率
-    };
+    // --- 动作库定义 ---
+    // 定义几个简单的动作，目标角度为：肩-肘-腕 的夹角，以及 肩膀角度
+    // 这里的角度是简化版，主要验证机制
+    const POSES = [
+        { name: "双手上举 (High V)", l_arm: 160, r_arm: 160, l_shoulder: 160, r_shoulder: 160 },
+        { name: "大字张开 (T-Pose)", l_arm: 170, r_arm: 170, l_shoulder: 90, r_shoulder: 90 },
+        { name: "大力士 (Muscle)", l_arm: 90, r_arm: 90, l_shoulder: 90, r_shoulder: 90 },
+        { name: "左手敬礼 (Salute L)", l_arm: 45, r_arm: 170, l_shoulder: 45, r_shoulder: 90 },
+    ];
 
-    // --- 全局变量 ---
-    let gameState = 'menu'; // menu, playing, gameover
+    // --- 游戏状态 ---
+    let gameState = 'menu';
+    let currentPoseIndex = 0;
     let score = 0;
-    let gameTime = 0;
-    let gameInterval;
-    let cakeBalance = 50; // 0-100, 50 is center
-    let cakeSway = 0; // 当前晃动角度
-    let showDebugSkeleton = true;
+    let streak = 0;
+    let poseStartTime = 0;
+    const POSE_DURATION = 4000; // 每个动作4秒
+    let currentTarget = null;
 
     // 侧面数据
     let sideData = { active: false, errors: [] };
-    
+
     // Mediapipe & WebRTC
     let poseMain, peer, conn;
 
-    // ================= 游戏逻辑核心 =================
-
+    // --- 核心游戏循环 ---
     function startGame() {
         document.getElementById('overlay-screen').classList.add('hidden');
         gameState = 'playing';
         score = 0;
-        gameTime = 0;
-        cakeBalance = 50;
-        cakeSway = 0;
-        
-        // 启动计时器
-        if (gameInterval) clearInterval(gameInterval);
-        gameInterval = setInterval(updateGameLoop, 100);
+        streak = 0;
+        nextPose();
+        requestAnimationFrame(gameLoop);
     }
 
-    function updateGameLoop() {
+    function nextPose() {
+        // 随机选一个动作
+        currentPoseIndex = Math.floor(Math.random() * POSES.length);
+        currentTarget = POSES[currentPoseIndex];
+        poseStartTime = Date.now();
+        
+        document.getElementById('target-instruction').innerText = currentTarget.name;
+        
+        // 重置反馈文字
+        const feedback = document.getElementById('judge-feedback');
+        feedback.style.transform = "translate(-50%, -50%) scale(0)";
+    }
+
+    function gameLoop() {
         if (gameState !== 'playing') return;
 
-        // 1. 增加时间
-        gameTime += 0.1;
-        let mins = Math.floor(gameTime / 60);
-        let secs = Math.floor(gameTime % 60);
-        document.getElementById('time-display').innerText = `${mins}:${secs < 10 ? '0'+secs : secs}`;
+        const now = Date.now();
+        const elapsed = now - poseStartTime;
+        const timeLeft = POSE_DURATION - elapsed;
 
-        // 2. 增加分数 (如果平衡好)
-        if (Math.abs(cakeBalance - 50) < 10 && sideData.errors.length === 0) {
-            score += GAME_CONFIG.scoreRate / 10;
-            document.getElementById('score-display').innerText = Math.floor(score);
+        // 更新进度条
+        const pct = Math.max(0, timeLeft / POSE_DURATION);
+        document.getElementById('beat-bar').style.transform = `scaleX(${pct})`;
+
+        // 判定时间点
+        if (timeLeft <= 0) {
+            judgePose(); // 结算分数
+            nextPose();  // 下一个动作
         }
 
-        // 3. 侧面惩罚逻辑
-        if (sideData.active && sideData.errors.length > 0) {
-            // 侧面有问题，蛋糕剧烈晃动，平衡条缩减
-            cakeSway = (Math.random() - 0.5) * 40; // 剧烈抖动
-            // 自动偏向一边导致掉落
-            if (cakeBalance > 50) cakeBalance += GAME_CONFIG.sidePenalty;
-            else cakeBalance -= GAME_CONFIG.sidePenalty;
+        requestAnimationFrame(gameLoop);
+    }
+
+    // 计算三个点的角度
+    function getAngle(a, b, c) {
+        if(!a || !b || !c) return 0;
+        let radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
+        let angle = Math.abs(radians * 180.0 / Math.PI);
+        if (angle > 180.0) angle = 360 - angle;
+        return angle;
+    }
+
+    // --- 核心判定逻辑 ---
+    let latestResults = null;
+
+    function judgePose() {
+        if (!latestResults || !latestResults.poseLandmarks) return;
+        
+        const lm = latestResults.poseLandmarks;
+        const t = currentTarget;
+
+        // 1. 计算玩家当前角度
+        // 11:左肩, 13:左肘, 15:左腕 | 12:右肩, 14:右肘, 16:右腕
+        // 23:左跨, 24:右跨
+        const l_arm = getAngle(lm[11], lm[13], lm[15]);
+        const r_arm = getAngle(lm[12], lm[14], lm[16]);
+        
+        // 肩膀抬起角度 (肘-肩-跨)
+        const l_sh = getAngle(lm[13], lm[11], lm[23]);
+        const r_sh = getAngle(lm[14], lm[12], lm[24]);
+
+        // 2. 计算误差 (绝对差值之和)
+        let error = 
+            Math.abs(l_arm - t.l_arm) + 
+            Math.abs(r_arm - t.r_arm) + 
+            Math.abs(l_sh - t.l_shoulder) + 
+            Math.abs(r_sh - t.r_shoulder);
+        
+        // 平均每个关节的误差
+        let avgError = error / 4; 
+
+        // 3. 侧面扣分 (Pro Check)
+        let isSideBad = sideData.active && sideData.errors.length > 0;
+        
+        // 4. 评级
+        let result = "MISS";
+        let scoreAdd = 0;
+        let cssClass = "judge-miss";
+
+        if (avgError < 25 && !isSideBad) { // 完美范围
+            result = "PERFECT";
+            scoreAdd = 100;
+            cssClass = "judge-perfect";
+            streak++;
+        } else if (avgError < 45) { // 还可以
+            result = "GOOD";
+            scoreAdd = 50;
+            cssClass = "judge-good";
+            streak = 0;
         } else {
-            // 恢复平稳
-            cakeSway *= 0.9;
+            result = "MISS";
+            streak = 0;
         }
 
-        // 4. 检查失败
-        if (cakeBalance <= 0 || cakeBalance >= 100) {
-            gameOver();
+        if(isSideBad && result !== "MISS") {
+            result = "POSTURE!"; // 姿态错误警告
+            scoreAdd = Math.floor(scoreAdd / 2);
+            cssClass = "judge-miss";
         }
 
-        // 更新UI条
-        const bar = document.getElementById('balance-bar');
-        bar.style.marginLeft = `${cakeBalance / 2}%`; // 0-100 map to 0-50 margin
+        // 更新 UI
+        score += scoreAdd;
+        document.getElementById('score').innerText = score;
+        document.getElementById('streak').innerText = streak;
         
-        // 变色预警
-        if (Math.abs(cakeBalance - 50) > 30) bar.style.background = '#e74c3c';
-        else bar.style.background = '#f1c40f';
+        const fb = document.getElementById('judge-feedback');
+        fb.innerText = result;
+        fb.className = ""; // reset
+        fb.classList.add(cssClass);
+        fb.style.transform = "translate(-50%, -50%) scale(1.5)";
+        setTimeout(() => fb.style.transform = "translate(-50%, -50%) scale(1)", 100);
     }
 
-    function gameOver() {
-        gameState = 'gameover';
-        clearInterval(gameInterval);
-        
-        document.getElementById('overlay-title').innerText = "蛋糕掉了！😭";
-        document.getElementById('overlay-sub').innerText = `最终得分: ${Math.floor(score)}`;
-        document.getElementById('btn-start-game').innerText = "再试一次";
-        document.getElementById('overlay-screen').classList.remove('hidden');
-    }
-
-    function toggleDebug() {
-        showDebugSkeleton = !showDebugSkeleton;
-    }
-
-    // ================= 渲染逻辑 (Canvas) =================
+    // ================= 渲染与AI =================
 
     function onMainResults(results) {
+        latestResults = results; // 保存最新一帧用于判定
         const canvas = document.getElementById('canvas-main');
         const ctx = canvas.getContext('2d');
         
         ctx.save();
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // 1. 绘制视频背景 (镜像)
+        // 绘制视频 (镜像)
         ctx.scale(-1, 1);
         ctx.translate(-canvas.width, 0);
         ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
         
+        // 绘制玩家骨骼
         if (results.poseLandmarks) {
             const lm = results.poseLandmarks;
-            
-            // 2. 绘制骨骼 (可选)
-            if (showDebugSkeleton) {
-                drawConnectors(ctx, lm, POSE_CONNECTIONS, {color: 'rgba(255, 255, 255, 0.3)', lineWidth: 2});
-            }
-
-            // 3. 游戏逻辑：计算肩膀倾斜
-            // 左肩(11), 右肩(12)
-            const leftShoulder = lm[11];
-            const rightShoulder = lm[12];
-            
-            // 计算倾斜角度 (简单 Y 差值)
-            // 注意：镜像后，左边是右肩，右边是左肩
-            const tilt = (leftShoulder.y - rightShoulder.y) * 500; // 放大系数
-            
-            if (gameState === 'playing') {
-                // 物理引擎：倾斜影响平衡
-                // 如果左肩高 (y小)，tilt 是负数，蛋糕往右滑
-                cakeBalance += tilt * 0.1; 
-                // 限制范围
-                cakeBalance = Math.max(0, Math.min(100, cakeBalance));
-            }
-
-            // 4. 绘制蛋糕塔 (Inject Game Assets)
-            drawCakeTower(ctx, lm, tilt);
+            drawConnectors(ctx, lm, POSE_CONNECTIONS, {color: 'rgba(255, 255, 255, 0.6)', lineWidth: 4});
+            drawLandmarks(ctx, lm, {color: '#fff', lineWidth: 2});
         }
+
+        // 绘制“幽灵老师” (Ghost Teacher) - 简单的绿色线条指引
+        if (gameState === 'playing' && currentTarget) {
+            drawGhostTeacher(ctx, currentTarget);
+        }
+
         ctx.restore();
     }
 
-    function drawCakeTower(ctx, lm, tilt) {
-        // 找到头顶坐标 (以鼻尖为基准向上)
-        const nose = lm[0];
-        const earL = lm[7];
-        const earR = lm[8];
+    // 简单的根据目标角度画一个绿色火柴人
+    function drawGhostTeacher(ctx, target) {
+        // 这里为了简化，我们不画全身，只画上半身的关键线条作为提示
+        // 实际上应该用预录制的 Keyframes
+        // 我们简单地在画面角落画一个示意图，或者直接覆盖在玩家身上
         
-        // 计算头部宽度作为蛋糕比例尺
-        const headWidth = Math.abs(earL.x - earR.x) * ctx.canvas.width;
-        const centerX = nose.x * ctx.canvas.width;
-        const centerY = (nose.y * ctx.canvas.height) - (headWidth * 0.8);
-
-        // 蛋糕参数
-        const wobble = (cakeBalance - 50) * 0.5 + cakeSway; // 倾斜角度
+        // 简单实现：在屏幕中心画一个半透明的绿色引导线
+        // 这是一个极其简化的几何模拟
         
-        ctx.save();
-        ctx.translate(centerX, centerY);
-        ctx.rotate(wobble * Math.PI / 180); // 蛋糕随平衡摇摆
+        const cx = ctx.canvas.width / 2;
+        const cy = ctx.canvas.height / 2;
+        const scale = 150; // 骨骼长度
 
-        // 第一层 (底)
-        ctx.fillStyle = "#f1c40f";
-        ctx.fillRect(-headWidth, -40, headWidth * 2, 40);
-        ctx.strokeStyle = "#fff";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(-headWidth, -40, headWidth * 2, 40);
+        ctx.strokeStyle = "rgba(0, 255, 0, 0.5)";
+        ctx.lineWidth = 10;
+        ctx.lineCap = "round";
 
-        // 第二层 (中)
-        ctx.fillStyle = "#e67e22";
-        ctx.fillRect(-headWidth*0.8, -80, headWidth * 1.6, 40);
-        ctx.strokeRect(-headWidth*0.8, -80, headWidth * 1.6, 40);
-
-        // 第三层 (顶)
-        ctx.fillStyle = "#e74c3c";
-        ctx.fillRect(-headWidth*0.6, -110, headWidth * 1.2, 30);
-        ctx.strokeRect(-headWidth*0.6, -110, headWidth * 1.2, 30);
-
-        // 蜡烛/樱桃
+        // 躯干
         ctx.beginPath();
-        ctx.arc(0, -120, 10, 0, Math.PI*2);
-        ctx.fillStyle = "red";
-        ctx.fill();
+        ctx.moveTo(cx, cy - 100); // 脖子
+        ctx.lineTo(cx, cy + 100); // 跨
+        ctx.stroke();
 
-        // 侧面错误提示 (如果侧面报警，蛋糕冒烟)
-        if (sideData.active && sideData.errors.length > 0) {
-            ctx.fillStyle = "rgba(0,0,0,0.5)";
-            ctx.font = "bold 40px Arial";
-            ctx.fillText("⚠️", -20, -150);
-        }
-
-        ctx.restore();
+        // 根据 target 角度算手臂位置 (简单的三角函数)
+        // 左臂 (镜像后在右侧绘制)
+        let radL = (target.l_shoulder - 90) * Math.PI / 180; 
+        // 这里简化处理，仅仅为了视觉提示，不需要精确物理对应
+        // 实际项目建议用图片代替
     }
 
-    // ================= 系统初始化 =================
+    // ================= 初始化与网络 =================
 
     function initMain() {
         document.getElementById('screen-select').classList.add('hidden');
@@ -343,30 +365,25 @@
         const video = document.getElementById('video-main');
         const canvas = document.getElementById('canvas-main');
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'user', width: {ideal: 1280}, height: {ideal: 720} } 
-            });
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: {ideal: 1280}, height: {ideal: 720} } });
             video.srcObject = stream;
             video.onloadedmetadata = () => {
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
             };
-            
             poseMain = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
-            poseMain.setOptions({modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6});
+            poseMain.setOptions({modelComplexity: 1});
             poseMain.onResults(onMainResults);
-            
             const camera = new Camera(video, {
                 onFrame: async () => { await poseMain.send({image: video}); },
                 width: 1280, height: 720
             });
             camera.start();
-        } catch(e) { alert("摄像头错误: " + e); }
+        } catch(e) { alert("Camera Error: " + e); }
     }
 
-    // ... (此处保留 PeerJS 网络连接逻辑，与上一版相同) ...
+    // PeerJS & Side Camera Logic (Standard)
     function generateRoomId() { return Math.floor(10000 + Math.random() * 90000).toString(); }
-    
     function showQrCode() { document.getElementById('qr-modal').classList.remove('hidden'); }
 
     function initHostNetwork() {
@@ -391,42 +408,32 @@
 
     function handleSideConnection() {
         document.getElementById('qr-modal').classList.add('hidden');
-        document.getElementById('side-led').classList.add('on');
-        document.getElementById('side-text').innerText = "侧面已连接";
-        document.getElementById('side-text').style.color = "#2ecc71";
-        
         conn.on('data', (data) => { 
-            sideData = data; 
-            const led = document.getElementById('side-led');
-            const text = document.getElementById('side-text');
-            
+            sideData = data;
+            const warning = document.getElementById('side-warning');
             if (data.errors.length > 0) {
-                led.className = "led error";
-                text.innerText = data.errors[0]; // 显示具体错误 (前倾/后仰)
-                text.style.color = "#e74c3c";
+                warning.style.display = 'block';
+                warning.innerText = `⚠ ${data.errors[0]}`;
             } else {
-                led.className = "led on";
-                text.innerText = "侧面正常";
-                text.style.color = "#2ecc71";
+                warning.style.display = 'none';
             }
         });
     }
 
-    // === 辅机逻辑 (保持不变) ===
+    // --- 辅机逻辑 ---
     function initSide() {
         const urlParams = new URLSearchParams(window.location.search);
         const roomId = urlParams.get('room');
-        if(!roomId) return alert("请先扫码");
-        
+        if(!roomId) return alert("请扫码");
         document.getElementById('screen-select').classList.add('hidden');
         document.getElementById('screen-side').classList.remove('hidden');
-
+        
         peer = new Peer();
         peer.on('open', () => {
             document.getElementById('side-status').innerText = "连接中...";
             conn = peer.connect(`dance-host-${roomId}`);
             conn.on('open', () => {
-                document.getElementById('side-status').innerText = "✅ 已连接 (前置监控)";
+                document.getElementById('side-status').innerText = "✅ 已连接";
                 startSideCameraAndCall(`dance-host-${roomId}`);
             });
         });
@@ -434,23 +441,19 @@
 
     async function startSideCameraAndCall(hostId) {
       const video = document.getElementById('video-side');
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: 'user', width: 640, height: 480 }, audio: false 
-        });
-        video.srcObject = stream;
-        peer.call(hostId, stream); // 推流
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 }, audio: false });
+      video.srcObject = stream;
+      peer.call(hostId, stream);
 
-        poseSide = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
-        poseSide.setOptions({modelComplexity: 0});
-        poseSide.onResults(onSideResults);
-
-        const camera = new Camera(video, {
+      let poseSide = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
+      poseSide.setOptions({modelComplexity: 0});
+      poseSide.onResults(onSideResults);
+      
+      const camera = new Camera(video, {
           onFrame: async () => { await poseSide.send({image: video}); },
           width: 640, height: 480
-        });
-        camera.start();
-      } catch(e) { alert("摄像头失败:" + e); }
+      });
+      camera.start();
     }
 
     let lastSend = 0;
@@ -466,11 +469,8 @@
         let shoulder = isLeft ? lm[11] : lm[12];
         let hip = isLeft ? lm[23] : lm[24];
         let lean = shoulder.x - hip.x;
-        
-        // 侧面判定逻辑
-        if (Math.abs(lean) > 0.08) errors.push(lean > 0 ? "⚠ 后仰" : "⚠ 前倾");
-        
-        document.getElementById('side-log').innerText = errors.length > 0 ? errors[0] : "体态正常";
+        if (Math.abs(lean) > 0.08) errors.push(lean > 0 ? "身体后仰" : "身体前倾");
+        document.getElementById('side-log').innerText = errors.length > 0 ? errors[0] : "正常";
       }
       conn.send({ active: true, errors: errors });
     }
