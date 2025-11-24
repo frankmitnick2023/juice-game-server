@@ -3,179 +3,256 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>DanceCam - 节奏跟舞版</title>
+  <title>Dance Master - 竖屏全身版</title>
+  
+  <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* 游戏专用动效 */
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;700;900&display=swap');
     
-    body { background: #000; overflow: hidden; font-family: 'Orbitron', sans-serif; user-select: none; }
+    body { background: #0f172a; font-family: 'Exo 2', sans-serif; user-select: none; overflow: hidden; }
     
-    /* 游戏舞台 */
-    #stage { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+    /* 舞台布局 - 适配竖屏 */
+    #stage { position: relative; width: 100vw; height: 100vh; display: flex; justify-content: center; background: #000;}
     
-    /* 背景参考视频 (老师) */
-    #refVideo { 
-        position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-        object-fit: contain; opacity: 0.8; z-index: 1; 
+    /* 左侧：老师 (竖屏容器) */
+    #teacher-view { 
+        position: relative; 
+        height: 100%; 
+        aspect-ratio: 9 / 16; /* 强制竖屏比例 */
+        background: #000; 
+        border-right: 2px solid #334155; 
+        overflow: hidden;
     }
-    
-    /* 玩家骨架层 (叠在老师上面) */
-    #gameCanvas { 
-        position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-        object-fit: contain; z-index: 2; pointer-events: none;
-    }
+    #refVideo { width: 100%; height: 100%; object-fit: cover; opacity: 0.7; }
+    #teacherCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
 
-    /* 摄像头预览 (小窗口) */
-    #camPreview {
-        position: absolute; bottom: 20px; right: 20px; width: 160px; height: 240px;
-        border-radius: 12px; border: 2px solid rgba(255,255,255,0.3); 
-        object-fit: cover; z-index: 10; transform: scaleX(-1);
-        box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    /* 右侧：学生 (竖屏容器) */
+    #student-view { 
+        position: relative; 
+        height: 100%; 
+        aspect-ratio: 9 / 16; /* 强制竖屏比例 */
+        background: #1e293b; 
+        overflow: hidden; 
     }
+    #camVideo { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); opacity: 0.6; }
+    #studentCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
 
     /* UI 层 */
-    #uiLayer { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
-    
-    /* 连击展示 */
-    .combo-box { 
-        position: absolute; top: 10%; left: 5%; 
-        text-align: center; transform: rotate(-5deg);
-    }
-    .combo-num { font-size: 5rem; font-weight: 900; color: #fbbf24; text-shadow: 0 0 20px #d97706; line-height: 1;}
-    .combo-label { font-size: 1.5rem; color: #fff; letter-spacing: 0.2em; }
+    #ui-layer { position: absolute; inset: 0; pointer-events: none; z-index: 50; }
 
-    /* 判定反馈文字 (Perfect/Miss) */
+    /* 顶部面板 */
+    .top-panel {
+        position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+        display: flex; gap: 20px; align-items: start;
+    }
+
+    /* 进度条 */
+    .progress-box {
+        width: 400px; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 20px;
+        border: 1px solid rgba(255,255,255,0.2); text-align: center;
+    }
+    .stage-title { font-size: 20px; font-weight: 900; color: #fff; margin-bottom: 5px; letter-spacing: 1px; }
+    .bar-bg { width: 100%; height: 15px; background: #334155; border-radius: 10px; overflow: hidden; }
+    .bar-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #fbbf24, #f59e0b); transition: width 0.3s; }
+    
+    /* 侧面状态灯 */
+    .side-status-box {
+        background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 20px;
+        border: 1px solid rgba(255,255,255,0.2); display: flex; align-items: center; gap: 10px; height: 50px;
+    }
+    .led { width: 12px; height: 12px; border-radius: 50%; background: #475569; transition: all 0.3s; }
+    .led.on { background: #2ecc71; box-shadow: 0 0 10px #2ecc71; }
+    .led.error { background: #e74c3c; box-shadow: 0 0 10px #e74c3c; }
+    .side-text { font-size: 14px; color: #cbd5e1; font-weight: bold; }
+
+    /* 反馈文字 */
     #feedback {
         position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        font-size: 6rem; font-weight: 900; opacity: 0;
-        text-shadow: 0 0 30px currentColor;
-        transition: transform 0.1s;
+        font-size: 4rem; font-weight: 900; text-shadow: 0 0 30px rgba(0,0,0,0.8);
+        opacity: 0; transition: all 0.2s; text-align: center; width: 100%;
+        white-space: nowrap;
     }
-    .fb-perfect { color: #34d399; animation: pop-text 0.5s forwards; }
-    .fb-good { color: #60a5fa; animation: pop-text 0.5s forwards; }
-    .fb-miss { color: #f87171; animation: shake 0.4s forwards; }
+    .fb-good { color: #34d399; animation: pop 0.5s forwards; }
+    .fb-warn { color: #e74c3c; font-size: 3rem !important; animation: shake 0.4s forwards; }
 
-    /* 节奏条 (Timeline) */
-    .timeline-track {
-        position: absolute; bottom: 100px; left: 10%; width: 80%; height: 4px;
-        background: rgba(255,255,255,0.2); border-radius: 2px;
-        display: flex; align-items: center;
-    }
-    .hit-zone {
-        position: absolute; left: 20%; width: 60px; height: 60px;
-        border: 4px solid #fff; border-radius: 50%; transform: translate(-50%, 0);
-        box-shadow: 0 0 20px rgba(255,255,255,0.5);
-        background: rgba(255,255,255,0.1);
-    }
-    .note {
-        position: absolute; width: 30px; height: 30px; border-radius: 50%;
-        background: #34d399; box-shadow: 0 0 10px #34d399;
-        transform: translate(-50%, 0);
-        transition: left 0.1s linear;
-    }
+    /* 菜单 */
+    #menu { position: absolute; inset: 0; background: rgba(15,23,42,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; pointer-events: auto; }
+    .step-card { background: #1e293b; padding: 20px; border-radius: 15px; margin: 10px; width: 280px; text-align: center; border: 1px solid #334155; }
+    .step-num { font-size: 40px; font-weight: 900; color: #64748b; }
+    
+    .btn { background: linear-gradient(to right, #3b82f6, #2563eb); padding: 15px 40px; border-radius: 30px; color: white; font-weight: bold; font-size: 20px; margin-top: 30px; transition: transform 0.1s; cursor: pointer;}
+    .btn:active { transform: scale(0.95); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; background: #475569; }
 
-    /* 菜单/遮罩 */
-    #menu { 
-        position: absolute; inset: 0; background: rgba(15, 23, 42, 0.95); 
-        z-index: 50; display: flex; flex-direction: column; 
-        align-items: center; justify-content: center; pointer-events: auto;
-    }
+    /* 二维码弹窗 */
+    #qr-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 200; }
+    .qr-box { background: white; padding: 30px; border-radius: 16px; text-align: center; color: black; }
 
-    /* 动画 */
-    @keyframes pop-text {
-        0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
-        50% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
-        100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); }
-    }
-    @keyframes shake {
-        0%, 100% { transform: translate(-50%, -50%) translateX(0); opacity: 1;}
-        25% { transform: translate(-50%, -50%) translateX(-10px); }
-        75% { transform: translate(-50%, -50%) translateX(10px); opacity: 0;}
-    }
+    /* 辅机界面 */
+    #screen-side { height: 100vh; background: #111; display: flex; flex-direction: column; align-items: center; padding-top: 40px; }
+    #video-side { width: 60vw; height: 80vw; object-fit: cover; border-radius: 12px; border: 2px solid #3498db; transform: scaleX(-1); background: #000;}
+
+    @keyframes pop { 0%{transform:translate(-50%,-50%) scale(0.5);opacity:0} 50%{transform:translate(-50%,-50%) scale(1.2);opacity:1} 100%{transform:translate(-50%,-50%) scale(1);opacity:0} }
+    @keyframes shake { 0%,100%{transform:translate(-50%,-50%) translateX(0)} 25%{transform:translate(-50%,-50%) translateX(-10px)} 75%{transform:translate(-50%,-50%) translateX(10px)} }
     .hidden { display: none !important; }
   </style>
 </head>
 <body>
 
   <div id="stage">
-    <video id="refVideo" playsinline></video>
-    <canvas id="gameCanvas"></canvas>
-    
-    <video id="camPreview" autoplay muted playsinline></video>
+    <div id="teacher-view">
+        <div class="absolute top-4 left-4 bg-black/50 text-white px-3 py-1 rounded font-mono">TEACHER</div>
+        <video id="refVideo" playsinline></video>
+        <canvas id="teacherCanvas"></canvas>
+    </div>
 
-    <div id="uiLayer">
-        <div class="absolute top-6 right-8 text-right">
-            <div class="text-xl text-blue-300">SCORE</div>
-            <div id="scoreVal" class="text-5xl font-bold text-white tabular-nums">000000</div>
-        </div>
+    <div id="student-view">
+        <div class="absolute top-4 left-4 bg-black/50 text-white px-3 py-1 rounded font-mono">YOU (Vertical)</div>
+        <video id="camVideo" autoplay muted playsinline></video>
+        <canvas id="studentCanvas"></canvas>
+    </div>
 
-        <div class="combo-box">
-            <div id="comboVal" class="combo-num">0</div>
-            <div class="combo-label">COMBO</div>
+    <div id="ui-layer">
+        <div class="top-panel">
+            <div class="progress-box">
+                <div class="stage-title" id="stageTitle">STAGE 1: 手部特训</div>
+                <div class="bar-bg"><div class="bar-fill" id="masteryBar"></div></div>
+                <div class="flex justify-between text-xs text-slate-400 mt-2">
+                    <span>熟练度</span>
+                    <span id="masteryText">0%</span>
+                </div>
+            </div>
+            
+            <div class="side-status-box">
+                <div id="side-led" class="led"></div>
+                <span id="side-text" class="side-text">侧面未连接</span>
+                <button onclick="showQrCode()" style="background:#334155; border:none; color:white; border-radius:50%; width:24px; height:24px; cursor:pointer;">+</button>
+            </div>
         </div>
 
         <div id="feedback"></div>
+    </div>
 
-        <div class="timeline-track" id="timeline">
-            <div class="hit-zone"></div>
-            </div>
+    <div id="qr-modal" class="hidden">
+        <div class="qr-box">
+            <h3 style="font-weight:bold; margin-bottom:10px;">连接侧面辅机</h3>
+            <div id="qrcode"></div>
+            <br><button onclick="document.getElementById('qr-modal').classList.add('hidden')" style="padding:5px 15px; border:1px solid #ccc; border-radius:5px;">关闭</button>
+        </div>
     </div>
   </div>
 
   <div id="menu">
-    <h1 class="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 mb-8 drop-shadow-2xl">
-        DANCE CAM
-    </h1>
-    <p class="text-slate-400 mb-12 text-xl">让你的动作与影子重合</p>
-    
-    <div class="flex flex-col gap-4 w-64">
-        <input id="fileInput" type="file" accept="video/*" class="hidden">
-        <button id="btnLoad" class="bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-xl font-bold transition-all ring-1 ring-white/20">
-            1. 选择舞蹈视频
-        </button>
-        <button id="btnCam" class="bg-slate-800 hover:bg-slate-700 text-white py-4 rounded-xl font-bold transition-all ring-1 ring-white/20">
-            2. 打开摄像头
-        </button>
-        <button id="btnStart" class="bg-gradient-to-r from-emerald-500 to-teal-600 hover:scale-105 text-white py-4 rounded-xl font-bold text-xl shadow-lg shadow-emerald-500/30 transition-all disabled:opacity-50 disabled:hover:scale-100" disabled>
-            3. 开始游戏
-        </button>
+    <h1 class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400 mb-2">DANCE MASTER</h1>
+    <p class="text-slate-400 mb-8 text-xl">竖屏高清版 · 专注全身</p>
+
+    <div id="role-select" class="flex gap-4 mb-8">
+        <button onclick="selectRole('main')" class="btn" style="margin:0; background: #f59e0b;">我是主机 (电脑/iPad)</button>
+        <button onclick="selectRole('side')" class="btn" style="margin:0; background: #3b82f6;">我是辅机 (手机)</button>
     </div>
-    <div id="status" class="mt-6 text-slate-500 font-mono text-sm">等待资源...</div>
+
+    <div id="host-flow" class="flex gap-6 hidden">
+        <div class="step-card">
+            <div class="step-num">01</div>
+            <h3 class="text-xl font-bold text-white mb-2">上传视频</h3>
+            <p class="text-sm text-slate-400">推荐竖屏舞蹈视频</p>
+            <button id="btnLoad" class="mt-4 bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm w-full">选择文件</button>
+            <input type="file" id="fileInput" accept="video/*" class="hidden">
+        </div>
+        <div class="step-card">
+            <div class="step-num">02</div>
+            <h3 class="text-xl font-bold text-white mb-2">AI 拆解</h3>
+            <p class="text-sm text-slate-400" id="aiStatus">初始化中...</p>
+        </div>
+        <div class="step-card">
+            <div class="step-num">03</div>
+            <h3 class="text-xl font-bold text-white mb-2">开始训练</h3>
+            <button id="btnStart" class="mt-4 bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg text-sm w-full" disabled>开始 (Vertical)</button>
+        </div>
+    </div>
+  </div>
+
+  <div id="screen-side" class="hidden">
+    <h3 style="color:#3498db; margin-top:20px;">侧面监控运行中</h3>
+    <div id="side-status" style="color:#aaa; margin-bottom:20px;">连接中...</div>
+    <video id="video-side" playsinline muted autoplay></video>
+    <div id="side-log" style="font-family:monospace; color:#2ecc71; margin-top:20px;">Ready</div>
   </div>
 
   <script type="module">
     import { FilesetResolver, PoseLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0";
 
-    // ===== 全局变量 =====
+    // ===== 配置 =====
+    const BODY_PARTS = {
+        upper: [11,12,13,14,15,16,23,24],
+        lower: [23,24,25,26,27,28],
+        full:  [11,12,13,14,15,16,23,24,25,26,27,28]
+    };
+    const STAGES = [
+        { id: 'upper', name: 'STAGE 1: 上肢特训', color: '#3b82f6' },
+        { id: 'lower', name: 'STAGE 2: 下肢步伐', color: '#eab308' },
+        { id: 'full',  name: 'FINAL: 完整演出', color: '#10b981' }
+    ];
+
+    // ===== 全局状态 =====
+    let currentStageIdx = 0;
+    let masteryScore = 0;
+    let isPlaying = false;
     let poseLandmarker;
-    let videoFile = null;
-    let refAnalysis = { frames: [], beats: [] };
-    let gameState = 'idle';
-    let score = 0, combo = 0;
+    let refData = []; 
     
-    // DOM (关键修复：添加了 stage)
+    let peer, conn;
+    let sideData = { active: false, errors: [] };
+
+    // DOM
     const els = {
-        stage: document.getElementById('stage'), // <--- 修复了这里
-        menu: document.getElementById('menu'),
+        stage: document.getElementById('stage'),
+        refVideo: document.getElementById('refVideo'),
+        camVideo: document.getElementById('camVideo'),
+        tCanvas: document.getElementById('teacherCanvas'),
+        sCanvas: document.getElementById('studentCanvas'),
         btnLoad: document.getElementById('btnLoad'),
         fileInput: document.getElementById('fileInput'),
-        btnCam: document.getElementById('btnCam'),
         btnStart: document.getElementById('btnStart'),
-        status: document.getElementById('status'),
-        refVideo: document.getElementById('refVideo'),
-        camPreview: document.getElementById('camPreview'),
-        canvas: document.getElementById('gameCanvas'),
-        timeline: document.getElementById('timeline'),
+        aiStatus: document.getElementById('aiStatus'),
+        menu: document.getElementById('menu'),
+        hostFlow: document.getElementById('host-flow'),
+        roleSelect: document.getElementById('role-select'),
+        stageTitle: document.getElementById('stageTitle'),
+        masteryBar: document.getElementById('masteryBar'),
+        masteryText: document.getElementById('masteryText'),
         feedback: document.getElementById('feedback'),
-        score: document.getElementById('scoreVal'),
-        combo: document.getElementById('comboVal')
+        sideLed: document.getElementById('side-led'),
+        sideText: document.getElementById('side-text')
     };
-    const ctx = els.canvas.getContext('2d');
+    const tCtx = els.tCanvas.getContext('2d');
+    const sCtx = els.sCanvas.getContext('2d');
 
-    // ===== 1. 初始化 AI =====
-    async function initAI() {
-        els.status.textContent = "正在加载 AI 模型...";
+    // ===== 角色选择 =====
+    window.selectRole = (role) => {
+        els.roleSelect.classList.add('hidden');
+        if(role === 'main') {
+            els.hostFlow.classList.remove('hidden');
+            initHost();
+        } else {
+            initSide();
+        }
+    };
+
+    if(new URLSearchParams(window.location.search).get('role') === 'side') {
+        els.menu.classList.add('hidden');
+        initSide();
+    }
+
+    // ==========================================
+    //               主机逻辑 (Host)
+    // ==========================================
+
+    async function initHost() {
+        els.aiStatus.textContent = "加载 AI...";
         const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm");
         poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
             baseOptions: {
@@ -185,168 +262,252 @@
             runningMode: "VIDEO",
             numPoses: 1
         });
-        els.status.textContent = "AI 就绪。请选择视频。";
-    }
-    initAI();
 
-    // ===== 2. UI 交互 =====
+        // 2. 初始化 1080P 竖屏摄像头 (1080w x 1920h)
+        try {
+            // 注意：在 PC 上，大部分摄像头不支持原生竖屏分辨率
+            // 浏览器会自动选择最接近的横屏分辨率 (如 1920x1080)，然后我们在 CSS 里裁剪
+            // 如果是连接了竖置的外部显示器或移动设备，这会直接生效
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    facingMode: 'user', 
+                    width: { ideal: 1080 }, // 宽
+                    height: { ideal: 1920 } // 高 (Vertical)
+                } 
+            });
+            els.camVideo.srcObject = stream;
+            els.camVideo.play();
+            
+            const track = stream.getVideoTracks()[0];
+            const settings = track.getSettings();
+            console.log(`Camera Resolution: ${settings.width}x${settings.height}`);
+            els.aiStatus.textContent = `AI & 竖屏模式 (${settings.width}x${settings.height}) 就绪`;
+            
+        } catch(e) {
+            els.aiStatus.textContent = "摄像头错误: " + e.message;
+        }
+
+        initPeerHost();
+    }
+
+    // PeerJS Host Setup
+    function generateRoomId() { return Math.floor(10000 + Math.random() * 90000).toString(); }
+    window.showQrCode = () => document.getElementById('qr-modal').classList.remove('hidden');
+
+    function initPeerHost() {
+        const roomId = generateRoomId();
+        const sideUrl = `${window.location.href.split('?')[0]}?role=side&room=${roomId}`;
+        document.getElementById("qrcode").innerHTML = "";
+        new QRCode(document.getElementById("qrcode"), { text: sideUrl, width: 180, height: 180 });
+
+        peer = new Peer(`dance-host-${roomId}`);
+        peer.on('connection', (c) => {
+            conn = c;
+            els.sideLed.classList.add('on');
+            els.sideText.textContent = "侧面已连接";
+            els.sideText.style.color = "#2ecc71";
+            document.getElementById('qr-modal').classList.add('hidden');
+
+            conn.on('data', (data) => {
+                sideData = data;
+                if(data.errors.length > 0) {
+                    els.sideLed.className = 'led error';
+                    els.sideText.textContent = data.errors[0];
+                    els.sideText.style.color = '#e74c3c';
+                } else {
+                    els.sideLed.className = 'led on';
+                    els.sideText.textContent = "侧面正常";
+                    els.sideText.style.color = '#2ecc71';
+                }
+            });
+        });
+    }
+
+    // UI
     els.btnLoad.onclick = () => els.fileInput.click();
     els.fileInput.onchange = (e) => {
         const file = e.target.files[0];
         if(file) {
-            videoFile = file;
             els.refVideo.src = URL.createObjectURL(file);
-            els.btnLoad.textContent = `✅ ${file.name.substring(0,15)}...`;
-            checkReady();
-        }
-    };
-
-    els.btnCam.onclick = async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
-            els.camPreview.srcObject = stream;
-            els.camPreview.play();
-            els.btnCam.textContent = "✅ 摄像头已开启";
-            els.btnCam.classList.add('ring-emerald-500');
-            checkReady();
-        } catch(e) {
-            alert("无法开启摄像头: " + e.message);
-        }
-    };
-
-    function checkReady() {
-        if(videoFile && els.camPreview.srcObject && poseLandmarker) {
+            els.btnLoad.textContent = "重新选择";
             els.btnStart.disabled = false;
-            els.status.textContent = "准备就绪！点击开始自动分析舞蹈。";
+            els.btnStart.classList.add('animate-pulse');
         }
-    }
+    };
 
     els.btnStart.onclick = async () => {
-        if(gameState === 'analyzing') return;
-        await analyzeReferenceVideo();
+        els.btnStart.disabled = true;
+        els.btnStart.textContent = "拆解中...";
+        
+        if (els.refVideo.readyState < 1) {
+            await new Promise(r => els.refVideo.onloadedmetadata = r);
+        }
+        
+        await analyzeReference();
+        
+        els.menu.classList.add('hidden');
+        startStage(0);
     };
 
-    // ===== 3. 核心：预分析视频 =====
-    async function analyzeReferenceVideo() {
-        gameState = 'analyzing';
-        els.btnStart.textContent = "正在分析 (AI Learning)...";
-        els.status.textContent = "AI 正在提取老师动作...";
-        
-        refAnalysis.frames = [];
-        refAnalysis.beats = [];
-        
+    async function analyzeReference() {
+        refData = [];
         els.refVideo.muted = true;
-        els.refVideo.playbackRate = 2.0; 
-        await els.refVideo.play();
-        
-        let lastTime = -1;
-
-        const analyzeLoop = async () => {
-            if(els.refVideo.paused || els.refVideo.ended) {
-                finishAnalysis();
-                return;
-            }
-
-            const now = els.refVideo.currentTime;
-            if(now > lastTime + 0.1) { 
-                const res = poseLandmarker.detectForVideo(els.refVideo, performance.now());
-                if(res.landmarks[0]) {
-                    refAnalysis.frames.push({
-                        time: now,
-                        pose: res.landmarks[0] 
-                    });
-                }
-                lastTime = now;
-            }
-            requestAnimationFrame(analyzeLoop);
-        };
-        analyzeLoop();
-    }
-
-    function finishAnalysis() {
-        const duration = els.refVideo.duration;
-        // 生成节奏点 (每2秒一个，作为测试)
-        for(let t = 3; t < duration - 2; t += 2.0) {
-            refAnalysis.beats.push({ time: t, hit: false });
-        }
-
-        els.refVideo.pause();
-        els.refVideo.currentTime = 0;
         els.refVideo.playbackRate = 1.0;
-        els.refVideo.muted = false;
         
-        startGame();
+        return new Promise((resolve) => {
+            els.refVideo.currentTime = 0;
+            els.refVideo.onended = () => resolve(); 
+
+            els.refVideo.play().catch(e => {
+                alert("播放失败: " + e);
+                resolve();
+            });
+
+            let lastT = -1;
+            const analyzeLoop = () => {
+                if (els.refVideo.paused || els.refVideo.ended) return;
+
+                const t = els.refVideo.currentTime;
+                const dur = els.refVideo.duration || 1;
+                const pct = Math.floor((t / dur) * 100);
+                els.btnStart.textContent = `正在拆解... ${pct}%`;
+
+                if (pct >= 99) { resolve(); return; } 
+
+                if (t > lastT + 0.1) { 
+                    const res = poseLandmarker.detectForVideo(els.refVideo, performance.now());
+                    if (res.landmarks[0]) {
+                        refData.push({ time: t, pose: res.landmarks[0] });
+                    }
+                    lastT = t;
+                }
+                requestAnimationFrame(analyzeLoop);
+            };
+            analyzeLoop();
+        });
     }
 
-    // ===== 4. 游戏循环 =====
-    function startGame() {
-        gameState = 'playing';
-        els.menu.classList.add('hidden');
-        score = 0; combo = 0;
+    function startStage(idx) {
+        currentStageIdx = idx;
+        masteryScore = 0;
+        updateUI();
         
-        // 修复点：现在 els.stage 已经定义了
-        els.canvas.width = els.stage.clientWidth;
-        els.canvas.height = els.stage.clientHeight;
-
+        els.refVideo.currentTime = 0;
+        els.refVideo.muted = false;
         els.refVideo.play();
-        gameLoop();
+        
+        if(!isPlaying) {
+            isPlaying = true;
+            gameLoop();
+        }
     }
 
     function gameLoop() {
-        if(gameState !== 'playing') return;
+        if(!isPlaying) return;
+
+        if (els.stage.clientWidth > 0) {
+            tCtx.canvas.width = els.refVideo.clientWidth;
+            tCtx.canvas.height = els.refVideo.clientHeight;
+            sCtx.canvas.width = els.camVideo.clientWidth;
+            sCtx.canvas.height = els.camVideo.clientHeight;
+        }
 
         const currentTime = els.refVideo.currentTime;
+        const refFrame = refData.find(f => Math.abs(f.time - currentTime) < 0.15);
         
-        // UI更新
-        updateTimeline(currentTime);
-
-        // AI捕捉
-        const playerRes = poseLandmarker.detectForVideo(els.camPreview, performance.now());
+        let studentRes = null;
+        if (els.camVideo.readyState >= 2) {
+             studentRes = poseLandmarker.detectForVideo(els.camVideo, performance.now());
+        }
         
-        // 查找参考动作
-        const refFrame = refAnalysis.frames.find(f => Math.abs(f.time - currentTime) < 0.1);
+        tCtx.clearRect(0,0,tCtx.canvas.width, tCtx.canvas.height);
+        sCtx.clearRect(0,0,sCtx.canvas.width, sCtx.canvas.height);
 
-        // 渲染
-        ctx.clearRect(0, 0, els.canvas.width, els.canvas.height);
-        
-        if (refFrame && playerRes.landmarks[0]) {
-            const playerPose = playerRes.landmarks[0];
-            const refPose = refFrame.pose;
-
-            // 绘制玩家骨架 (绿色高亮)
-            drawPose(ctx, playerPose, '#34d399', 6); 
+        if(refFrame && studentRes && studentRes.landmarks[0]) {
+            const sPose = studentRes.landmarks[0];
+            const rPose = refFrame.pose;
+            const activeIndices = BODY_PARTS[STAGES[currentStageIdx].id];
             
-            // 判定
-            checkHit(currentTime, playerPose, refPose);
-        } else if (refFrame) {
-            // 如果没检测到人，画一个半透明的老师骨架提示位置
-            // drawPose(ctx, refFrame.pose, 'rgba(255,255,255,0.2)', 2);
+            drawSelectivePose(tCtx, rPose, activeIndices, '#fbbf24', 4);
+            drawSelectivePose(sCtx, sPose, activeIndices, '#fff', 2);
+
+            const similarity = calculatePartSimilarity(sPose, rPose, activeIndices);
+            updateGameLogic(similarity);
         }
 
         if(els.refVideo.ended) {
-            alert(`游戏结束！得分: ${score}`);
-            location.reload();
-            return;
+            els.refVideo.currentTime = 0;
+            els.refVideo.play();
         }
 
         requestAnimationFrame(gameLoop);
     }
 
-    // ===== 5. 辅助功能 =====
-    function drawPose(ctx, landmarks, color, width) {
+    function updateGameLogic(sim) {
+        if (sideData.active && sideData.errors.length > 0) {
+            showFeedback(sideData.errors[0], "fb-warn"); 
+            return; 
+        }
+
+        if(sim > 0.85) {
+            masteryScore += 0.3; 
+            showFeedback("PERFECT", "fb-good");
+        } else if(sim > 0.7) {
+            masteryScore += 0.1;
+        }
+        
+        masteryScore = Math.min(100, masteryScore);
+        els.masteryBar.style.width = `${masteryScore}%`;
+        els.masteryText.textContent = `${Math.floor(masteryScore)}%`;
+
+        if(masteryScore >= 100) levelUp();
+    }
+
+    function levelUp() {
+        if(currentStageIdx < STAGES.length - 1) {
+            showFeedback("STAGE CLEAR!", "fb-good");
+            masteryScore = 0;
+            setTimeout(() => startStage(currentStageIdx + 1), 2000);
+        } else {
+            alert("恭喜通关！");
+            location.reload();
+        }
+    }
+
+    function calculatePartSimilarity(poseA, poseB, indices) {
+        let totalDiff = 0;
+        let count = 0;
+        indices.forEach(idx => {
+            const dx = poseA[idx].x - poseB[idx].x;
+            const dy = poseA[idx].y - poseB[idx].y;
+            totalDiff += Math.sqrt(dx*dx + dy*dy);
+            count++;
+        });
+        return Math.max(0, 1 - (totalDiff / count / 0.15));
+    }
+
+    function drawSelectivePose(ctx, landmarks, activeIndices, color, width) {
         const w = ctx.canvas.width;
         const h = ctx.canvas.height;
         
-        ctx.strokeStyle = color;
-        ctx.lineWidth = width;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-
-        const connections = PoseLandmarker.POSE_CONNECTIONS;
-        for(const conn of connections) {
+        ctx.strokeStyle = "rgba(255,255,255,0.1)";
+        ctx.lineWidth = 1;
+        for(const conn of PoseLandmarker.POSE_CONNECTIONS) {
             const start = landmarks[conn.start];
             const end = landmarks[conn.end];
-            if(start.visibility > 0.5 && end.visibility > 0.5) {
+            ctx.beginPath();
+            ctx.moveTo(start.x * w, start.y * h);
+            ctx.lineTo(end.x * w, end.y * h);
+            ctx.stroke();
+        }
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.lineCap = "round";
+        for(const conn of PoseLandmarker.POSE_CONNECTIONS) {
+            if(activeIndices.includes(conn.start) && activeIndices.includes(conn.end)) {
+                const start = landmarks[conn.start];
+                const end = landmarks[conn.end];
                 ctx.beginPath();
                 ctx.moveTo(start.x * w, start.y * h);
                 ctx.lineTo(end.x * w, end.y * h);
@@ -355,84 +516,90 @@
         }
     }
 
-    function updateTimeline(currentTime) {
-        els.timeline.innerHTML = '<div class="hit-zone"></div>';
-        const lookahead = 2.0; // 提前显示2秒
-        
-        refAnalysis.beats.forEach(beat => {
-            const diff = beat.time - currentTime;
-            if(diff >= -0.5 && diff <= lookahead) {
-                // 20% 是判定线位置
-                // 0s diff -> 20%
-                // 2s diff -> 100%
-                const leftPercent = 20 + (diff / lookahead) * 80;
-                
-                const note = document.createElement('div');
-                note.className = 'note';
-                note.style.left = `${leftPercent}%`;
-                if(beat.hit) {
-                    note.style.background = '#fbbf24';
-                    note.style.boxShadow = '0 0 15px #fbbf24';
-                }
-                els.timeline.appendChild(note);
-            }
+    function showFeedback(text, cls) {
+        const el = els.feedback;
+        if(el.textContent) return;
+        el.textContent = text;
+        el.className = cls;
+        setTimeout(() => { el.className = ""; el.textContent = ""; }, 800);
+    }
+
+    function updateUI() {
+        const stage = STAGES[currentStageIdx];
+        els.stageTitle.textContent = stage.name;
+        els.stageTitle.style.color = stage.color;
+        [1,2,3].forEach((i, idx) => {
+            const dot = document.getElementById(`dot${i}`);
+            dot.className = 'lvl-dot';
+            if(idx < currentStageIdx) dot.classList.add('done');
+            if(idx === currentStageIdx) dot.classList.add('active');
         });
     }
 
-    function checkHit(currentTime, playerPose, refPose) {
-        // 寻找当前时间窗口内的未击中 beat
-        const beat = refAnalysis.beats.find(b => Math.abs(b.time - currentTime) < 0.2 && !b.hit);
-        
-        if(beat) {
-            const sim = calculateSimilarity(playerPose, refPose);
-            let text = '', cls = '', points = 0;
+    // ==========================================
+    //               辅机逻辑 (Side)
+    // ==========================================
 
-            if(sim > 0.85) {
-                text = 'PERFECT'; cls = 'fb-perfect'; points = 1000; combo++;
-            } else if(sim > 0.70) {
-                text = 'GOOD'; cls = 'fb-good'; points = 500; combo++;
-            } else {
-                text = 'MISS'; cls = 'fb-miss'; combo = 0;
-            }
+    function initSide() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomId = urlParams.get('room');
+        if(!roomId) return alert("请先在主机生成二维码并扫描");
 
-            beat.hit = true;
-            showFeedback(text, cls);
-            
-            score += points + (combo * 10);
-            els.score.textContent = score.toString().padStart(6, '0');
-            els.combo.textContent = combo;
-        }
-    }
+        document.getElementById('screen-side').classList.remove('hidden');
+        document.getElementById('menu').classList.add('hidden');
 
-    function calculateSimilarity(poseA, poseB) {
-        // 简化版余弦相似度 (只计算上半身关键向量)
-        const vectors = [
-            [11, 13], [13, 15], // 左臂
-            [12, 14], [14, 16], // 右臂
-            [11, 12],           // 肩膀
-            [23, 24]            // 髋部
-        ];
+        const peer = new Peer();
+        let poseSide;
+        let lastSend = 0;
 
-        let totalSim = 0;
-        for(const [i, j] of vectors) {
-            const vA = { x: poseA[j].x - poseA[i].x, y: poseA[j].y - poseA[i].y };
-            const vB = { x: poseB[j].x - poseB[i].x, y: poseB[j].y - poseB[i].y };
-            
-            const magA = Math.sqrt(vA.x**2 + vA.y**2) + 1e-5;
-            const magB = Math.sqrt(vB.x**2 + vB.y**2) + 1e-5;
-            
-            const dot = (vA.x * vB.x + vA.y * vB.y) / (magA * magB);
-            totalSim += dot;
-        }
-        return (totalSim / vectors.length + 1) / 2;
-    }
+        peer.on('open', () => {
+            const conn = peer.connect(`dance-host-${roomId}`);
+            conn.on('open', () => {
+                document.getElementById('side-status').innerText = "✅ 已连接主机";
+                document.getElementById('side-status').style.color = "#2ecc71";
+                
+                navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'user', width: 640, height: 480 }, audio: false 
+                }).then(async (stream) => {
+                    const video = document.getElementById('video-side');
+                    video.srcObject = stream;
+                    
+                    const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm");
+                    poseSide = await PoseLandmarker.createFromOptions(vision, {
+                        baseOptions: {
+                            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task`,
+                            delegate: "GPU"
+                        },
+                        runningMode: "VIDEO",
+                        numPoses: 1
+                    });
 
-    function showFeedback(text, cls) {
-        const el = els.feedback;
-        el.textContent = text;
-        el.className = '';
-        void el.offsetWidth;
-        el.classList.add(cls);
+                    const loop = () => {
+                        if(video.readyState >= 2) {
+                            const now = Date.now();
+                            if (now - lastSend > 100) { 
+                                const res = poseSide.detectForVideo(video, performance.now());
+                                let errors = [];
+                                if(res.landmarks[0]) {
+                                    const lm = res.landmarks[0];
+                                    let isLeft = lm[7].visibility > lm[8].visibility;
+                                    let sh = isLeft ? lm[11] : lm[12];
+                                    let hip = isLeft ? lm[23] : lm[24];
+                                    let lean = sh.x - hip.x;
+                                    
+                                    if(Math.abs(lean) > 0.08) errors.push(lean > 0 ? "后仰" : "前倾");
+                                    document.getElementById('side-log').innerText = errors.length ? `⚠ ${errors[0]}` : "体态正常";
+                                }
+                                conn.send({ active: true, errors: errors });
+                                lastSend = now;
+                            }
+                        }
+                        requestAnimationFrame(loop);
+                    };
+                    loop();
+                });
+            });
+        });
     }
   </script>
 </body>
