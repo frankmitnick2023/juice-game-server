@@ -1,0 +1,18 @@
+<div class="nav-bar">
+    <a href="/games.html" class="nav-item">🎮 首页</a>
+    <a href="#" class="nav-item" style="color:#ff6b35">📅 选课</a>
+    <a href="/invoices.html" class="nav-item">💰 账单</a>
+</div>
+
+<script>
+// ...
+    if (result.success) {
+        btn.textContent = '已提交';
+        btn.classList.add('booked');
+        // 引导去账单页
+        if(confirm('✅ 报名成功！Invoice 已生成。\n是否现在查看账单？')) {
+            location.href = '/invoices.html';
+        }
+    }
+// ...
+</script>
