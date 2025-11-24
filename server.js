@@ -38,9 +38,10 @@ app.use((error, req, res, next) => {
   if (!res.headersSent) res.status(500).json({ error: 'Server error' });
 });
 
-// === 初始化数据库 ===
+// === 初始化数据库 (MODIFIED: 添加新字段) ===
 (async () => {
   try {
+    // 1. 创建基础表 (如果不存在)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -50,6 +51,12 @@ app.use((error, req, res, next) => {
         coins INTEGER DEFAULT 0
       );
     `);
+
+    // 2. 增量更新字段 (防止覆盖已有数据)
+    // 即使表已存在，这两句也会尝试添加新列；如果列已存在则自动忽略
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS student_name TEXT;`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS dob DATE;`);
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS agreed_terms BOOLEAN DEFAULT FALSE;`);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS scores (
@@ -61,26 +68,37 @@ app.use((error, req, res, next) => {
       );
     `);
 
-    console.log('Database initialized');
+    console.log('Database initialized with new fields');
   } catch (err) {
     console.error('DB init error:', err.message);
   }
 })();
 
-// === API 端点（保持不变）===
+// === API 端点 (MODIFIED: 注册接口接收新数据) ===
 app.post('/api/register', async (req, res) => {
-  const { email, password } = req.body;
+  // 接收 studentName, dob, agreedToTerms
+  const { email, password, studentName, dob, agreedToTerms } = req.body;
+  
   if (!email || !password) return res.status(400).json({ error: 'Missing fields' });
+  
   try {
     const hash = await bcrypt.hash(password, 10);
+    
+    // 插入数据时包含新字段
+    // 注意：studentName 和 dob 是可选的 (前端虽强制，后端防空)，agreedToTerms 默认为 false
     const result = await pool.query(
-      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, level, coins',
-      [email, hash]
+      `INSERT INTO users 
+       (email, password_hash, student_name, dob, agreed_terms) 
+       VALUES ($1, $2, $3, $4, $5) 
+       RETURNING id, email, level, coins, student_name`,
+      [email, hash, studentName || null, dob || null, agreedToTerms || false]
     );
+    
     req.session.user = result.rows[0];
     res.json(result.rows[0]);
   } catch (err) {
     if (err.code === '23505') return res.status(400).json({ error: 'Email exists' });
+    console.error('Register error:', err); // 打印具体错误以便调试
     res.status(500).json({ error: 'Server error' });
   }
 });
