@@ -1,81 +1,179 @@
-<!-- public/games.html -->
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Juice Game 大厅</title>
+  <title>WE DANCE - Hero Hub</title>
   <style>
-    body{font-family:Arial;margin:0;background:#f9f9f9}
-    .header{background:#ff6b35;color:white;padding:1.5rem;text-align:center;position:relative}
-    .logout{position:absolute;right:1.5rem;top:1.5rem;color:white;text-decoration:none;font-weight:bold}
-    .user-info{position:absolute;left:1.5rem;top:1.5rem;color:white;font-size:0.9rem}
-    .container{max-width:1100px;margin:2rem auto;padding:0 1rem}
-    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:2rem}
-    .card{background:white;border-radius:12px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,0.1);transition:transform 0.2s}
-    .card:hover{transform:translateY(-8px)}
-    .thumb{height:180px;background:#eee;display:flex;align-items:center;justify-content:center;overflow:hidden}
-    .thumb img{width:100%;height:100%;object-fit:cover}
-    .info{padding:1.5rem}
-    .title{font-size:1.3rem;font-weight:bold;margin-bottom:0.5rem}
-    .desc{color:#666;margin-bottom:1rem}
-    .platform{font-size:0.8rem;color:#ff6b35;margin-bottom:1rem}
-    .play-btn{display:block;background:#ff6b35;color:white;text-align:center;padding:0.9rem;border-radius:8px;text-decoration:none;font-weight:bold}
-    .play-btn:hover{background:#e55a2b}
-    .loading{text-align:center;padding:3rem;color:#666;font-size:1.2rem}
+    body{font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin:0; background:#1a1a2e; color:white; padding-bottom:4rem}
+    
+    /* === 1. 英雄状态栏 === */
+    .hero-header {
+        background: linear-gradient(180deg, #16213e 0%, #1a1a2e 100%);
+        padding: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 2px solid #0f3460;
+    }
+    .hero-info { display: flex; align-items: center; gap: 15px; }
+    .avatar { 
+        width: 60px; height: 60px; border-radius: 50%; border: 3px solid #e94560; 
+        background: #0f3460; display: flex; align-items: center; justify-content: center; font-size: 2rem;
+    }
+    .stats h2 { margin: 0; font-size: 1.2rem; color: #e94560; text-transform: uppercase; letter-spacing: 1px; }
+    .xp-bar { width: 120px; height: 8px; background: #333; border-radius: 4px; margin-top: 5px; overflow: hidden; }
+    .xp-fill { width: 65%; height: 100%; background: #4caf50; }
+    .coins { font-weight: bold; color: #ffd700; font-size: 0.9rem; margin-top: 4px; }
+    
+    .logout { color: #666; text-decoration: none; font-size: 0.8rem; border: 1px solid #333; padding: 5px 10px; border-radius: 15px; }
+
+    /* === 2. 核心双入口 (打怪 vs 修炼) === */
+    .portal-container {
+        padding: 2rem 1rem;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    
+    .portal-card {
+        background: #16213e;
+        border-radius: 20px;
+        padding: 2rem 1rem;
+        text-align: center;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        border: 2px solid rgba(255,255,255,0.05);
+        position: relative;
+        overflow: hidden;
+    }
+    .portal-card:active { transform: scale(0.98); }
+    
+    /* 左边：打怪 (Game) */
+    .portal-battle { background: linear-gradient(135deg, #ff9966, #ff5e62); box-shadow: 0 10px 30px rgba(255, 94, 98, 0.3); }
+    .portal-battle h1 { font-size: 1.8rem; margin: 10px 0; text-shadow: 2px 2px 0 rgba(0,0,0,0.2); }
+    .portal-battle p { opacity: 0.9; font-size: 0.9rem; }
+    
+    /* 右边：修炼 (Class) */
+    .portal-train { background: linear-gradient(135deg, #4facfe, #00f2fe); box-shadow: 0 10px 30px rgba(0, 242, 254, 0.3); }
+    .portal-train h1 { font-size: 1.8rem; margin: 10px 0; text-shadow: 2px 2px 0 rgba(0,0,0,0.2); }
+    .portal-train p { opacity: 0.9; font-size: 0.9rem; }
+
+    .icon { font-size: 3rem; display: block; margin-bottom: 10px; }
+
+    /* === 3. 内容展示区 (默认隐藏，点击展开) === */
+    .content-section { display: none; max-width: 800px; margin: 0 auto; padding: 0 1rem; animation: fadeIn 0.3s; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    .section-title { color: #fff; border-left: 5px solid #e94560; padding-left: 15px; margin: 2rem 0 1rem 0; font-size: 1.2rem; }
+
+    /* 游戏网格 */
+    .game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem; }
+    .game-card { background: #16213e; border-radius: 12px; overflow: hidden; }
+    .game-thumb { height: 100px; background: #0f3460; display: flex; align-items: center; justify-content: center; color: #666; }
+    .game-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .game-info { padding: 10px; }
+    .game-title { font-size: 0.9rem; font-weight: bold; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .play-btn-sm { display: block; background: #e94560; color: white; text-align: center; padding: 5px; border-radius: 4px; text-decoration: none; font-size: 0.8rem; }
+
+    /* 返回按钮 */
+    .back-btn { display: inline-block; margin-bottom: 1rem; color: #aaa; text-decoration: none; cursor: pointer; }
+    .back-btn:hover { color: white; }
+
   </style>
 </head>
 <body>
-  <div class="header">
-    <div class="user-info" id="userInfo"></div>
-    <h1>Juice Game 大厅</h1>
-    <a href="#" id="logout" class="logout">退出登录</a>
+
+  <div class="hero-header">
+    <div class="hero-info">
+      <div class="avatar">🦸</div>
+      <div class="stats">
+        <h2 id="userName">HERO</h2>
+        <div class="xp-bar"><div class="xp-fill"></div></div>
+        <div class="coins">🪙 350 Coins | Lv.5</div>
+      </div>
+    </div>
+    <a href="#" id="logout" class="logout">Logout</a>
   </div>
-  <div class="container">
-    <div id="loading" class="loading">加载游戏列表中...</div>
-    <div id="grid" class="grid" style="display:none"></div>
+
+  <div id="portalView" class="portal-container">
+    
+    <div class="portal-card portal-battle" onclick="switchMode('battle')">
+      <span class="icon">⚔️</span>
+      <h1>BATTLE</h1>
+      <p>打怪升级<br>Challenge & Level Up</p>
+    </div>
+
+    <div class="portal-card portal-train" onclick="location.href='/timetable.html'">
+      <span class="icon">🛡️</span>
+      <h1>TRAIN</h1>
+      <p>修炼本领<br>Learn New Skills</p>
+    </div>
+
   </div>
+
+  <div id="gameView" class="content-section">
+    <div onclick="switchMode('home')" class="back-btn">◀ Back to Home</div>
+    <div class="section-title">Available Quests (当前任务)</div>
+    <div id="gameGrid" class="game-grid">
+        <div style="text-align:center;padding:20px;color:#666;grid-column:1/-1">Loading Quests...</div>
+    </div>
+  </div>
+
   <script>
+    // 模式切换逻辑
+    function switchMode(mode) {
+        const portal = document.getElementById('portalView');
+        const gameView = document.getElementById('gameView');
+        
+        if (mode === 'battle') {
+            portal.style.display = 'none';
+            gameView.style.display = 'block';
+            loadGames(); // 懒加载游戏
+        } else {
+            portal.style.display = 'grid';
+            gameView.style.display = 'none';
+        }
+    }
+
+    // 加载用户信息
+    fetch('/api/me').then(r => r.json()).then(user => {
+        if (user && user.student_name) {
+            document.getElementById('userName').textContent = user.student_name;
+        }
+    }).catch(() => location.href = '/');
+
     document.getElementById('logout').onclick = e => {
-      e.preventDefault();
-      fetch('/api/logout', {method:'POST'}).then(() => location.href = '/');
+        e.preventDefault();
+        fetch('/api/logout', {method:'POST'}).then(() => location.href = '/');
     };
 
-    fetch('/api/me')
-      .then(r => r.json())
-      .then(user => {
-        if (!user || !user.id) return location.href = '/';
-        document.getElementById('userInfo').textContent = `${user.email} | Lv.${user.level} | ${user.coins} coins`;
-      })
-      .catch(() => location.href = '/');
-
-    fetch('/api/games')
-      .then(r => r.json())
-      .then(games => {
-        document.getElementById('loading').remove();
-        const grid = document.getElementById('grid');
-        grid.style.display = 'grid';
-        games.forEach(g => {
-          const card = document.createElement('div');
-          card.className = 'card';
-          card.innerHTML = `
-            <div class="thumb">
-			${g.thumbnail 
-    		? `<img src="/games/${g.id}/${g.thumbnail}" alt="${g.title}" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">` 
-		  	: ''
-			}
-  			<div style="color:#999;display:${g.thumbnail?'none':'block'}">No Image</div>
-	  		</div>
-            <div class="info">
-              <div class="title">${g.title}</div>
-              <div class="desc">${g.description || '暂无描述'}</div>
-              <div class="platform">${g.platform === 'mobile' ? '移动端' : g.platform === 'pc' ? 'PC端' : '全平台'}</div>
-              <a href="/play/${g.id}" class="play-btn">开始游戏</a>
-            </div>
-          `;
-          grid.appendChild(card);
+    // 加载游戏列表 (复用之前的逻辑，但样式变了)
+    let gamesLoaded = false;
+    function loadGames() {
+        if (gamesLoaded) return;
+        fetch('/api/games').then(r => r.json()).then(games => {
+            const grid = document.getElementById('gameGrid');
+            grid.innerHTML = '';
+            games.forEach(g => {
+                const div = document.createElement('div');
+                div.className = 'game-card';
+                div.innerHTML = `
+                    <div class="game-thumb">
+                        ${g.thumbnail ? `<img src="/games/${g.id}/${g.thumbnail}">` : '👾'}
+                    </div>
+                    <div class="game-info">
+                        <div class="game-title">${g.title}</div>
+                        <a href="/play/${g.id}" class="play-btn-sm">START</a>
+                    </div>
+                `;
+                grid.appendChild(div);
+            });
+            gamesLoaded = true;
         });
-      });
+    }
   </script>
 </body>
 </html>
