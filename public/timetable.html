@@ -1,3 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>2026 智能选课</title>
+  <style>
+    body{font-family:Arial;margin:0;background:#f9f9f9;padding-bottom:5rem}
+    .header{background:#ff6b35;color:white;padding:1rem;text-align:center}
+    
+    /* 星期导航栏 */
+    .day-tabs {display:flex;overflow-x:auto;background:white;padding:10px;box-shadow:0 2px 5px rgba(0,0,0,0.05);position:sticky;top:0;z-index:100}
+    .day-tab {flex:0 0 auto;padding:8px 16px;margin-right:10px;border-radius:20px;background:#f0f0f0;color:#666;font-weight:bold;cursor:pointer;font-size:0.9rem}
+    .day-tab.active {background:#ff6b35;color:white}
+    
+    .container{max-width:800px;margin:1rem auto;padding:0 1rem}
+    .age-tip {text-align:center;color:#666;font-size:0.9rem;margin:10px 0}
+
+    .course-card{background:white;border-radius:12px;padding:1.2rem;margin-bottom:1rem;box-shadow:0 2px 8px rgba(0,0,0,0.05);display:flex;justify-content:space-between;align-items:center}
+    .c-main h3{margin:0 0 5px 0;color:#333}
+    .c-detail{font-size:0.9rem;color:#666;margin:2px 0}
+    .tag{font-size:0.8rem;background:#fff0e6;color:#ff6b35;padding:2px 5px;border-radius:4px;margin-right:5px}
+    
+    .btn-book{background:#ff6b35;color:white;border:none;padding:8px 16px;border-radius:20px;cursor:pointer;font-weight:bold}
+    
+    /* 弹窗样式 */
+    .modal-overlay {display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:999;justify-content:center;align-items:end}
+    .modal {background:white;width:100%;max-width:600px;border-radius:20px 20px 0 0;padding:20px;box-sizing:border-box;animation:slideUp 0.3s}
+    @keyframes slideUp {from{transform:translateY(100%)} to{transform:translateY(0)}}
+    
+    .option-box {border:1px solid #ddd;border-radius:8px;padding:15px;margin-bottom:10px;cursor:pointer}
+    .option-box.selected {border-color:#ff6b35;background:#fff0e6}
+    .date-grid {display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px;display:none}
+    .date-item {background:#f0f0f0;padding:8px;text-align:center;border-radius:4px;font-size:0.8rem;cursor:pointer}
+    .date-item.active {background:#ff6b35;color:white}
+    
+    .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:white;border-top:1px solid #eee;display:flex;justify-content:space-around;padding:10px 0;z-index:99}
+    .nav-item{text-decoration:none;color:#666;font-size:0.9rem;text-align:center}
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h3>2026 TERM 1 课表</h3>
+</div>
+
+<div class="day-tabs" id="dayTabs">
+  </div>
+
+<div class="container">
+  <div id="ageTip" class="age-tip">加载中...</div>
+  <div id="courseList"></div>
+</div>
+
+<div id="bookModal" class="modal-overlay">
+  <div class="modal">
+    <h3 id="mTitle">课程名</h3>
+    <p style="color:#666;font-size:0.9rem">请选择报名方式：</p>
+    
+    <div class="option-box selected" onclick="selectMode('term')" id="optTerm">
+      <div style="font-weight:bold">📅 整学期报名 (Full Term)</div>
+      <div style="color:#ff6b35;margin-top:5px" id="mTermPrice">$200</div>
+      <div style="font-size:0.8rem;color:#999">包含所有 10 周课程，最优惠</div>
+    </div>
+
+    <div class="option-box" onclick="selectMode('casual')" id="optCasual">
+      <div style="font-weight:bold">🗓 自选日期 (Casual)</div>
+      <div style="color:#ff6b35;margin-top:5px" id="mCasualPrice">$25 / 课</div>
+      
+      <div class="date-grid" id="dateGrid">
+        </div>
+    </div>
+
+    <div style="margin-top:20px;display:flex;gap:10px">
+      <button onclick="closeModal()" style="flex:1;padding:12px;border:1px solid #ddd;background:white;border-radius:8px">取消</button>
+      <button onclick="confirmBooking()" style="flex:2;padding:12px;background:#ff6b35;color:white;border:none;border-radius:8px;font-weight:bold">确认报名</button>
+    </div>
+  </div>
+</div>
+
 <div class="nav-bar">
     <a href="/games.html" class="nav-item">🎮 首页</a>
     <a href="#" class="nav-item" style="color:#ff6b35">📅 选课</a>
@@ -5,14 +85,181 @@
 </div>
 
 <script>
-// ...
-    if (result.success) {
-        btn.textContent = '已提交';
-        btn.classList.add('booked');
-        // 引导去账单页
-        if(confirm('✅ 报名成功！Invoice 已生成。\n是否现在查看账单？')) {
-            location.href = '/invoices.html';
-        }
-    }
-// ...
+  // 配置：2026 Term 1 日期范围 (假设 2月2日 周一开学)
+  const TERM_START = new Date("2026-02-02"); 
+  const WEEKS = 10; // 10周
+
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  let allCourses = [];
+  let currentDay = 'Monday';
+  let currentCourse = null;
+  let selectedMode = 'term'; // 'term' or 'casual'
+  let selectedDates = [];
+
+  // 1. 初始化页面
+  async function init() {
+    // 生成星期Tab
+    const tabContainer = document.getElementById('dayTabs');
+    days.forEach((d, i) => {
+        const div = document.createElement('div');
+        div.className = `day-tab ${d === 'Monday' ? 'active' : ''}`;
+        div.textContent = d === 'Wednesday' ? 'Wed' : d.substring(0, 3); // 简写
+        div.onclick = () => switchDay(d, div);
+        tabContainer.appendChild(div);
+    });
+
+    // 获取数据
+    try {
+        const res = await fetch('/api/courses/recommended');
+        const data = await res.json();
+        if(data.error) { alert(data.error); return; }
+        
+        document.getElementById('ageTip').textContent = `学员年龄: ${data.age}岁 (系统已自动筛选课程)`;
+        allCourses = data.courses;
+        renderList();
+    } catch(e) { console.error(e); }
+  }
+
+  // 2. 切换星期
+  function switchDay(day, tabElement) {
+      currentDay = day;
+      document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
+      tabElement.classList.add('active');
+      renderList();
+  }
+
+  // 3. 渲染列表
+  function renderList() {
+      const list = document.getElementById('courseList');
+      list.innerHTML = '';
+      
+      const todayCourses = allCourses.filter(c => c.day_of_week === currentDay);
+      
+      if(todayCourses.length === 0) {
+          list.innerHTML = '<p style="text-align:center;color:#999;margin-top:2rem">该日暂无适合您年龄的课程</p>';
+          return;
+      }
+
+      todayCourses.forEach(c => {
+          const div = document.createElement('div');
+          div.className = 'course-card';
+          div.innerHTML = `
+            <div class="c-main">
+                <h3>${c.name}</h3>
+                <div class="c-detail">⏰ ${c.start_time} - ${c.end_time}</div>
+                <div class="c-detail">
+                    <span class="tag">👩‍🏫 ${c.teacher}</span>
+                    <span class="tag">$${c.price} / Term</span>
+                </div>
+            </div>
+            <button class="btn-book" onclick='openModal(${JSON.stringify(c)})'>报名</button>
+          `;
+          list.appendChild(div);
+      });
+  }
+
+  // 4. 打开报名弹窗
+  function openModal(course) {
+      currentCourse = course;
+      selectedMode = 'term';
+      selectedDates = [];
+      
+      document.getElementById('mTitle').textContent = course.name;
+      document.getElementById('mTermPrice').textContent = `$${course.price}`;
+      document.getElementById('mCasualPrice').textContent = `$${course.casual_price || Math.ceil(course.price/8)} / 课`;
+      
+      // 生成该课程本学期的所有日期
+      const grid = document.getElementById('dateGrid');
+      grid.innerHTML = '';
+      const dayIndex = days.indexOf(course.day_of_week); // 0=Mon, 1=Tue...
+      
+      // 计算第一个上课日 (TermStart 是周一)
+      let currentDate = new Date(TERM_START);
+      currentDate.setDate(currentDate.getDate() + dayIndex); 
+
+      for(let i=0; i<WEEKS; i++) {
+          const dateStr = currentDate.toLocaleDateString('en-NZ'); // DD/MM/YYYY
+          const isoDate = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD
+          
+          const div = document.createElement('div');
+          div.className = 'date-item';
+          div.textContent = dateStr.substring(0, 5); // 只显示 DD/MM
+          div.onclick = (e) => toggleDate(div, isoDate, e);
+          grid.appendChild(div);
+          
+          // 下一周
+          currentDate.setDate(currentDate.getDate() + 7);
+      }
+
+      selectMode('term'); // 重置为整学期
+      document.getElementById('bookModal').style.display = 'flex';
+  }
+
+  function selectMode(mode) {
+      selectedMode = mode;
+      document.getElementById('optTerm').className = mode==='term' ? 'option-box selected' : 'option-box';
+      document.getElementById('optCasual').className = mode==='casual' ? 'option-box selected' : 'option-box';
+      document.getElementById('dateGrid').style.display = mode==='casual' ? 'grid' : 'none';
+  }
+
+  function toggleDate(div, date, e) {
+      e.stopPropagation(); // 防止触发父级点击
+      if(selectedDates.includes(date)) {
+          selectedDates = selectedDates.filter(d => d !== date);
+          div.classList.remove('active');
+      } else {
+          selectedDates.push(date);
+          div.classList.add('active');
+      }
+  }
+
+  function closeModal() {
+      document.getElementById('bookModal').style.display = 'none';
+  }
+
+  async function confirmBooking() {
+      let finalPrice = currentCourse.price;
+      
+      if (selectedMode === 'casual') {
+          if (selectedDates.length === 0) {
+              alert('请至少选择一个日期');
+              return;
+          }
+          const casualPrice = currentCourse.casual_price || Math.ceil(currentCourse.price/8);
+          finalPrice = casualPrice * selectedDates.length;
+      }
+
+      const msg = selectedMode === 'term' 
+          ? `确认报名整学期？总价 $${finalPrice}` 
+          : `确认报名 ${selectedDates.length} 节课？总价 $${finalPrice}`;
+          
+      if(!confirm(msg)) return;
+
+      // 提交后端
+      try {
+          const res = await fetch('/api/book-course', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({
+                  courseId: currentCourse.id,
+                  type: selectedMode,
+                  selectedDates: selectedMode === 'casual' ? selectedDates : null,
+                  totalPrice: finalPrice
+              })
+          });
+          const result = await res.json();
+          if(result.success) {
+              alert('✅ 报名成功！');
+              closeModal();
+              location.href = '/invoices.html';
+          } else {
+              alert('⚠️ ' + result.message);
+          }
+      } catch(e) { alert('提交失败'); }
+  }
+
+  init();
 </script>
+
+</body>
+</html>
