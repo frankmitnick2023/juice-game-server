@@ -2,47 +2,31 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <style>
-    body,html{margin:0;padding:0;width:100%;height:100%;overflow:hidden}
-    iframe{width:100%;height:100%;border:none}
-  </style>
+  <style>body,html{margin:0;padding:0;width:100%;height:100%;overflow:hidden}iframe{width:100%;height:100%;border:none}</style>
 </head>
 <body>
-  <iframe id="gameFrame" src="" allowfullscreen></iframe>
-
+  <iframe id="gameFrame" allow="camera; microphone"></iframe>
   <script>
     const urlParams = new URLSearchParams(location.search);
-    const gameUrl = decodeURIComponent(urlParams.get('src'));
-    const gameFrame = document.getElementById('gameFrame');
-    gameFrame.src = gameUrl;
-
-    // 统一拦截所有游戏消息
-    window.addEventListener('message', (event) => {
-      const data = event.data;
-
-      // 兼容旧游戏：如果发送 {score: 999}
-      if (typeof data === 'object' && data.score !== undefined && !data.type) {
-        forwardScore(data.score);
-        return;
-      }
-
-      // 标准协议
-      if (data.type === 'JUICE_GAME_SCORE' && typeof data.score === 'number') {
-        forwardScore(data.score);
-      }
-    });
-
-    function forwardScore(score) {
-      parent.postMessage({
-        type: 'JUICE_GAME_SCORE',
-        score: Math.floor(score) // 防小数
-      }, '*');
+    const src = urlParams.get('src');
+    if (src) {
+        document.getElementById('gameFrame').src = src;
+    } else {
+        document.body.innerHTML = "Game source not found";
     }
-
-    // 备用：游戏无输出时，5分钟后提交 0 分（防作弊）
-    setTimeout(() => {
-      forwardScore(0);
-    }, 5 * 60 * 1000);
+    
+    // 消息转发 (用于记录分数)
+    window.addEventListener('message', (e) => {
+        // 这里处理游戏传出来的分数，转发给 parent (games.html)
+        // 或者直接在这里调用 fetch('/api/score')
+        if (e.data && e.data.type === 'JUICE_GAME_SCORE') {
+             fetch('/api/score', {
+                 method: 'POST',
+                 headers: {'Content-Type': 'application/json'},
+                 body: JSON.stringify({ gameId: 'unknown', score: e.data.score }) 
+             });
+        }
+    });
   </script>
 </body>
 </html>
