@@ -6,20 +6,18 @@
   <title>WE DANCE - Hero Hub</title>
   <style>
     body{font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin:0; background:#1a1a2e; color:white; padding-bottom:5rem; overflow-x:hidden}
-    .header { background: rgba(22, 33, 62, 0.9); padding: 1rem; display: flex; justify-content: space-between; align-items: center; position: fixed; top: 0; left: 0; right: 0; z-index: 100; border-bottom: 1px solid rgba(255,255,255,0.1); }
-    .user-name { font-weight: bold; color: #e94560; font-size: 1.1rem; text-transform: uppercase; }
-    .logout { font-size: 0.8rem; color: #888; text-decoration: none; border:1px solid #444; padding:4px 10px; border-radius:15px}
+    .header { background: rgba(22, 33, 62, 0.95); padding: 1rem; display: flex; justify-content: space-between; align-items: center; position: fixed; top: 0; left: 0; right: 0; z-index: 100; border-bottom: 1px solid rgba(255,255,255,0.1); height: 60px; box-sizing: border-box; }
+    .user-name { font-weight: bold; color: #e94560; font-size: 1.1rem; }
+    .logout { font-size: 0.8rem; color: #aaa; text-decoration: none; border:1px solid #444; padding:4px 10px; border-radius:15px}
 
-    .stage-container { margin-top: 60px; height: 340px; background: radial-gradient(circle at center, #2a2a4a 0%, #1a1a2e 70%); position: relative; display: flex; justify-content: center; align-items: center; }
+    /* 关键修复：增加 margin-top 防止被 header 遮挡 */
+    .stage-container { margin-top: 80px; height: 320px; background: radial-gradient(circle at center, #2a2a4a 0%, #1a1a2e 70%); position: relative; display: flex; justify-content: center; align-items: center; }
+    
     .avatar-img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5)); z-index: 10; }
-    
     .upload-btn { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.1); border: 1px dashed #aaa; color: #ccc; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; z-index: 50; }
-    
-    /* 奖杯堆 */
     .trophy-pile { position: absolute; bottom: 10px; right: 10px; display: flex; z-index: 15; flex-wrap: wrap-reverse; max-width: 150px; justify-content: flex-end; }
     .trophy { font-size: 2rem; margin-left: -5px; }
 
-    /* 双入口 */
     .portal-container { padding: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; max-width: 800px; margin: -20px auto 0; position: relative; z-index: 30; }
     .portal-card { background: #16213e; border-radius: 16px; padding: 2rem 1rem; text-align: center; border: 2px solid rgba(255,255,255,0.05); box-shadow: 0 10px 20px rgba(0,0,0,0.3); cursor: pointer; }
     .portal-battle { background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%); }
@@ -27,20 +25,20 @@
     .p-icon { font-size: 2.5rem; display: block; margin-bottom: 10px; }
     .p-title { font-size: 1.2rem; font-weight: bold; }
 
-    /* 游戏列表 */
-    .content-section { display: none; padding: 1rem; max-width: 1000px; margin: 0 auto; }
+    /* 关键修复：游戏列表增加顶部间距 */
+    .content-section { display: none; padding: 1rem; max-width: 1000px; margin: 80px auto 0; }
+    .back-bar { margin-bottom: 1rem; cursor: pointer; color: #ccc; display: flex; align-items: center; font-size: 1rem; }
+    .back-bar:hover { color: white; }
+
     .game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem; }
-    .game-card { background: #16213e; border-radius: 12px; overflow: hidden; }
+    .game-card { background: #16213e; border-radius: 12px; overflow: hidden; text-align: center; }
     .game-thumb { height: 100px; background: #0f3460; display: flex; align-items: center; justify-content: center; }
     .game-thumb img { width: 100%; height: 100%; object-fit: cover; }
-    .game-info { padding: 10px; text-align: center; }
-    .btn-start { display: block; background: #e94560; color: white; padding: 5px; border-radius: 5px; text-decoration: none; font-size: 0.9rem; }
-    .back-btn { color: #ccc; cursor: pointer; margin-bottom: 1rem; display: inline-block; }
+    .game-info { padding: 10px; }
+    .btn-start { display: block; background: #e94560; color: white; padding: 6px; border-radius: 5px; text-decoration: none; font-size: 0.9rem; font-weight: bold; margin-top: 5px; }
 
-    /* Loading */
     .loader-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 999; display:none; flex-direction:column; justify-content:center; align-items:center; color:white; }
 
-    /* Nav */
     .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:#16213e;border-top:1px solid #333;display:flex;justify-content:space-around;padding:10px 0;z-index:99}
     .nav-item{text-decoration:none;color:#888;font-size:0.8rem;text-align:center;display:flex;flex-direction:column}
     .nav-icon{font-size:1.4rem;margin-bottom:2px}
@@ -54,41 +52,41 @@
     <a href="#" id="logout" class="logout">退出</a>
   </div>
 
-  <div class="stage-container">
-    <div style="position:absolute; top:-50px; width:200px; height:300px; background:rgba(255,255,255,0.1); filter:blur(20px); border-radius:50%;"></div>
-    
-    <label class="upload-btn">
-        <span>📷 上传荣誉</span>
-        <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="uploadTrophy()">
-    </label>
+  <div id="lobbyView">
+      <div class="stage-container">
+        <label class="upload-btn">
+            <span>📷 上传荣誉</span>
+            <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="uploadTrophy()">
+        </label>
+        <div style="width:260px; height:260px; position:relative;">
+            <img id="heroImg" class="avatar-img" src="" alt="Hero">
+        </div>
+        <div id="trophyArea" class="trophy-pile"></div>
+      </div>
 
-    <div style="width:260px; height:260px; position:relative;">
-        <img id="heroImg" class="avatar-img" src="" alt="Hero">
-    </div>
-    <div id="trophyArea" class="trophy-pile"></div>
-  </div>
-
-  <div id="portalView" class="portal-container">
-    <div class="portal-card portal-battle" onclick="switchMode('battle')">
-      <span class="p-icon">⚔️</span>
-      <div class="p-title">打怪升级</div>
-      <div>Battle Mode</div>
-    </div>
-    <div class="portal-card portal-train" onclick="location.href='/timetable.html'">
-      <span class="p-icon">🛡️</span>
-      <div class="p-title">修炼本领</div>
-      <div>Training Mode</div>
-    </div>
+      <div class="portal-container">
+        <div class="portal-card portal-battle" onclick="switchMode('battle')">
+          <span class="p-icon">⚔️</span>
+          <div class="p-title">打怪升级</div>
+          <div>Battle Mode</div>
+        </div>
+        <div class="portal-card portal-train" onclick="location.href='/timetable.html'">
+          <span class="p-icon">🛡️</span>
+          <div class="p-title">修炼本领</div>
+          <div>Training Mode</div>
+        </div>
+      </div>
   </div>
 
   <div id="gameView" class="content-section">
-    <div class="back-btn" onclick="switchMode('home')">◀ 返回主页</div>
+    <div class="back-bar" onclick="switchMode('home')">◀ 返回大厅</div>
+    <div style="font-weight:bold; margin-bottom:10px; color:#e94560; border-left:4px solid #e94560; padding-left:10px">当前任务 (Quests)</div>
     <div id="gameGrid" class="game-grid">Loading...</div>
   </div>
 
   <div class="loader-overlay" id="loader">
     <div style="font-size:2rem">🤖</div>
-    <div>正在识别荣誉...</div>
+    <div>AI 正在识别荣誉...</div>
   </div>
 
   <div class="nav-bar">
@@ -99,29 +97,23 @@
   </div>
 
   <script>
-    // 1. 切换逻辑 (修复了 alert 问题)
     function switchMode(mode) {
         if (mode === 'battle') {
-            document.getElementById('portalView').style.display = 'none';
-            document.querySelector('.stage-container').style.display = 'none';
+            document.getElementById('lobbyView').style.display = 'none';
             document.getElementById('gameView').style.display = 'block';
             loadGames();
         } else {
-            document.getElementById('portalView').style.display = 'grid';
-            document.querySelector('.stage-container').style.display = 'flex';
             document.getElementById('gameView').style.display = 'none';
+            document.getElementById('lobbyView').style.display = 'block';
         }
     }
 
-    // 2. 加载数据
     fetch('/api/me').then(r=>r.json()).then(user => {
         if(!user || !user.id) return location.href = '/';
         document.getElementById('userInfo').textContent = user.student_name || user.email;
-        
         const seed = user.student_name || 'hero';
         document.getElementById('heroImg').src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}&backgroundColor=b6e3f4`;
 
-        // 加载奖杯
         fetch('/api/my-trophies').then(r=>r.json()).then(ts => {
             const area = document.getElementById('trophyArea');
             area.innerHTML = '';
@@ -130,16 +122,20 @@
                 const div = document.createElement('div');
                 div.className = 'trophy';
                 div.textContent = icon;
+                div.title = t.source_name;
                 area.appendChild(div);
             });
         });
     }).catch(()=>location.href='/');
 
-    // 3. 加载游戏列表
     function loadGames() {
         fetch('/api/games').then(r=>r.json()).then(games => {
             const grid = document.getElementById('gameGrid');
             grid.innerHTML = '';
+            if(games.length===0) {
+                grid.innerHTML='<div style="color:#999;text-align:center;grid-column:1/-1">暂无游戏</div>'; 
+                return;
+            }
             games.forEach(g => {
                 const img = g.thumbnail ? `/games/${g.id}/${g.thumbnail}` : '';
                 grid.innerHTML += `
@@ -154,7 +150,6 @@
         });
     }
 
-    // 4. 上传奖杯
     async function uploadTrophy() {
         const input = document.getElementById('fileInput');
         if(input.files.length===0) return;
@@ -167,10 +162,10 @@
             const res = await fetch('/api/upload-trophy', {method:'POST', body:formData});
             const data = await res.json();
             if(data.success) {
-                alert(`识别成功！获得 ${data.type} 奖杯！`);
+                alert(`✅ 识别成功！\n内容: ${data.source}\n获得: ${data.type} 奖杯！`);
                 location.reload();
             } else {
-                alert('识别失败: ' + data.error);
+                alert('⚠️ ' + data.error);
             }
         } catch(e) { alert('上传出错'); }
         finally { document.getElementById('loader').style.display = 'none'; }

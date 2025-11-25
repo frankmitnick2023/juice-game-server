@@ -9,24 +9,8 @@
   <script>
     const urlParams = new URLSearchParams(location.search);
     const src = urlParams.get('src');
-    if (src) {
-        document.getElementById('gameFrame').src = src;
-    } else {
-        document.body.innerHTML = "Game source not found";
-    }
-    
-    // 消息转发 (用于记录分数)
-    window.addEventListener('message', (e) => {
-        // 这里处理游戏传出来的分数，转发给 parent (games.html)
-        // 或者直接在这里调用 fetch('/api/score')
-        if (e.data && e.data.type === 'JUICE_GAME_SCORE') {
-             fetch('/api/score', {
-                 method: 'POST',
-                 headers: {'Content-Type': 'application/json'},
-                 body: JSON.stringify({ gameId: 'unknown', score: e.data.score }) 
-             });
-        }
-    });
+    if (src) document.getElementById('gameFrame').src = src;
+    else document.body.innerHTML = "Game source not found";
   </script>
 </body>
 </html>
