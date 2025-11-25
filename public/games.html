@@ -7,153 +7,40 @@
   <style>
     body{font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin:0; background:#1a1a2e; color:white; padding-bottom:5rem; overflow-x:hidden}
     
-    /* === 1. 顶部状态条 === */
-    .header {
-        background: rgba(22, 33, 62, 0.9);
-        padding: 1rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        position: fixed;
-        top: 0; left: 0; right: 0;
-        z-index: 100;
-        backdrop-filter: blur(10px);
-        border-bottom: 1px solid rgba(255,255,255,0.1);
-    }
+    .header { background: rgba(22, 33, 62, 0.9); padding: 1rem; display: flex; justify-content: space-between; align-items: center; position: fixed; top: 0; left: 0; right: 0; z-index: 100; backdrop-filter: blur(10px); border-bottom: 1px solid rgba(255,255,255,0.1); }
     .user-name { font-weight: bold; color: #e94560; font-size: 1.1rem; text-transform: uppercase; }
     .logout { font-size: 0.8rem; color: #888; text-decoration: none; border:1px solid #444; padding:4px 10px; border-radius:15px}
 
-    /* === 2. 阿凡达舞台 (核心升级) === */
-    .stage-container {
-        margin-top: 60px; /* 避开header */
-        height: 320px;
-        background: radial-gradient(circle at center, #2a2a4a 0%, #1a1a2e 70%);
-        position: relative;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        overflow: hidden;
-    }
-    
-    /* 聚光灯效果 */
-    .spotlight {
-        position: absolute;
-        top: -50px; left: 50%; transform: translateX(-50%);
-        width: 200px; height: 300px;
-        background: linear-gradient(to bottom, rgba(255,255,255,0.1), transparent);
-        filter: blur(20px);
-        border-radius: 50%;
-        pointer-events: none;
-    }
-
-    /* 人物容器 */
-    .avatar-wrapper {
-        position: relative;
-        width: 260px;
-        height: 260px;
-        animation: float 3s ease-in-out infinite;
-    }
+    .stage-container { margin-top: 60px; height: 340px; background: radial-gradient(circle at center, #2a2a4a 0%, #1a1a2e 70%); position: relative; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+    .spotlight { position: absolute; top: -50px; left: 50%; transform: translateX(-50%); width: 200px; height: 300px; background: linear-gradient(to bottom, rgba(255,255,255,0.1), transparent); filter: blur(20px); border-radius: 50%; pointer-events: none; }
+    .avatar-wrapper { position: relative; width: 260px; height: 260px; animation: float 3s ease-in-out infinite; }
     @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+    .avatar-img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5)); z-index: 10; position: relative; }
+    .age-tag { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); padding: 4px 10px; border-radius: 15px; font-size: 0.8rem; border: 1px solid #e94560; color: #e94560; }
 
-    /* 人物图片 */
-    .avatar-img {
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-        filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5));
-        z-index: 10;
-        position: relative;
-    }
+    /* 奖杯区域 */
+    .trophy-pile { position: absolute; bottom: 10px; right: 10px; display: flex; align-items: flex-end; z-index: 15; flex-wrap: wrap-reverse; max-width: 150px; justify-content: flex-end; }
+    .trophy { font-size: 2.5rem; filter: drop-shadow(0 5px 5px rgba(0,0,0,0.5)); margin-left: -10px; transition: transform 0.2s; cursor: pointer; }
+    .trophy:hover { transform: scale(1.2); }
+    .trophy-gold { filter: drop-shadow(0 0 10px gold); }
 
-    /* === 徽章系统 (胸前) === */
-    .badge-container {
-        position: absolute;
-        bottom: 40px;
-        left: 50%;
-        transform: translateX(-50%);
-        display: flex;
-        gap: 5px;
-        z-index: 20;
-    }
-    .badge {
-        width: 30px; height: 30px;
-        background: gold;
-        border-radius: 50%;
-        box-shadow: 0 0 10px gold;
-        display: flex; align-items: center; justify-content: center;
-        font-size: 16px;
-        border: 2px solid white;
-    }
-    .badge.silver { background: silver; box-shadow: 0 0 10px silver; }
-    .badge.bronze { background: #cd7f32; box-shadow: 0 0 10px #cd7f32; }
+    /* 上传按钮 */
+    .upload-btn { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.1); border: 1px dashed #aaa; color: #ccc; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; display: flex; align-items: center; gap: 5px; z-index: 50; transition: 0.2s; }
+    .upload-btn:hover { background: rgba(255,255,255,0.2); color: white; border-color: white; }
 
-    /* === 奖杯系统 (身旁) === */
-    .trophy-pile {
-        position: absolute;
-        bottom: 20px;
-        right: 10px;
-        display: flex;
-        align-items: flex-end;
-        z-index: 15;
-    }
-    .trophy { font-size: 2.5rem; filter: drop-shadow(0 5px 5px rgba(0,0,0,0.5)); margin-left: -15px; transform: rotate(5deg); transition: transform 0.2s; }
-    .trophy:hover { transform: scale(1.2) rotate(0deg); }
+    /* 加载遮罩 */
+    .loader-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 999; display:none; flex-direction:column; justify-content:center; align-items:center; color:white; }
+    .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #e94560; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-    /* 年龄标签 */
-    .age-tag {
-        position: absolute;
-        top: 10px; right: 10px;
-        background: rgba(0,0,0,0.6);
-        padding: 4px 10px;
-        border-radius: 15px;
-        font-size: 0.8rem;
-        border: 1px solid #e94560;
-        color: #e94560;
-    }
-
-    /* === 3. 双入口 (打怪/修炼) === */
-    .portal-container {
-        padding: 1rem;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 1rem;
-        max-width: 800px;
-        margin: -20px auto 0; /* 往上顶一点，压住舞台 */
-        position: relative;
-        z-index: 30;
-    }
-    
-    .portal-card {
-        background: #16213e;
-        border-radius: 16px;
-        padding: 1.5rem 1rem;
-        text-align: center;
-        border: 2px solid rgba(255,255,255,0.05);
-        box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-        cursor: pointer;
-        position: relative;
-        overflow: hidden;
-    }
-    .portal-card:active { transform: scale(0.96); }
-    
+    /* 入口卡片 */
+    .portal-container { padding: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; max-width: 800px; margin: -20px auto 0; position: relative; z-index: 30; }
+    .portal-card { background: #16213e; border-radius: 16px; padding: 1.5rem 1rem; text-align: center; border: 2px solid rgba(255,255,255,0.05); box-shadow: 0 10px 20px rgba(0,0,0,0.3); cursor: pointer; }
     .portal-battle { background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%); }
     .portal-train { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-
     .p-icon { font-size: 2rem; display: block; margin-bottom: 5px; }
     .p-title { font-size: 1.2rem; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.2); }
-    .p-sub { font-size: 0.8rem; opacity: 0.9; }
 
-    /* === 4. 游戏列表 (Battle View) === */
-    .content-section { display: none; padding: 1rem; max-width: 1000px; margin: 0 auto; }
-    .game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; }
-    .game-card { background: #16213e; border-radius: 12px; overflow: hidden; margin-bottom: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
-    .game-thumb { height: 120px; background: #0f3460; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-    .game-thumb img { width: 100%; height: 100%; object-fit: cover; }
-    .game-info { padding: 10px; text-align: center; }
-    .btn-start { display: block; background: #e94560; color: white; padding: 6px; border-radius: 6px; text-decoration: none; font-size: 0.9rem; font-weight: bold; }
-    .back-bar { padding: 10px; color: #ccc; cursor: pointer; display: flex; align-items: center; gap: 5px; }
-
-    /* 底部导航 */
     .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:#16213e;border-top:1px solid #333;display:flex;justify-content:space-around;padding:10px 0;z-index:99}
     .nav-item{text-decoration:none;color:#888;font-size:0.8rem;text-align:center;display:flex;flex-direction:column}
     .nav-icon{font-size:1.4rem;margin-bottom:2px}
@@ -169,14 +56,15 @@
 
   <div class="stage-container">
     <div class="spotlight"></div>
-    
-    <div id="ageTag" class="age-tag">Junior Dancer</div>
+    <div id="ageTag" class="age-tag">Hero</div>
+
+    <label class="upload-btn">
+        <span>📷 上传荣誉</span>
+        <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="uploadTrophy()">
+    </label>
 
     <div class="avatar-wrapper">
         <img id="heroImg" class="avatar-img" src="" alt="Hero">
-        
-        <div id="badgeArea" class="badge-container">
-            </div>
     </div>
 
     <div id="trophyArea" class="trophy-pile">
@@ -184,25 +72,22 @@
   </div>
 
   <div id="portalView" class="portal-container">
-    <div class="portal-card portal-battle" onclick="enterBattle()">
+    <div class="portal-card portal-battle" onclick="alert('前往游戏列表...')">
       <span class="p-icon">⚔️</span>
       <div class="p-title">打怪升级</div>
-      <div class="p-sub">Battle Mode</div>
     </div>
     <div class="portal-card portal-train" onclick="location.href='/timetable.html'">
       <span class="p-icon">🛡️</span>
       <div class="p-title">修炼本领</div>
-      <div class="p-sub">Training Mode</div>
     </div>
   </div>
 
-  <div id="gameView" class="content-section">
-    <div class="back-bar" onclick="exitBattle()">◀ 返回主页</div>
-    <div style="font-weight:bold; margin-bottom:10px; color:#e94560">当前任务 (Quests)</div>
-    <div id="gameGrid" class="game-grid"></div>
+  <div class="loader-overlay" id="loader">
+    <div class="spinner"></div>
+    <div id="loaderText">正在识别荣誉...<br>AI Analyzing...</div>
   </div>
 
-  <div style="height: 60px;"></div> <div class="nav-bar">
+  <div class="nav-bar">
     <a href="#" class="nav-item active"><span class="nav-icon">🎮</span>大厅</a>
     <a href="/my_schedule.html" class="nav-item"><span class="nav-icon">📅</span>课表</a>
     <a href="/timetable.html" class="nav-item"><span class="nav-icon">🛒</span>选课</a>
@@ -210,121 +95,86 @@
   </div>
 
   <script>
-    // 逻辑配置
-    let userData = null;
+    async function loadData() {
+        try {
+            // 1. 用户信息
+            const res = await fetch('/api/me');
+            const user = await res.json();
+            if (!user || !user.id) return location.href = '/';
+            
+            document.getElementById('userInfo').textContent = user.student_name || user.email;
+            
+            // 头像生成
+            const seed = user.student_name || 'hero';
+            const avatarUrl = `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}&backgroundColor=b6e3f4`;
+            document.getElementById('heroImg').src = avatarUrl;
 
-    // 获取用户信息
-    fetch('/api/me').then(r => r.json()).then(user => {
-        if (!user || !user.id) return location.href = '/';
-        userData = user;
-        
-        // 1. 更新名字
-        document.getElementById('userInfo').textContent = user.student_name || user.email;
+            // 2. 加载奖杯
+            const tRes = await fetch('/api/my-trophies');
+            const trophies = await tRes.json();
+            
+            const area = document.getElementById('trophyArea');
+            area.innerHTML = '';
+            
+            trophies.forEach(t => {
+                let icon = '🥉'; // 默认青铜
+                let cls = '';
+                if (t.trophy_type === 'gold') { icon = '🏆'; cls = 'trophy-gold'; }
+                if (t.trophy_type === 'silver') { icon = '🥈'; }
+                
+                const div = document.createElement('div');
+                div.className = `trophy ${cls}`;
+                div.textContent = icon;
+                div.title = t.source_name || 'Award';
+                area.appendChild(div);
+            });
 
-        // 2. 计算年龄
-        let age = 7; // 默认
-        if (user.dob) {
-            const dob = new Date(user.dob);
-            age = new Date().getFullYear() - dob.getFullYear();
+        } catch(e) { console.error(e); }
+    }
+
+    async function uploadTrophy() {
+        const input = document.getElementById('fileInput');
+        if (input.files.length === 0) return;
+
+        const file = input.files[0];
+        const formData = new FormData();
+        formData.append('trophyImage', file);
+
+        // 显示 Loading
+        const loader = document.getElementById('loader');
+        loader.style.display = 'flex';
+
+        try {
+            const res = await fetch('/api/upload-trophy', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                let rewardMsg = "恭喜！获得 青铜奖杯 🥉";
+                if (data.type === 'gold') rewardMsg = "哇！是金奖！获得 🏆 冠军奖杯！";
+                if (data.type === 'silver') rewardMsg = "厉害！获得 🥈 银奖奖杯！";
+                
+                alert(`识别成功！\n内容包含: ${data.source}\n${rewardMsg}\n金币 +${data.coins}`);
+                loadData(); // 刷新显示
+            } else {
+                alert('识别失败: ' + data.error);
+            }
+        } catch (e) {
+            alert('上传出错，请重试');
+        } finally {
+            loader.style.display = 'none';
+            input.value = ''; // 清空，方便下次选
         }
+    }
 
-        // 3. 猜测性别 (简单逻辑：名字以 a, e, i, y 结尾大概率是女孩)
-        const name = (user.student_name || "").toLowerCase();
-        const isGirl = /[aeiy]$/.test(name);
-        
-        // 4. 生成阿凡达 URL (使用 DiceBear API)
-        // 4-8岁: Fun Emoji (可爱)
-        // 9-12岁: Adventurer (卡通)
-        // 13岁+: Avataaars (潮流)
-        let style = 'adventurer'; 
-        let seed = user.student_name || 'hero';
-        let tagText = "Junior";
+    loadData();
 
-        if (age <= 8) {
-            style = 'fun-emoji';
-            tagText = "Little Hero (3-8岁)";
-        } else if (age <= 12) {
-            style = 'adventurer'; // 只有这个风格最好看，建议统一用这个，区分男女即可
-            tagText = "Middle Hero (9-12岁)";
-        } else {
-            style = 'avataaars';
-            tagText = "Top Hero (13岁+)";
-        }
-        
-        // 构建 URL (如果是男孩，换个seed)
-        // 这里为了统一美观，我推荐统一用 'adventurer' 风格，非常适合RPG游戏
-        const avatarUrl = `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}&backgroundColor=b6e3f4`;
-        document.getElementById('heroImg').src = avatarUrl;
-        document.getElementById('ageTag').textContent = tagText;
-
-        // 5. 渲染徽章 (根据 Level 模拟)
-        // Level 1-3: 青铜; 4-6: 白银; 7+: 黄金
-        const level = user.level || 1;
-        const badgeDiv = document.getElementById('badgeArea');
-        let badgeHtml = '';
-        if (level >= 1) badgeHtml += '<div class="badge bronze">🥉</div>';
-        if (level >= 4) badgeHtml += '<div class="badge silver">🥈</div>';
-        if (level >= 7) badgeHtml += '<div class="badge gold">🥇</div>';
-        badgeDiv.innerHTML = badgeHtml;
-
-        // 6. 渲染奖杯 (根据 Coins 模拟)
-        // 每 100 金币一个奖杯
-        const coins = user.coins || 0;
-        const trophyCount = Math.min(5, Math.floor(coins / 100)); // 最多堆5个
-        const trophyDiv = document.getElementById('trophyArea');
-        let trophyHtml = '';
-        for(let i=0; i<trophyCount; i++) {
-            trophyHtml += '<div class="trophy">🏆</div>';
-        }
-        trophyDiv.innerHTML = trophyHtml;
-
-    }).catch(() => location.href = '/');
-
-    // 登出
     document.getElementById('logout').onclick = e => {
         e.preventDefault();
         fetch('/api/logout', {method:'POST'}).then(() => location.href = '/');
     };
-
-    // 切换视图
-    function enterBattle() {
-        document.getElementById('portalView').style.display = 'none';
-        document.querySelector('.stage-container').style.display = 'none'; // 进游戏时隐藏阿凡达
-        document.getElementById('gameView').style.display = 'block';
-        loadGames();
-    }
-
-    function exitBattle() {
-        document.getElementById('portalView').style.display = 'grid';
-        document.querySelector('.stage-container').style.display = 'flex';
-        document.getElementById('gameView').style.display = 'none';
-    }
-
-    // 加载游戏
-    let gamesLoaded = false;
-    function loadGames() {
-        if (gamesLoaded) return;
-        fetch('/api/games').then(r => r.json()).then(games => {
-            const grid = document.getElementById('gameGrid');
-            grid.innerHTML = '';
-            if(games.length===0) grid.innerHTML='<div style="color:#666;text-align:center;grid-column:1/-1">暂无游戏</div>';
-            
-            games.forEach(g => {
-                const imgSrc = g.thumbnail ? `/games/${g.id}/${g.thumbnail}` : null;
-                grid.innerHTML += `
-                <div class="game-card">
-                    <div class="game-thumb">
-                        ${imgSrc ? `<img src="${imgSrc}">` : '👾'}
-                    </div>
-                    <div class="game-info">
-                        <div class="game-title">${g.title}</div>
-                        <a href="/play/${g.id}" class="btn-start">开始</a>
-                    </div>
-                </div>`;
-            });
-            gamesLoaded = true;
-        });
-    }
   </script>
 </body>
 </html>
