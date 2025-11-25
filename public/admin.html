@@ -12,7 +12,7 @@
     .day-tab {flex:0 0 auto;padding:6px 14px;margin-right:8px;border-radius:15px;background:#f0f0f0;color:#666;font-weight:bold;font-size:0.9rem;cursor:pointer}
     .day-tab.active {background:#333;color:white}
 
-    .container{padding:15px}
+    .container{padding:15px;min-height: 300px;}
     .class-card{background:white;border-radius:10px;padding:15px;margin-bottom:15px;box-shadow:0 2px 8px rgba(0,0,0,0.05);border-left:5px solid #333;cursor:pointer;position:relative}
     
     .c-time{font-weight:bold;color:#333;font-size:1.1rem}
@@ -29,6 +29,8 @@
     .student-row{display:flex;justify-content:space-between;align-items:center;padding:15px 0;border-bottom:1px solid #f5f5f5}
     .btn-check{background:#4CAF50;color:white;border:none;padding:8px 20px;border-radius:20px;font-weight:bold}
     .btn-done{background:#ddd;color:#999}
+    
+    .error-msg {color: red; text-align: center; padding: 20px; background: #ffebee; border-radius: 8px;}
   </style>
 </head>
 <body>
@@ -39,7 +41,9 @@
 </div>
 
 <div class="day-tabs" id="dayTabs"></div>
-<div class="container" id="classList"></div>
+<div class="container" id="classList">
+    <p style="text-align:center;color:#666">正在加载数据...</p>
+</div>
 
 <div id="rollCallModal" class="modal">
     <div class="m-header">
@@ -52,9 +56,10 @@
 <script>
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   let allCourses = [];
-  let currentDay = 'Friday'; // 默认显示周五，方便您测试
+  let currentDay = 'Friday'; // 默认周五
 
   async function init() {
+      // 1. 渲染顶部星期栏
       const tabs = document.getElementById('dayTabs');
       days.forEach(d => {
           const div = document.createElement('div');
@@ -64,9 +69,36 @@
           tabs.appendChild(div);
       });
 
-      const res = await fetch('/api/teacher/schedule');
-      allCourses = await res.json();
-      renderClasses();
+      try {
+          // 2. 请求数据
+          const res = await fetch('/api/teacher/schedule');
+          
+          // 如果状态码不对 (比如 500 Error)，抛出错误
+          if (!res.ok) {
+              const errData = await res.json();
+              throw new Error(errData.error || '服务器内部错误');
+          }
+
+          allCourses = await res.json();
+          
+          // 检查数据格式
+          if (!Array.isArray(allCourses)) {
+              throw new Error('返回数据格式错误');
+          }
+
+          renderClasses();
+
+      } catch (e) {
+          // 3. 错误处理：显示在页面上，不再白屏
+          document.getElementById('classList').innerHTML = `
+            <div class="error-msg">
+                <h3>加载失败</h3>
+                <p>${e.message}</p>
+                <button onclick="location.reload()" style="margin-top:10px">重试</button>
+            </div>
+          `;
+          console.error(e);
+      }
   }
 
   function switchDay(day, el) {
@@ -79,15 +111,21 @@
   function renderClasses() {
       const list = document.getElementById('classList');
       list.innerHTML = '';
+      
+      if (!allCourses || allCourses.length === 0) {
+          list.innerHTML = '<p style="text-align:center;color:#999">数据库中暂无课程数据</p>';
+          return;
+      }
+
       const todayClasses = allCourses.filter(c => c.day_of_week === currentDay);
       
       if(todayClasses.length === 0) {
-          list.innerHTML = '<p style="text-align:center;color:#999;margin-top:50px">今日无课程</p>';
+          list.innerHTML = `<p style="text-align:center;color:#999;margin-top:50px">${currentDay} 没有排课</p>`;
           return;
       }
 
       todayClasses.forEach(c => {
-          const count = parseInt(c.student_count);
+          const count = parseInt(c.student_count || 0);
           const div = document.createElement('div');
           div.className = 'class-card';
           div.innerHTML = `
@@ -105,38 +143,75 @@
       document.getElementById('rollCallModal').style.display = 'flex';
       document.getElementById('mTitle').textContent = course.name;
       const list = document.getElementById('mList');
-      list.innerHTML = '加载中...';
+      list.innerHTML = '<p style="text-align:center">加载名单...</p>';
 
-      const res = await fetch(`/api/teacher/bookings/${course.id}`);
-      const students = await res.json();
+      try {
+          const res = await fetch(`/api/teacher/bookings/${course.id}`);
+          const students = await res.json();
 
-      list.innerHTML = '';
-      if(students.length === 0) {
-          list.innerHTML = '<p style="text-align:center;color:#999">暂无学生报名</p>';
-          return;
+          list.innerHTML = '';
+          if(students.length === 0) {
+              list.innerHTML = '<p style="text-align:center;color:#999;margin-top:20px">暂无学生报名</p>';
+              return;
+          }
+
+          students.forEach(s => {
+              // 兼容旧状态 'attended' 和新状态 'active'
+              const isAttended = s.status === 'attended' || s.status === 'active'; 
+              
+              const div = document.createElement('div');
+              div.className = 'student-row';
+              div.innerHTML = `
+                <div>
+                    <div style="font-weight:bold;font-size:1.1rem">${s.student_name || '未命名'}</div>
+                    <div style="font-size:0.8rem;color:#888">累计修练: ${(s.total_minutes/60).toFixed(1)}小时</div>
+                </div>
+                <button class="${isAttended ? 'btn-check btn-done' : 'btn-check'}" 
+                        onclick="checkIn(${s.id}, ${course.id}, this)" 
+                        ${isAttended ? 'disabled' : ''}>
+                    ${isAttended ? '已到' : '签到'}
+                </button>
+              `;
+              list.appendChild(div);
+          });
+      } catch(e) {
+          list.innerHTML = '<p style="color:red;text-align:center">加载名单失败</p>';
       }
-
-      students.forEach(s => {
-          const isAttended = s.status === 'attended' || s.status === 'active'; // 兼容新旧状态
-          const div = document.createElement('div');
-          div.className = 'student-row';
-          div.innerHTML = `
-            <div>
-                <div style="font-weight:bold;font-size:1.1rem">${s.student_name}</div>
-                <div style="font-size:0.8rem;color:#888">累计: ${(s.total_minutes/60).toFixed(1)}小时</div>
-            </div>
-            <button class="${isAttended ? 'btn-check btn-done' : 'btn-check'}" 
-                    onclick="checkIn(${s.id}, ${course.id}, this)" 
-                    ${isAttended ? 'disabled' : ''}>
-                ${isAttended ? '已到' : '签到'}
-            </button>
-          `;
-          list.appendChild(div);
-      });
   }
 
   function closeModal() {
       document.getElementById('rollCallModal').style.display = 'none';
   }
 
-  async function checkIn(bid, cid
+  async function checkIn(bid, cid, btn) {
+      if(!confirm('确认该学生已到课？')) return;
+      
+      const originalText = btn.textContent;
+      btn.textContent = '...';
+      
+      try {
+          const res = await fetch('/api/teacher/check-in', {
+              method:'POST',
+              headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({bookingId:bid, courseId:cid})
+          });
+          if(res.ok) {
+              const d = await res.json();
+              alert(`✅ 签到成功 (+${d.added_minutes}分钟)`);
+              btn.className = 'btn-check btn-done';
+              btn.textContent = '已到';
+              btn.disabled = true;
+          } else {
+              alert('操作失败');
+              btn.textContent = originalText;
+          }
+      } catch(e) {
+          alert('网络错误');
+          btn.textContent = originalText;
+      }
+  }
+
+  init();
+</script>
+</body>
+</html>
