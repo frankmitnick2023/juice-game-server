@@ -6,41 +6,41 @@
   <title>WE DANCE - Hero Hub</title>
   <style>
     body{font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin:0; background:#1a1a2e; color:white; padding-bottom:5rem; overflow-x:hidden}
-    
-    .header { background: rgba(22, 33, 62, 0.9); padding: 1rem; display: flex; justify-content: space-between; align-items: center; position: fixed; top: 0; left: 0; right: 0; z-index: 100; backdrop-filter: blur(10px); border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .header { background: rgba(22, 33, 62, 0.9); padding: 1rem; display: flex; justify-content: space-between; align-items: center; position: fixed; top: 0; left: 0; right: 0; z-index: 100; border-bottom: 1px solid rgba(255,255,255,0.1); }
     .user-name { font-weight: bold; color: #e94560; font-size: 1.1rem; text-transform: uppercase; }
     .logout { font-size: 0.8rem; color: #888; text-decoration: none; border:1px solid #444; padding:4px 10px; border-radius:15px}
 
-    .stage-container { margin-top: 60px; height: 340px; background: radial-gradient(circle at center, #2a2a4a 0%, #1a1a2e 70%); position: relative; display: flex; justify-content: center; align-items: center; overflow: hidden; }
-    .spotlight { position: absolute; top: -50px; left: 50%; transform: translateX(-50%); width: 200px; height: 300px; background: linear-gradient(to bottom, rgba(255,255,255,0.1), transparent); filter: blur(20px); border-radius: 50%; pointer-events: none; }
-    .avatar-wrapper { position: relative; width: 260px; height: 260px; animation: float 3s ease-in-out infinite; }
-    @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-    .avatar-img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5)); z-index: 10; position: relative; }
-    .age-tag { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); padding: 4px 10px; border-radius: 15px; font-size: 0.8rem; border: 1px solid #e94560; color: #e94560; }
+    .stage-container { margin-top: 60px; height: 340px; background: radial-gradient(circle at center, #2a2a4a 0%, #1a1a2e 70%); position: relative; display: flex; justify-content: center; align-items: center; }
+    .avatar-img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5)); z-index: 10; }
+    
+    .upload-btn { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.1); border: 1px dashed #aaa; color: #ccc; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; z-index: 50; }
+    
+    /* 奖杯堆 */
+    .trophy-pile { position: absolute; bottom: 10px; right: 10px; display: flex; z-index: 15; flex-wrap: wrap-reverse; max-width: 150px; justify-content: flex-end; }
+    .trophy { font-size: 2rem; margin-left: -5px; }
 
-    /* 奖杯区域 */
-    .trophy-pile { position: absolute; bottom: 10px; right: 10px; display: flex; align-items: flex-end; z-index: 15; flex-wrap: wrap-reverse; max-width: 150px; justify-content: flex-end; }
-    .trophy { font-size: 2.5rem; filter: drop-shadow(0 5px 5px rgba(0,0,0,0.5)); margin-left: -10px; transition: transform 0.2s; cursor: pointer; }
-    .trophy:hover { transform: scale(1.2); }
-    .trophy-gold { filter: drop-shadow(0 0 10px gold); }
-
-    /* 上传按钮 */
-    .upload-btn { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.1); border: 1px dashed #aaa; color: #ccc; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; display: flex; align-items: center; gap: 5px; z-index: 50; transition: 0.2s; }
-    .upload-btn:hover { background: rgba(255,255,255,0.2); color: white; border-color: white; }
-
-    /* 加载遮罩 */
-    .loader-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 999; display:none; flex-direction:column; justify-content:center; align-items:center; color:white; }
-    .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #e94560; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-    /* 入口卡片 */
+    /* 双入口 */
     .portal-container { padding: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; max-width: 800px; margin: -20px auto 0; position: relative; z-index: 30; }
-    .portal-card { background: #16213e; border-radius: 16px; padding: 1.5rem 1rem; text-align: center; border: 2px solid rgba(255,255,255,0.05); box-shadow: 0 10px 20px rgba(0,0,0,0.3); cursor: pointer; }
+    .portal-card { background: #16213e; border-radius: 16px; padding: 2rem 1rem; text-align: center; border: 2px solid rgba(255,255,255,0.05); box-shadow: 0 10px 20px rgba(0,0,0,0.3); cursor: pointer; }
     .portal-battle { background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%); }
     .portal-train { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-    .p-icon { font-size: 2rem; display: block; margin-bottom: 5px; }
-    .p-title { font-size: 1.2rem; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.2); }
+    .p-icon { font-size: 2.5rem; display: block; margin-bottom: 10px; }
+    .p-title { font-size: 1.2rem; font-weight: bold; }
 
+    /* 游戏列表 */
+    .content-section { display: none; padding: 1rem; max-width: 1000px; margin: 0 auto; }
+    .game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem; }
+    .game-card { background: #16213e; border-radius: 12px; overflow: hidden; }
+    .game-thumb { height: 100px; background: #0f3460; display: flex; align-items: center; justify-content: center; }
+    .game-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .game-info { padding: 10px; text-align: center; }
+    .btn-start { display: block; background: #e94560; color: white; padding: 5px; border-radius: 5px; text-decoration: none; font-size: 0.9rem; }
+    .back-btn { color: #ccc; cursor: pointer; margin-bottom: 1rem; display: inline-block; }
+
+    /* Loading */
+    .loader-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 999; display:none; flex-direction:column; justify-content:center; align-items:center; color:white; }
+
+    /* Nav */
     .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:#16213e;border-top:1px solid #333;display:flex;justify-content:space-around;padding:10px 0;z-index:99}
     .nav-item{text-decoration:none;color:#888;font-size:0.8rem;text-align:center;display:flex;flex-direction:column}
     .nav-icon{font-size:1.4rem;margin-bottom:2px}
@@ -55,36 +55,40 @@
   </div>
 
   <div class="stage-container">
-    <div class="spotlight"></div>
-    <div id="ageTag" class="age-tag">Hero</div>
-
+    <div style="position:absolute; top:-50px; width:200px; height:300px; background:rgba(255,255,255,0.1); filter:blur(20px); border-radius:50%;"></div>
+    
     <label class="upload-btn">
         <span>📷 上传荣誉</span>
         <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="uploadTrophy()">
     </label>
 
-    <div class="avatar-wrapper">
+    <div style="width:260px; height:260px; position:relative;">
         <img id="heroImg" class="avatar-img" src="" alt="Hero">
     </div>
-
-    <div id="trophyArea" class="trophy-pile">
-        </div>
+    <div id="trophyArea" class="trophy-pile"></div>
   </div>
 
   <div id="portalView" class="portal-container">
-    <div class="portal-card portal-battle" onclick="alert('前往游戏列表...')">
+    <div class="portal-card portal-battle" onclick="switchMode('battle')">
       <span class="p-icon">⚔️</span>
       <div class="p-title">打怪升级</div>
+      <div>Battle Mode</div>
     </div>
     <div class="portal-card portal-train" onclick="location.href='/timetable.html'">
       <span class="p-icon">🛡️</span>
       <div class="p-title">修炼本领</div>
+      <div>Training Mode</div>
     </div>
   </div>
 
+  <div id="gameView" class="content-section">
+    <div class="back-btn" onclick="switchMode('home')">◀ 返回主页</div>
+    <div id="gameGrid" class="game-grid">Loading...</div>
+  </div>
+
   <div class="loader-overlay" id="loader">
-    <div class="spinner"></div>
-    <div id="loaderText">正在识别荣誉...<br>AI Analyzing...</div>
+    <div style="font-size:2rem">🤖</div>
+    <div>正在识别荣誉...</div>
   </div>
 
   <div class="nav-bar">
@@ -95,81 +99,82 @@
   </div>
 
   <script>
-    async function loadData() {
-        try {
-            // 1. 用户信息
-            const res = await fetch('/api/me');
-            const user = await res.json();
-            if (!user || !user.id) return location.href = '/';
-            
-            document.getElementById('userInfo').textContent = user.student_name || user.email;
-            
-            // 头像生成
-            const seed = user.student_name || 'hero';
-            const avatarUrl = `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}&backgroundColor=b6e3f4`;
-            document.getElementById('heroImg').src = avatarUrl;
-
-            // 2. 加载奖杯
-            const tRes = await fetch('/api/my-trophies');
-            const trophies = await tRes.json();
-            
-            const area = document.getElementById('trophyArea');
-            area.innerHTML = '';
-            
-            trophies.forEach(t => {
-                let icon = '🥉'; // 默认青铜
-                let cls = '';
-                if (t.trophy_type === 'gold') { icon = '🏆'; cls = 'trophy-gold'; }
-                if (t.trophy_type === 'silver') { icon = '🥈'; }
-                
-                const div = document.createElement('div');
-                div.className = `trophy ${cls}`;
-                div.textContent = icon;
-                div.title = t.source_name || 'Award';
-                area.appendChild(div);
-            });
-
-        } catch(e) { console.error(e); }
-    }
-
-    async function uploadTrophy() {
-        const input = document.getElementById('fileInput');
-        if (input.files.length === 0) return;
-
-        const file = input.files[0];
-        const formData = new FormData();
-        formData.append('trophyImage', file);
-
-        // 显示 Loading
-        const loader = document.getElementById('loader');
-        loader.style.display = 'flex';
-
-        try {
-            const res = await fetch('/api/upload-trophy', {
-                method: 'POST',
-                body: formData
-            });
-            const data = await res.json();
-
-            if (data.success) {
-                let rewardMsg = "恭喜！获得 青铜奖杯 🥉";
-                if (data.type === 'gold') rewardMsg = "哇！是金奖！获得 🏆 冠军奖杯！";
-                if (data.type === 'silver') rewardMsg = "厉害！获得 🥈 银奖奖杯！";
-                
-                alert(`识别成功！\n内容包含: ${data.source}\n${rewardMsg}\n金币 +${data.coins}`);
-                loadData(); // 刷新显示
-            } else {
-                alert('识别失败: ' + data.error);
-            }
-        } catch (e) {
-            alert('上传出错，请重试');
-        } finally {
-            loader.style.display = 'none';
-            input.value = ''; // 清空，方便下次选
+    // 1. 切换逻辑 (修复了 alert 问题)
+    function switchMode(mode) {
+        if (mode === 'battle') {
+            document.getElementById('portalView').style.display = 'none';
+            document.querySelector('.stage-container').style.display = 'none';
+            document.getElementById('gameView').style.display = 'block';
+            loadGames();
+        } else {
+            document.getElementById('portalView').style.display = 'grid';
+            document.querySelector('.stage-container').style.display = 'flex';
+            document.getElementById('gameView').style.display = 'none';
         }
     }
 
-    loadData();
+    // 2. 加载数据
+    fetch('/api/me').then(r=>r.json()).then(user => {
+        if(!user || !user.id) return location.href = '/';
+        document.getElementById('userInfo').textContent = user.student_name || user.email;
+        
+        const seed = user.student_name || 'hero';
+        document.getElementById('heroImg').src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}&backgroundColor=b6e3f4`;
+
+        // 加载奖杯
+        fetch('/api/my-trophies').then(r=>r.json()).then(ts => {
+            const area = document.getElementById('trophyArea');
+            area.innerHTML = '';
+            ts.forEach(t => {
+                const icon = t.trophy_type==='gold'?'🏆':(t.trophy_type==='silver'?'🥈':'🥉');
+                const div = document.createElement('div');
+                div.className = 'trophy';
+                div.textContent = icon;
+                area.appendChild(div);
+            });
+        });
+    }).catch(()=>location.href='/');
+
+    // 3. 加载游戏列表
+    function loadGames() {
+        fetch('/api/games').then(r=>r.json()).then(games => {
+            const grid = document.getElementById('gameGrid');
+            grid.innerHTML = '';
+            games.forEach(g => {
+                const img = g.thumbnail ? `/games/${g.id}/${g.thumbnail}` : '';
+                grid.innerHTML += `
+                <div class="game-card">
+                    <div class="game-thumb">${img ? `<img src="${img}">` : '👾'}</div>
+                    <div class="game-info">
+                        <div style="font-weight:bold;margin-bottom:5px">${g.title}</div>
+                        <a href="/play/${g.id}" class="btn-start">开始</a>
+                    </div>
+                </div>`;
+            });
+        });
+    }
+
+    // 4. 上传奖杯
+    async function uploadTrophy() {
+        const input = document.getElementById('fileInput');
+        if(input.files.length===0) return;
+        
+        document.getElementById('loader').style.display = 'flex';
+        const formData = new FormData();
+        formData.append('trophyImage', input.files[0]);
+
+        try {
+            const res = await fetch('/api/upload-trophy', {method:'POST', body:formData});
+            const data = await res.json();
+            if(data.success) {
+                alert(`识别成功！获得 ${data.type} 奖杯！`);
+                location.reload();
+            } else {
+                alert('识别失败: ' + data.error);
+            }
+        } catch(e) { alert('上传出错'); }
+        finally { document.getElementById('loader').style.display = 'none'; }
+    }
 
     document.getElementById('logout').onclick = e => {
         e.preventDefault();
