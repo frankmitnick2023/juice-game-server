@@ -3,17 +3,84 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>WE DANCE 大厅</title>
+  <title>WE DANCE - Hero Hub</title>
   <style>
-    body{font-family:Arial;margin:0;background:#1a1a2e;color:white;padding-bottom:5rem}
-    .header{padding:1.5rem;background:#16213e;display:flex;justify-content:space-between;align-items:center}
-    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1rem;padding:1rem}
-    .card{background:#0f3460;border-radius:10px;overflow:hidden;text-align:center}
-    .thumb{height:100px;background:#333;display:flex;align-items:center;justify-content:center}
-    .info{padding:10px}
-    .btn{display:block;background:#e94560;color:white;padding:5px;border-radius:5px;text-decoration:none;margin-top:5px}
+    body{font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin:0; background:#1a1a2e; color:white; padding-bottom:5rem}
     
-    /* 统一底部导航 */
+    /* === 1. 英雄状态栏 === */
+    .hero-header {
+        background: linear-gradient(180deg, #16213e 0%, #1a1a2e 100%);
+        padding: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 2px solid #0f3460;
+    }
+    .hero-info { display: flex; align-items: center; gap: 15px; }
+    .avatar { 
+        width: 50px; height: 50px; border-radius: 50%; border: 2px solid #e94560; 
+        background: #0f3460; display: flex; align-items: center; justify-content: center; font-size: 1.8rem;
+    }
+    .stats h2 { margin: 0; font-size: 1.1rem; color: #e94560; text-transform: uppercase; letter-spacing: 1px; }
+    .coins { font-weight: bold; color: #ffd700; font-size: 0.8rem; margin-top: 4px; }
+    
+    .logout { color: #888; text-decoration: none; font-size: 0.8rem; border: 1px solid #444; padding: 4px 10px; border-radius: 15px; }
+
+    /* === 2. 核心双入口 (打怪 vs 修炼) === */
+    .portal-container {
+        padding: 2rem 1rem;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        max-width: 800px;
+        margin: 0 auto;
+        min-height: 60vh;
+        align-content: center;
+    }
+    
+    .portal-card {
+        background: #16213e;
+        border-radius: 20px;
+        padding: 2rem 1rem;
+        text-align: center;
+        cursor: pointer;
+        transition: transform 0.2s;
+        border: 2px solid rgba(255,255,255,0.05);
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+    .portal-card:active { transform: scale(0.96); }
+    
+    /* 左边：打怪 (Battle) */
+    .portal-battle { background: linear-gradient(135deg, #ff9966, #ff5e62); }
+    /* 右边：修炼 (Train) */
+    .portal-train { background: linear-gradient(135deg, #4facfe, #00f2fe); }
+
+    .portal-card h1 { font-size: 1.5rem; margin: 10px 0; text-shadow: 1px 1px 2px rgba(0,0,0,0.3); }
+    .portal-card p { opacity: 0.9; font-size: 0.85rem; }
+    .icon { font-size: 2.5rem; display: block; margin-bottom: 10px; }
+
+    /* === 3. 游戏列表区 (默认隐藏) === */
+    .content-section { display: none; max-width: 1000px; margin: 0 auto; padding: 1rem; }
+    .section-title { color: #fff; border-left: 4px solid #e94560; padding-left: 10px; margin: 1rem 0; font-size: 1.1rem; font-weight: bold; }
+
+    .game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; }
+    
+    .game-card { background: #16213e; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: transform 0.2s; }
+    .game-card:hover { transform: translateY(-5px); }
+    
+    .game-thumb { height: 120px; background: #0f3460; display: flex; align-items: center; justify-content: center; color: #666; overflow: hidden; }
+    .game-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    
+    .game-info { padding: 12px; text-align: center; }
+    .game-title { font-size: 0.9rem; font-weight: bold; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .play-btn-sm { display: block; background: #e94560; color: white; padding: 6px; border-radius: 6px; text-decoration: none; font-size: 0.8rem; font-weight: bold; }
+
+    .back-btn { display: inline-block; margin-bottom: 1rem; color: #aaa; cursor: pointer; font-size: 0.9rem; }
+    .back-btn:hover { color: white; }
+
+    /* 底部导航 */
     .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:#16213e;border-top:1px solid #333;display:flex;justify-content:space-around;padding:10px 0;z-index:99}
     .nav-item{text-decoration:none;color:#888;font-size:0.8rem;text-align:center;display:flex;flex-direction:column}
     .nav-icon{font-size:1.4rem;margin-bottom:2px}
@@ -21,35 +88,110 @@
   </style>
 </head>
 <body>
-  <div class="header">
-    <div id="user">Loading...</div>
+
+  <div class="hero-header">
+    <div class="hero-info">
+      <div class="avatar">🦸</div>
+      <div class="stats">
+        <h2 id="userName">HERO</h2>
+        <div class="coins">🪙 Loading...</div>
+      </div>
+    </div>
+    <a href="#" id="logout" class="logout">退出</a>
   </div>
-  
-  <div id="grid" class="grid"></div>
+
+  <div id="portalView" class="portal-container">
+    <div class="portal-card portal-battle" onclick="switchMode('battle')">
+      <span class="icon">⚔️</span>
+      <h1>打怪升级</h1>
+      <p>Battle Mode</p>
+    </div>
+    <div class="portal-card portal-train" onclick="location.href='/timetable.html'">
+      <span class="icon">🛡️</span>
+      <h1>修炼本领</h1>
+      <p>Training Mode</p>
+    </div>
+  </div>
+
+  <div id="gameView" class="content-section">
+    <div onclick="switchMode('home')" class="back-btn">◀ 返回大厅</div>
+    <div class="section-title">Available Quests (当前任务)</div>
+    <div id="gameGrid" class="game-grid">
+        <div style="text-align:center;padding:20px;color:#666;grid-column:1/-1">加载任务中...</div>
+    </div>
+  </div>
 
   <div class="nav-bar">
     <a href="#" class="nav-item active"><span class="nav-icon">🎮</span>大厅</a>
-    <a href="/my_schedule.html" class="nav-item"><span class="nav-icon">📅</span>我的课表</a>
-    <a href="/timetable.html" class="nav-item"><span class="nav-icon">🛒</span>去选课</a>
+    <a href="/my_schedule.html" class="nav-item"><span class="nav-icon">📅</span>课表</a>
+    <a href="/timetable.html" class="nav-item"><span class="nav-icon">🛒</span>选课</a>
     <a href="/growth.html" class="nav-item"><span class="nav-icon">📊</span>成长</a>
   </div>
 
   <script>
-    fetch('/api/me').then(r=>r.json()).then(u=>{ if(u) document.getElementById('user').textContent='👋 '+u.student_name; });
-    
-    fetch('/api/games').then(r=>r.json()).then(games => {
-        const grid = document.getElementById('grid');
-        games.forEach(g => {
-            grid.innerHTML += `
-            <div class="card">
-                <div class="thumb">${g.thumbnail?'IMG':'👾'}</div>
-                <div class="info">
-                    <div style="font-size:0.9rem;font-weight:bold">${g.title}</div>
-                    <a href="${g.entry}" class="btn">开始</a>
-                </div>
-            </div>`;
+    // 模式切换
+    function switchMode(mode) {
+        const portal = document.getElementById('portalView');
+        const gameView = document.getElementById('gameView');
+        
+        if (mode === 'battle') {
+            portal.style.display = 'none';
+            gameView.style.display = 'block';
+            loadGames(); 
+        } else {
+            portal.style.display = 'grid';
+            gameView.style.display = 'none';
+        }
+    }
+
+    // 用户信息
+    fetch('/api/me').then(r => r.json()).then(user => {
+        if (user && user.student_name) {
+            document.getElementById('userName').textContent = user.student_name;
+            document.getElementById('userName').nextElementSibling.textContent = `🪙 ${user.coins || 0} Coins`;
+        }
+    }).catch(() => location.href = '/');
+
+    document.getElementById('logout').onclick = e => {
+        e.preventDefault();
+        fetch('/api/logout', {method:'POST'}).then(() => location.href = '/');
+    };
+
+    // 加载游戏 (核心修复：确保图片路径正确)
+    let gamesLoaded = false;
+    function loadGames() {
+        if (gamesLoaded) return;
+        fetch('/api/games').then(r => r.json()).then(games => {
+            const grid = document.getElementById('gameGrid');
+            grid.innerHTML = '';
+            
+            if (games.length === 0) {
+                grid.innerHTML = '<div style="text-align:center;color:#999;grid-column:1/-1">暂无可用游戏</div>';
+                return;
+            }
+
+            games.forEach(g => {
+                // 修复图片路径逻辑：如果有 thumbnail，拼凑完整路径；如果没有，显示默认图标
+                const imgSrc = g.thumbnail ? `/games/${g.id}/${g.thumbnail}` : null;
+                
+                const div = document.createElement('div');
+                div.className = 'game-card';
+                div.innerHTML = `
+                    <div class="game-thumb">
+                        ${imgSrc 
+                          ? `<img src="${imgSrc}" onerror="this.style.display='none';this.parentNode.innerHTML='👾'">` 
+                          : '👾'}
+                    </div>
+                    <div class="game-info">
+                        <div class="game-title">${g.title}</div>
+                        <a href="/play/${g.id}" class="play-btn-sm">开始挑战</a>
+                    </div>
+                `;
+                grid.appendChild(div);
+            });
+            gamesLoaded = true;
         });
-    });
+    }
   </script>
 </body>
 </html>
