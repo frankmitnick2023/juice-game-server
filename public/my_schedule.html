@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>我的课表</title>
+  <style>
+    body{font-family:Arial;margin:0;background:#f9f9f9;padding-bottom:5rem}
+    .header{background:#ff6b35;color:white;padding:1.5rem;text-align:center}
+    .container{max-width:800px;margin:1rem auto;padding:0 1rem}
+    
+    .day-group {margin-bottom:1.5rem}
+    .day-title {font-weight:bold;color:#333;margin-bottom:10px;border-left:4px solid #ff6b35;padding-left:10px}
+    
+    .my-class-card {background:white;padding:15px;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,0.05);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+    .time-box {background:#fff0e6;color:#ff6b35;padding:8px;border-radius:8px;font-weight:bold;text-align:center;min-width:60px}
+    .info-box {flex:1;margin-left:15px}
+    .c-name {font-weight:bold;font-size:1.1rem;color:#333}
+    .c-loc {font-size:0.9rem;color:#666;margin-top:4px}
+    
+    .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:white;border-top:1px solid #eee;display:flex;justify-content:space-around;padding:10px 0}
+    .nav-item{text-decoration:none;color:#666;font-size:0.8rem;text-align:center;display:flex;flex-direction:column}
+    .nav-icon{font-size:1.2rem;margin-bottom:2px}
+    .active{color:#ff6b35}
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h2>我的周课表</h2>
+  <div style="font-size:0.9rem;opacity:0.9">Yolanda 的专属日程</div>
+</div>
+
+<div class="container" id="scheduleList">
+  </div>
+
+<div class="nav-bar">
+    <a href="/games.html" class="nav-item"><span class="nav-icon">🎮</span>大厅</a>
+    <a href="#" class="nav-item active"><span class="nav-icon">📅</span>课表</a>
+    <a href="/timetable.html" class="nav-item"><span class="nav-icon">🛒</span>选课</a>
+    <a href="/growth.html" class="nav-item"><span class="nav-icon">📊</span>成长</a>
+</div>
+
+<script>
+  async function loadMySchedule() {
+    const list = document.getElementById('scheduleList');
+    list.innerHTML = '<p style="text-align:center;margin-top:2rem">加载中...</p>';
+    
+    try {
+        const res = await fetch('/api/my-schedule');
+        const data = await res.json();
+        
+        list.innerHTML = '';
+        if(data.length === 0) {
+            list.innerHTML = '<div style="text-align:center;margin-top:3rem;color:#999">您还没报名任何课程<br><a href="/timetable.html" style="color:#ff6b35">去选课 ></a></div>';
+            return;
+        }
+
+        let currentDay = '';
+        let dayContainer = null;
+
+        data.forEach(c => {
+            // 按天分组
+            if(c.day_of_week !== currentDay) {
+                currentDay = c.day_of_week;
+                dayContainer = document.createElement('div');
+                dayContainer.className = 'day-group';
+                dayContainer.innerHTML = `<div class="day-title">${currentDay}</div>`;
+                list.appendChild(dayContainer);
+            }
+
+            const card = document.createElement('div');
+            card.className = 'my-class-card';
+            card.innerHTML = `
+                <div class="time-box">
+                    <div>${c.start_time}</div>
+                </div>
+                <div class="info-box">
+                    <div class="c-name">${c.name}</div>
+                    <div class="c-loc">👩‍🏫 ${c.teacher} | ${c.category}</div>
+                </div>
+            `;
+            dayContainer.appendChild(card);
+        });
+
+    } catch(e) { list.innerHTML = '加载失败'; }
+  }
+  loadMySchedule();
+</script>
+</body>
+</html>

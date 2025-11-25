@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI 成长报告</title>
+  <style>
+    body{font-family:Arial;margin:0;background:#1a1a2e;color:white;padding-bottom:5rem}
+    .header{background:linear-gradient(180deg, #16213e 0%, #1a1a2e 100%);padding:1.5rem;text-align:center;border-bottom:1px solid #333}
+    .container{max-width:800px;margin:1rem auto;padding:0 1rem}
+    
+    /* 卡片通用 */
+    .card{background:#16213e;border-radius:15px;padding:1.5rem;margin-bottom:1.5rem;border:1px solid rgba(255,255,255,0.05)}
+    .c-title{color:#e94560;font-size:1.1rem;font-weight:bold;margin-bottom:1rem;display:flex;align-items:center}
+    
+    /* 课时进度条 */
+    .progress-item{margin-bottom:15px}
+    .p-label{display:flex;justify-content:space-between;font-size:0.9rem;margin-bottom:5px;color:#ccc}
+    .p-track{background:#0f3460;height:8px;border-radius:4px;overflow:hidden}
+    .p-fill{height:100%;background:#4caf50;border-radius:4px}
+    
+    /* AI 建议 */
+    .ai-msg {background:rgba(233, 69, 96, 0.1);border-left:4px solid #e94560;padding:10px;margin-bottom:10px;border-radius:4px}
+    .ai-msg.info {border-color:#4facfe;background:rgba(79, 172, 254, 0.1)}
+    
+    .rec-btn {display:block;width:100%;background:#ff6b35;color:white;text-align:center;padding:10px;border-radius:8px;text-decoration:none;margin-top:10px;font-weight:bold}
+
+    .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:white;border-top:1px solid #eee;display:flex;justify-content:space-around;padding:10px 0}
+    .nav-item{text-decoration:none;color:#666;font-size:0.8rem;text-align:center;display:flex;flex-direction:column}
+    .nav-icon{font-size:1.2rem;margin-bottom:2px}
+    .active{color:#ff6b35}
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h2>📊 智能成长档案</h2>
+  <div style="font-size:0.9rem;opacity:0.7">Based on AI & Attendance</div>
+</div>
+
+<div class="container">
+  
+  <div class="card">
+    <div class="c-title">⏳ 考级课时积累 (Exam Hours)</div>
+    <div id="statsList">加载中...</div>
+  </div>
+
+  <div class="card">
+    <div class="c-title">🤖 AI 综合诊断</div>
+    <div id="aiAnalysis">
+        <p style="color:#666;text-align:center">暂无足够数据，请先去 [大厅] 完成几个游戏任务。</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="nav-bar">
+    <a href="/games.html" class="nav-item"><span class="nav-icon">🎮</span>大厅</a>
+    <a href="/my_schedule.html" class="nav-item"><span class="nav-icon">📅</span>课表</a>
+    <a href="/timetable.html" class="nav-item"><span class="nav-icon">🛒</span>选课</a>
+    <a href="#" class="nav-item active"><span class="nav-icon">📊</span>成长</a>
+</div>
+
+<script>
+  async function loadData() {
+    try {
+      const res = await fetch('/api/ai-report');
+      const data = await res.json();
+      if(data.error) { alert('请登录'); location.href='/'; return; }
+
+      // 渲染课时
+      const statsDiv = document.getElementById('statsList');
+      statsDiv.innerHTML = '';
+      if(data.timeStats.length === 0) statsDiv.innerHTML = '<div style="color:#666">暂无上课记录</div>';
+      
+      data.timeStats.forEach(s => {
+          const hours = (parseInt(s.total)/60).toFixed(1);
+          const target = s.category === 'RAD' ? 60 : 30; // 假设目标
+          const percent = Math.min(100, (hours / target) * 100);
+          
+          statsDiv.innerHTML += `
+            <div class="progress-item">
+                <div class="p-label"><span>${s.category}</span> <span>${hours}/${target}h</span></div>
+                <div class="p-track"><div class="p-fill" style="width:${percent}%"></div></div>
+            </div>
+          `;
+      });
+
+      // 渲染 AI 建议
+      const aiDiv = document.getElementById('aiAnalysis');
+      const { warnings, recommendations } = data.aiAnalysis;
+      
+      if(warnings.length > 0) {
+          aiDiv.innerHTML = '';
+          
+          // 显示诊断
+          warnings.forEach(w => {
+              aiDiv.innerHTML += `
+                <div class="ai-msg ${w.type}">
+                    <div style="font-weight:bold">${w.title}</div>
+                    <div style="font-size:0.9rem;opacity:0.9">${w.msg}</div>
+                </div>
+              `;
+          });
+
+          // 显示推荐课程
+          if(recommendations.length > 0) {
+              aiDiv.innerHTML += `<div style="margin-top:15px;border-top:1px solid #333;padding-top:10px;font-size:0.9rem;color:#ccc">💡 针对以上问题，建议加强：</div>`;
+              recommendations.forEach(r => {
+                  aiDiv.innerHTML += `
+                    <div style="background:#0f3460;padding:10px;margin-top:8px;border-radius:8px">
+                        <div style="color:#ffeb3b;font-weight:bold">${r.course}</div>
+                        <div style="font-size:0.8rem">${r.reason}</div>
+                        <a href="/timetable.html" class="rec-btn">去报名 ></a>
+                    </div>
+                  `;
+              });
+          }
+      }
+
+    } catch(e) { console.error(e); }
+  }
+  loadData();
+</script>
+</body>
+</html>
