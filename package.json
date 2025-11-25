@@ -12,6 +12,7 @@
     "express-session": "^1.18.1",
     "multer": "^2.0.2",
     "pg": "^8.13.0",
+    "replicate": "^1.4.0",
     "tesseract.js": "^6.0.1"
   },
   "engines": {
