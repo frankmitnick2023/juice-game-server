@@ -5,25 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>WE DANCE - Hero Hub</title>
   <style>
-    /* ... (样式复用之前的，只修改 avatar-img 部分) ... */
+    /* ... (CSS 保持不变，为了节省篇幅，请复用上一版的 CSS，重点是下面的 Script) ... */
+    /* 建议直接复制上一版 games.html 的所有 CSS */
     body{font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin:0; background:#1a1a2e; color:white; padding-bottom:5rem; overflow-x:hidden}
     .header { background: rgba(22, 33, 62, 0.95); padding: 0 1rem; height: 60px; display: flex; justify-content: space-between; align-items: center; position: fixed; top: 0; left: 0; right: 0; z-index: 100; border-bottom: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px); }
-    .user-name { font-weight: bold; color: #e94560; font-size: 1.1rem; }
+    .user-name { font-weight: bold; color: #e94560; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 1px; }
     .logout { font-size: 0.8rem; color: #aaa; text-decoration: none; border: 1px solid #444; padding: 4px 12px; border-radius: 15px; }
     
     .stage-container { margin-top: 60px; height: 55vh; min-height: 400px; background: radial-gradient(circle at center, #2a2a4a 0%, #1a1a2e 70%); position: relative; display: flex; justify-content: center; align-items: center; overflow: hidden; }
     .spotlight { position: absolute; top: -10%; left: 50%; transform: translateX(-50%); width: 80%; height: 120%; background: linear-gradient(to bottom, rgba(255,255,255,0.08), transparent); filter: blur(40px); pointer-events: none; }
     
-    /* 英雄容器 */
-    .avatar-wrapper { position: relative; width: 80vw; height: 80vw; max-width: 500px; max-height: 500px; margin-top: 20px; animation: float 3s ease-in-out infinite; z-index: 10; }
+    .avatar-wrapper { position: relative; width: 85vw; height: 85vw; max-width: 600px; max-height: 600px; margin-top: 20px; animation: float 3s ease-in-out infinite; z-index: 10; }
     @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
     
-    /* 编辑按钮 */
-    .edit-btn { position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.6); color: #fff; border: 1px solid #fff; padding: 6px 12px; border-radius: 15px; font-size: 0.8rem; cursor: pointer; z-index: 50; text-decoration: none; display: flex; align-items: center; gap: 5px; }
+    /* 核心：换成 img 标签 */
+    .avatar-img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 15px 30px rgba(0,0,0,0.7)); }
+
+    .age-tag { position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.6); color: #e94560; border: 1px solid #e94560; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; z-index: 20; }
     
-    .upload-btn { position: absolute; top: 15px; left: 15px; background: rgba(255,255,255,0.1); border: 1px dashed #888; color: #ccc; padding: 6px 12px; border-radius: 8px; font-size: 0.8rem; cursor: pointer; z-index: 50; }
+    .upload-btn { position: absolute; top: 15px; left: 15px; background: rgba(255,255,255,0.1); border: 1px dashed #888; color: #ccc; padding: 6px 12px; border-radius: 8px; font-size: 0.85rem; cursor: pointer; z-index: 50; display: flex; align-items: center; gap: 5px; }
+    
+    .edit-btn { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: #e94560; color: white; padding: 8px 20px; border-radius: 20px; font-weight: bold; font-size: 0.9rem; text-decoration: none; box-shadow: 0 5px 15px rgba(233,69,96,0.4); z-index: 50; }
+
     .trophy-pile { position: absolute; bottom: 20px; right: 10px; display: flex; align-items: flex-end; flex-wrap: wrap-reverse; max-width: 160px; justify-content: flex-end; z-index: 15; }
-    .trophy { font-size: 2.5rem; margin-left: -10px; filter: drop-shadow(2px 2px 5px rgba(0,0,0,0.6)); }
+    .trophy { font-size: 2.5rem; margin-left: -10px; filter: drop-shadow(2px 2px 5px rgba(0,0,0,0.6)); transition: transform 0.2s; }
 
     .portal-container { padding: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; max-width: 800px; margin: -40px auto 0; position: relative; z-index: 30; }
     .portal-card { background: #16213e; border-radius: 16px; padding: 1.5rem 1rem; text-align: center; border: 2px solid rgba(255,255,255,0.05); box-shadow: 0 10px 25px rgba(0,0,0,0.4); cursor: pointer; }
@@ -31,7 +36,18 @@
     .portal-train { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
     .p-icon { font-size: 2.5rem; display: block; margin-bottom: 8px; }
     .p-title { font-size: 1.2rem; font-weight: bold; }
-
+    
+    .content-section { display: none; padding: 1rem; max-width: 1000px; margin: 60px auto 0; }
+    .game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem; }
+    .game-card { background: #222244; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+    .game-thumb { height: 110px; background: #0f3460; display: flex; align-items: center; justify-content: center; }
+    .game-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .game-info { padding: 12px; text-align: center; }
+    .btn-start { display: block; width: 100%; box-sizing: border-box; background: #e94560; color: white; padding: 8px; border-radius: 6px; text-decoration: none; font-size: 0.9rem; font-weight: bold; }
+    
+    .back-bar { display: flex; align-items: center; gap: 5px; color: #ccc; font-size: 1rem; margin-bottom: 1.5rem; cursor: pointer; padding: 10px 0; }
+    .loader-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); z-index: 200; display: none; flex-direction: column; justify-content: center; align-items: center; color: white; }
+    
     .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:#16213e;border-top:1px solid #333;display:flex;justify-content:space-around;padding:8px 0;z-index:99; padding-bottom: max(8px, env(safe-area-inset-bottom));}
     .nav-item{text-decoration:none;color:#888;font-size:0.75rem;text-align:center;display:flex;flex-direction:column;align-items:center;flex:1}
     .nav-icon{font-size:1.4rem;margin-bottom:2px}
@@ -41,39 +57,52 @@
 <body>
 
   <div class="header">
-    <div id="userInfo" class="user-name">HERO</div>
+    <div id="userInfo" class="user-name">LOADING...</div>
     <a href="#" id="logout" class="logout">退出</a>
   </div>
 
   <div id="lobbyView">
       <div class="stage-container">
         <div class="spotlight"></div>
-        
-        <a href="/avatar_editor.html" class="edit-btn">✏️ 个性化装扮</a>
-        
+        <div id="ageTag" class="age-tag">Hero</div>
+
         <label class="upload-btn">
             <span>📷 上传荣誉</span>
             <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="uploadTrophy()">
         </label>
 
-        <div class="avatar-wrapper" id="avatarContainer">
-            </div>
+        <a href="/avatar_editor.html" class="edit-btn">✏️ 换装</a>
+
+        <div class="avatar-wrapper">
+            <img id="heroImg" class="avatar-img" src="" alt="Hero">
+        </div>
 
         <div id="trophyArea" class="trophy-pile"></div>
       </div>
 
       <div class="portal-container">
-        <div class="portal-card portal-battle" onclick="location.href='/games.html?mode=battle'">
+        <div class="portal-card portal-battle" onclick="switchMode('battle')">
           <span class="p-icon">⚔️</span>
           <div class="p-title">打怪升级</div>
-          <div>Battle</div>
+          <div>Battle Mode</div>
         </div>
         <div class="portal-card portal-train" onclick="location.href='/timetable.html'">
           <span class="p-icon">🛡️</span>
           <div class="p-title">修炼本领</div>
-          <div>Training</div>
+          <div>Training Mode</div>
         </div>
       </div>
+  </div>
+
+  <div id="gameView" class="content-section">
+    <div class="back-bar" onclick="switchMode('home')"><span>◀ 返回大厅</span></div>
+    <div style="font-weight:bold; margin-bottom:10px; color:#e94560; border-left:4px solid #e94560; padding-left:10px">当前任务 (Quests)</div>
+    <div id="gameGrid" class="game-grid">Loading...</div>
+  </div>
+
+  <div class="loader-overlay" id="loader">
+    <div style="font-size:2rem">🤖</div>
+    <div>AI 正在识别荣誉...</div>
   </div>
 
   <div class="nav-bar">
@@ -84,66 +113,115 @@
   </div>
 
   <script>
-    // SVG 模板 (保持和 Editor 一致)
-    const svgTemplate = `
-    <svg viewBox="0 0 200 400" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;filter:drop-shadow(0 10px 10px rgba(0,0,0,0.5))">
-        <g id="bodyGroup">
-            <path id="skinBody" d="M70,120 Q60,200 70,300 L80,380 L120,380 L130,300 Q140,200 130,120 Z" fill="{SKIN}" />
-            <circle id="skinHead" cx="100" cy="80" r="45" fill="{SKIN}" />
-            <path id="skinArmL" d="M70,130 L40,200" stroke="{SKIN}" stroke-width="15" stroke-linecap="round" />
-            <path id="skinArmR" d="M130,130 L160,200" stroke="{SKIN}" stroke-width="15" stroke-linecap="round" />
-        </g>
-        <g id="face">
-            <circle cx="85" cy="75" r="5" fill="#333" />
-            <circle cx="115" cy="75" r="5" fill="#333" />
-            <path d="M90,95 Q100,105 110,95" stroke="#333" stroke-width="2" fill="none" />
-        </g>
-        <g id="clothes">
-            <path d="{CLOTH_D}" fill="{CLOTH_COLOR}" />
-        </g>
-        <g id="hair">
-            <circle cx="100" cy="30" r="20" fill="#3e2723" />
-            <path d="M60,80 Q100,20 140,80 Q100,60 60,80" fill="#3e2723" />
-        </g>
-    </svg>`;
-
-    // 衣服数据字典
-    const outfits = {
-        'ballet': { color: '#ff69b4', d: 'M70,120 Q60,200 70,220 L130,220 Q140,200 130,120 L100,130 Z' },
-        'tshirt': { color: '#333', d: 'M60,120 L60,250 L140,250 L140,120 L100,110 Z' },
-        'jazz': { color: '#4facfe', d: 'M75,120 L75,300 L125,300 L125,120 Z' },
-        'jacket': { color: '#ff9966', d: 'M60,120 Q50,200 60,280 L140,280 Q150,200 140,120 L100,130 Z' }
-    };
+    function switchMode(mode) {
+        if (mode === 'battle') {
+            document.getElementById('lobbyView').style.display = 'none';
+            document.getElementById('gameView').style.display = 'block';
+            loadGames();
+        } else {
+            document.getElementById('gameView').style.display = 'none';
+            document.getElementById('lobbyView').style.display = 'block';
+        }
+    }
 
     fetch('/api/me').then(r=>r.json()).then(user => {
         if(!user || !user.id) return location.href = '/';
-        document.getElementById('userInfo').textContent = user.student_name;
-
-        // 渲染阿凡达
-        const cfg = user.avatar_config || { skin: '#ffccaa', bodyScale: 1.0, outfit: 'ballet' };
-        const outfitData = outfits[cfg.outfit] || outfits['ballet'];
+        document.getElementById('userInfo').textContent = user.student_name || user.email.split('@')[0];
         
-        let svgStr = svgTemplate
-            .replace(/\{SKIN\}/g, cfg.skin)
-            .replace('{CLOTH_COLOR}', outfitData.color)
-            .replace('{CLOTH_D}', outfitData.d);
-            
-        const container = document.getElementById('avatarContainer');
-        container.innerHTML = svgStr;
-        // 应用身材缩放
-        container.querySelector('svg').style.transform = `scaleX(${cfg.bodyScale})`;
+        // --- 头像加载逻辑 (复用 editor 的逻辑) ---
+        let age = 7;
+        if (user.dob) age = new Date().getFullYear() - new Date(user.dob).getFullYear();
+        
+        // 性别
+        const nameStr = (user.student_name || "").toLowerCase();
+        let gender = 'boy';
+        if (/[aeiy]$/.test(nameStr) || ['yolanda','cindy'].some(n=>nameStr.includes(n))) gender = 'girl';
+        
+        // 年龄组
+        let ageGroup = 'junior';
+        if (age >= 10) ageGroup = 'senior'; // 简化判断
+
+        // 默认配置
+        let outfit = 'uniform';
+        let bodyScale = 1.0;
+
+        if (user.avatar_config) {
+            outfit = user.avatar_config.outfit || 'uniform';
+            bodyScale = user.avatar_config.bodyScale || 1.0;
+        }
+
+        // 构建路径
+        const filename = `${gender}_${ageGroup}_${outfit}.png`;
+        const fullPath = `/uploads/avatars/${filename}`;
+        
+        const img = document.getElementById('heroImg');
+        img.onload = () => { img.style.transform = `scaleX(${bodyScale})`; };
+        img.onerror = () => { 
+            // 兜底
+            const seed = user.student_name || 'hero';
+            img.src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}&backgroundColor=b6e3f4`;
+        };
+        img.src = fullPath;
 
         // 加载奖杯
+        loadTrophies();
+    }).catch(()=>location.href='/');
+
+    function loadTrophies() {
         fetch('/api/my-trophies').then(r=>r.json()).then(ts => {
             const area = document.getElementById('trophyArea');
+            area.innerHTML = '';
             ts.forEach(t => {
+                const icon = t.trophy_type==='gold'?'🏆':(t.trophy_type==='silver'?'🥈':'🥉');
                 const div = document.createElement('div');
                 div.className = 'trophy';
-                div.textContent = t.trophy_type==='gold'?'🏆':(t.trophy_type==='silver'?'🥈':'🥉');
+                div.textContent = icon;
+                div.title = t.source_name;
                 area.appendChild(div);
             });
         });
-    }).catch(()=>location.href='/');
+    }
+
+    function loadGames() {
+        fetch('/api/games').then(r=>r.json()).then(games => {
+            const grid = document.getElementById('gameGrid');
+            grid.innerHTML = '';
+            if(games.length === 0) { grid.innerHTML='<div style="color:#888;grid-column:1/-1;text-align:center">暂无游戏</div>'; return; }
+            
+            games.forEach(g => {
+                const img = g.thumbnail ? `/games/${g.id}/${g.thumbnail}` : '';
+                grid.innerHTML += `
+                <div class="game-card">
+                    <div class="game-thumb">${img ? `<img src="${img}">` : '👾'}</div>
+                    <div class="game-info">
+                        <div style="font-weight:bold;margin-bottom:5px">${g.title}</div>
+                        <a href="/play/${g.id}" class="btn-start">START</a>
+                    </div>
+                </div>`;
+            });
+        });
+    }
+
+    async function uploadTrophy() {
+        const input = document.getElementById('fileInput');
+        if(input.files.length===0) return;
+        
+        document.getElementById('loader').style.display = 'flex';
+        const formData = new FormData();
+        formData.append('trophyImage', input.files[0]);
+
+        try {
+            const res = await fetch('/api/upload-trophy', {method:'POST', body:formData});
+            const data = await res.json();
+            if(data.success) {
+                alert(`✅ 识别成功！\n获得: ${data.type.toUpperCase()} 奖杯\n来源: ${data.source}`);
+                loadTrophies();
+            } else {
+                alert('⚠️ ' + data.error);
+            }
+        } catch(e) { alert('上传出错'); }
+        finally { document.getElementById('loader').style.display = 'none'; }
+    }
 
     document.getElementById('logout').onclick = e => {
         e.preventDefault();
