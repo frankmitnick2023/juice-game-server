@@ -25,10 +25,11 @@
     
     .rec-btn {display:block;width:100%;background:#ff6b35;color:white;text-align:center;padding:10px;border-radius:8px;text-decoration:none;margin-top:10px;font-weight:bold}
 
-    .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:white;border-top:1px solid #eee;display:flex;justify-content:space-around;padding:10px 0}
-    .nav-item{text-decoration:none;color:#666;font-size:0.8rem;text-align:center;display:flex;flex-direction:column}
-    .nav-icon{font-size:1.2rem;margin-bottom:2px}
-    .active{color:#ff6b35}
+    /* 底部导航 */
+    .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:#16213e;border-top:1px solid #333;display:flex;justify-content:space-around;padding:10px 0;z-index:99}
+    .nav-item{text-decoration:none;color:#888;font-size:0.8rem;text-align:center;display:flex;flex-direction:column}
+    .nav-icon{font-size:1.4rem;margin-bottom:2px}
+    .nav-item.active{color:#e94560}
   </style>
 </head>
 <body>
@@ -56,7 +57,7 @@
 
 <div class="nav-bar">
     <a href="/games.html" class="nav-item"><span class="nav-icon">🎮</span>大厅</a>
-    <a href="/my_schedule.html" class="nav-item"><span class="nav-icon">📅</span>课表</a>
+    <a href="/my_schedule.html" class="nav-item"><span class="nav-icon">📅</span>我的课表</a>
     <a href="/timetable.html" class="nav-item"><span class="nav-icon">🛒</span>选课</a>
     <a href="#" class="nav-item active"><span class="nav-icon">📊</span>成长</a>
 </div>

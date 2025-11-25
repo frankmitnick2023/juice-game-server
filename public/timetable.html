@@ -34,8 +34,11 @@
     .date-item {background:#f0f0f0;padding:8px;text-align:center;border-radius:4px;font-size:0.8rem;cursor:pointer}
     .date-item.active {background:#ff6b35;color:white}
     
+    /* 底部导航 */
     .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:white;border-top:1px solid #eee;display:flex;justify-content:space-around;padding:10px 0;z-index:99}
-    .nav-item{text-decoration:none;color:#666;font-size:0.9rem;text-align:center}
+    .nav-item{text-decoration:none;color:#888;font-size:0.8rem;text-align:center;display:flex;flex-direction:column}
+    .nav-icon{font-size:1.4rem;margin-bottom:2px}
+    .nav-item.active{color:#ff6b35}
   </style>
 </head>
 <body>
@@ -79,36 +82,33 @@
 </div>
 
 <div class="nav-bar">
-    <a href="/games.html" class="nav-item">🎮 首页</a>
-    <a href="#" class="nav-item" style="color:#ff6b35">📅 选课</a>
-    <a href="/invoices.html" class="nav-item">💰 账单</a>
+    <a href="/games.html" class="nav-item"><span class="nav-icon">🎮</span>大厅</a>
+    <a href="/my_schedule.html" class="nav-item"><span class="nav-icon">📅</span>我的课表</a>
+    <a href="#" class="nav-item active"><span class="nav-icon">🛒</span>去选课</a>
+    <a href="/growth.html" class="nav-item"><span class="nav-icon">📊</span>成长</a>
 </div>
 
 <script>
-  // 配置：2026 Term 1 日期范围 (假设 2月2日 周一开学)
   const TERM_START = new Date("2026-02-02"); 
-  const WEEKS = 10; // 10周
+  const WEEKS = 10; 
 
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   let allCourses = [];
   let currentDay = 'Monday';
   let currentCourse = null;
-  let selectedMode = 'term'; // 'term' or 'casual'
+  let selectedMode = 'term';
   let selectedDates = [];
 
-  // 1. 初始化页面
   async function init() {
-    // 生成星期Tab
     const tabContainer = document.getElementById('dayTabs');
     days.forEach((d, i) => {
         const div = document.createElement('div');
         div.className = `day-tab ${d === 'Monday' ? 'active' : ''}`;
-        div.textContent = d === 'Wednesday' ? 'Wed' : d.substring(0, 3); // 简写
+        div.textContent = d === 'Wednesday' ? 'Wed' : d.substring(0, 3);
         div.onclick = () => switchDay(d, div);
         tabContainer.appendChild(div);
     });
 
-    // 获取数据
     try {
         const res = await fetch('/api/courses/recommended');
         const data = await res.json();
@@ -120,7 +120,6 @@
     } catch(e) { console.error(e); }
   }
 
-  // 2. 切换星期
   function switchDay(day, tabElement) {
       currentDay = day;
       document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
@@ -128,11 +127,9 @@
       renderList();
   }
 
-  // 3. 渲染列表
   function renderList() {
       const list = document.getElementById('courseList');
       list.innerHTML = '';
-      
       const todayCourses = allCourses.filter(c => c.day_of_week === currentDay);
       
       if(todayCourses.length === 0) {
@@ -158,7 +155,6 @@
       });
   }
 
-  // 4. 打开报名弹窗
   function openModal(course) {
       currentCourse = course;
       selectedMode = 'term';
@@ -168,30 +164,24 @@
       document.getElementById('mTermPrice').textContent = `$${course.price}`;
       document.getElementById('mCasualPrice').textContent = `$${course.casual_price || Math.ceil(course.price/8)} / 课`;
       
-      // 生成该课程本学期的所有日期
       const grid = document.getElementById('dateGrid');
       grid.innerHTML = '';
-      const dayIndex = days.indexOf(course.day_of_week); // 0=Mon, 1=Tue...
-      
-      // 计算第一个上课日 (TermStart 是周一)
+      const dayIndex = days.indexOf(course.day_of_week);
       let currentDate = new Date(TERM_START);
       currentDate.setDate(currentDate.getDate() + dayIndex); 
 
       for(let i=0; i<WEEKS; i++) {
-          const dateStr = currentDate.toLocaleDateString('en-NZ'); // DD/MM/YYYY
-          const isoDate = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD
-          
+          const dateStr = currentDate.toLocaleDateString('en-NZ'); 
+          const isoDate = currentDate.toISOString().split('T')[0];
           const div = document.createElement('div');
           div.className = 'date-item';
-          div.textContent = dateStr.substring(0, 5); // 只显示 DD/MM
+          div.textContent = dateStr.substring(0, 5); 
           div.onclick = (e) => toggleDate(div, isoDate, e);
           grid.appendChild(div);
-          
-          // 下一周
           currentDate.setDate(currentDate.getDate() + 7);
       }
 
-      selectMode('term'); // 重置为整学期
+      selectMode('term');
       document.getElementById('bookModal').style.display = 'flex';
   }
 
@@ -203,7 +193,7 @@
   }
 
   function toggleDate(div, date, e) {
-      e.stopPropagation(); // 防止触发父级点击
+      e.stopPropagation();
       if(selectedDates.includes(date)) {
           selectedDates = selectedDates.filter(d => d !== date);
           div.classList.remove('active');
@@ -219,23 +209,15 @@
 
   async function confirmBooking() {
       let finalPrice = currentCourse.price;
-      
       if (selectedMode === 'casual') {
-          if (selectedDates.length === 0) {
-              alert('请至少选择一个日期');
-              return;
-          }
+          if (selectedDates.length === 0) { alert('请至少选择一个日期'); return; }
           const casualPrice = currentCourse.casual_price || Math.ceil(currentCourse.price/8);
           finalPrice = casualPrice * selectedDates.length;
       }
 
-      const msg = selectedMode === 'term' 
-          ? `确认报名整学期？总价 $${finalPrice}` 
-          : `确认报名 ${selectedDates.length} 节课？总价 $${finalPrice}`;
-          
+      const msg = selectedMode === 'term' ? `确认报名整学期？总价 $${finalPrice}` : `确认报名 ${selectedDates.length} 节课？总价 $${finalPrice}`;
       if(!confirm(msg)) return;
 
-      // 提交后端
       try {
           const res = await fetch('/api/book-course', {
               method: 'POST',
@@ -251,7 +233,7 @@
           if(result.success) {
               alert('✅ 报名成功！');
               closeModal();
-              location.href = '/invoices.html';
+              location.href = '/my_schedule.html'; // 报名成功后跳转到我的课表
           } else {
               alert('⚠️ ' + result.message);
           }
@@ -260,6 +242,5 @@
 
   init();
 </script>
-
 </body>
 </html>
