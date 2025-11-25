@@ -1,116 +1,283 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>形象沙龙</title>
+  <style>
+    body { background: #1a1a2e; margin: 0; font-family: sans-serif; color: white; height: 100vh; display: flex; flex-direction: column; }
+    
+    .preview-area { 
+        flex: 1; 
+        background: radial-gradient(circle at center, #2a2a4a, #1a1a2e); 
+        display: flex; justify-content: center; align-items: center; 
+        position: relative; 
+        overflow: hidden;
+    }
+    
+    .spotlight {
+        position: absolute; top: -20%; left: 50%; transform: translateX(-50%);
+        width: 60%; height: 80%;
+        background: linear-gradient(to bottom, rgba(255,255,255,0.1), transparent);
+        filter: blur(30px); pointer-events: none;
+    }
+
+    .avatar-img { 
+        height: 75vh; 
+        width: auto; 
+        max-width: 90%;
+        object-fit: contain; 
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        filter: drop-shadow(0 20px 30px rgba(0,0,0,0.6)); 
+        z-index: 10;
+    }
+    
+    .controls { 
+        background: rgba(22, 33, 62, 0.95); 
+        padding: 20px; 
+        border-radius: 20px 20px 0 0; 
+        box-shadow: 0 -5px 20px rgba(0,0,0,0.5); 
+        backdrop-filter: blur(10px);
+        z-index: 20;
+    }
+    
+    .c-title { font-size: 0.9rem; color: #aaa; margin-bottom: 10px; display: flex; justify-content: space-between; }
+    
+    .outfit-scroll { display: flex; gap: 15px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none; }
+    .outfit-btn { 
+        flex-shrink: 0; width: 70px; height: 70px; 
+        background: #222; border: 2px solid #444; border-radius: 12px; 
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        cursor: pointer; transition: 0.2s;
+    }
+    .outfit-btn img { width: 30px; height: 30px; margin-bottom: 5px; }
+    .outfit-btn span { font-size: 0.7rem; color: #ccc; }
+    
+    .outfit-btn.selected { border-color: #e94560; background: #2a1a2a; box-shadow: 0 0 15px rgba(233, 69, 96, 0.4); }
+    .outfit-btn.selected span { color: #e94560; font-weight: bold; }
+
+    .slider-container { margin-top: 15px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 10px; }
+    input[type=range] { width: 100%; accent-color: #e94560; cursor: pointer; }
+
+    .btn-save { 
+        width: 100%; background: linear-gradient(90deg, #ff9966, #ff5e62); 
+        color: white; border: none; padding: 15px; border-radius: 12px; 
+        font-size: 1.1rem; font-weight: bold; margin-top: 15px; 
+        box-shadow: 0 5px 15px rgba(255, 94, 98, 0.4);
+        cursor: pointer;
+    }
+    .btn-save:active { transform: scale(0.98); }
+
+    .btn-back { position: absolute; top: 20px; left: 20px; color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.9rem; z-index: 50; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 15px; }
+    
+    /* AI 区域 */
+    .ai-section { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 12px; border-radius: 12px; margin-bottom: 15px; text-align: center; }
+    .ai-btn { background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.5); color: white; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font-size: 0.9rem; }
+    
+    .loader { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.8); z-index: 100; display: none; flex-direction: column; justify-content: center; align-items: center; }
+  </style>
+</head>
+<body>
+
+<a href="/games.html" class="btn-back">◀ Back</a>
+
+<div class="preview-area">
+    <div class="spotlight"></div>
+    <img id="avatarDisplay" class="avatar-img" src="" alt="Avatar">
+</div>
+
+<div class="controls">
+    <div class="ai-section">
+        <div style="font-size:0.9rem; margin-bottom:5px; font-weight:bold;">✨ AI Magic: Create Your Avatar</div>
+        <label class="ai-btn">
+            📷 Upload Selfie (上传自拍)
+            <input type="file" id="aiInput" accept="image/*" style="display:none" onchange="generateAI()">
+        </label>
+    </div>
+
+    <div class="c-title">
+        <span>👔 Outfit (装扮)</span>
+        <span id="genderLabel" style="font-size:0.8rem; color:#4facfe">Loading...</span>
+    </div>
+    
+    <div class="outfit-scroll">
+        <div class="outfit-btn selected" onclick="setOutfit('uniform', this)">
+            <span style="font-size:24px">👕</span>
+            <span>Uniform</span>
+        </div>
+        <div class="outfit-btn" onclick="setOutfit('ballet', this)">
+            <span style="font-size:24px">🩰</span>
+            <span>Ballet</span>
+        </div>
+        <div class="outfit-btn" onclick="setOutfit('jazz', this)">
+            <span style="font-size:24px">🎩</span>
+            <span>Jazz</span>
+        </div>
+        <div class="outfit-btn" onclick="setOutfit('hiphop', this)">
+            <span style="font-size:24px">🧢</span>
+            <span>HipHop</span>
+        </div>
+        <div class="outfit-btn" onclick="setOutfit('kpop', this)">
+            <span style="font-size:24px">🎤</span>
+            <span>K-POP</span>
+        </div>
+    </div>
+
+    <div class="slider-container">
+        <div class="c-title">📏 Body Shape (身材)</div>
+        <input type="range" id="bodySlider" min="0.85" max="1.15" step="0.01" value="1">
+    </div>
+
+    <button class="btn-save" onclick="saveAvatar()">✨ Save Avatar</button>
+</div>
+
+<div class="loader" id="loader">
+    <div style="font-size:3rem">🪄</div>
+    <div style="margin-top:10px">AI Generating... (生成中)</div>
+</div>
+
 <script>
-    let currentConfig = { outfit: 'uniform', bodyScale: 1.0, gender: 'girl', ageGroup: 'junior', useAiAvatar: false, aiAvatarUrl: null };
-
-    async function init() {
-        try {
-            const res = await fetch('/api/me');
-            const user = await res.json();
-            if(!user.id) return location.href='/';
-
-            const name = (user.student_name || "").toLowerCase();
-            if (/[aeiy]$/.test(name) || ['yolanda','cindy'].some(n=>name.includes(n))) { currentConfig.gender = 'girl'; document.getElementById('genderLabel').textContent = "♀ Girl"; } 
-            else { currentConfig.gender = 'boy'; document.getElementById('genderLabel').textContent = "♂ Boy"; }
-            let age = 7; if (user.dob) age = new Date().getFullYear() - new Date(user.dob).getFullYear();
-            currentConfig.ageGroup = age >= 10 ? 'senior' : 'junior';
-
-            if (user.avatar_config) {
-                Object.assign(currentConfig, user.avatar_config);
-                // 恢复滑块状态
-                if(currentConfig.bodyScale) document.getElementById('bodySlider').value = currentConfig.bodyScale;
-                // 恢复衣服按钮状态
-                if(currentConfig.outfit) {
-                    document.querySelectorAll('.outfit-btn').forEach(btn => {
-                        btn.classList.remove('selected');
-                        if(btn.innerText.toLowerCase().includes(translateOutfit(currentConfig.outfit))) {
-                            btn.classList.add('selected');
-                        }
-                    });
-                }
-            }
-            updateImage();
-        } catch(e) { console.error(e); }
-    }
-
-    function translateOutfit(code) {
-        const map = {'uniform':'校服', 'ballet':'芭蕾', 'jazz':'爵士', 'hiphop':'街舞', 'kpop':'k-pop'};
-        return map[code] || '校服';
-    }
-
-    window.setOutfit = function(type, btn) {
-        currentConfig.outfit = type;
-        currentConfig.useAiAvatar = false; // 切换衣服时退出 AI 模式
-        document.querySelectorAll('.outfit-btn').forEach(b => b.classList.remove('selected'));
-        btn.classList.add('selected');
-        updateImage();
-    }
-
-    document.getElementById('bodySlider').oninput = function() {
-        currentConfig.bodyScale = this.value;
-        const img = document.getElementById('avatarDisplay');
-        img.style.transform = `scaleX(${this.value})`;
-    };
-
-    async function generateAI() {
-        const input = document.getElementById('aiInput');
-        if(input.files.length === 0) return;
-
-        document.getElementById('loader').style.display = 'flex';
-        const formData = new FormData();
-        formData.append('faceImage', input.files[0]);
-
-        try {
-            const res = await fetch('/api/generate-avatar', { method:'POST', body:formData });
-            const data = await res.json();
-            
-            if(data.success) {
-                currentConfig.useAiAvatar = true;
-                currentConfig.aiAvatarUrl = data.url;
-                alert(data.mode === 'Mock' ? '⚠️ 模拟模式：生成了随机卡通形象 (因为没有API Key)' : '✅ AI 生成成功！');
-                updateImage();
-            } else {
-                // 显示详细错误
-                alert('生成失败: ' + (data.detail || data.error));
-            }
-        } catch(e) { 
-            alert('请求出错: ' + e.message); 
-        }
-        finally { document.getElementById('loader').style.display = 'none'; }
-    }
-
-    function updateImage() {
-        const img = document.getElementById('avatarDisplay');
+    // === 核心修复：将所有逻辑包裹在 DOMContentLoaded 中 ===
+    document.addEventListener('DOMContentLoaded', () => {
+        let currentConfig = { outfit: 'uniform', bodyScale: 1.0, gender: 'girl', ageGroup: 'junior', useAiAvatar: false, aiAvatarUrl: null };
         
-        if (currentConfig.useAiAvatar && currentConfig.aiAvatarUrl) {
-            img.src = currentConfig.aiAvatarUrl;
-            img.style.transform = 'scaleX(1)'; // AI 图不缩放
+        const slider = document.getElementById('bodySlider');
+        const imgDisplay = document.getElementById('avatarDisplay');
+
+        // 1. 绑定滑块事件 (加安全检查)
+        if (slider && imgDisplay) {
+            slider.oninput = function() {
+                currentConfig.bodyScale = this.value;
+                imgDisplay.style.transform = `scaleX(${this.value})`;
+            };
         } else {
-            const filename = `${currentConfig.gender}_${currentConfig.ageGroup}_${currentConfig.outfit}.png`;
-            const fullPath = `/avatars/${filename}`;
-            img.src = fullPath;
-            img.style.transform = `scaleX(${currentConfig.bodyScale})`;
-            img.onerror = () => { img.src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${currentConfig.gender}&backgroundColor=transparent`; };
+            console.error("Slider or Image element not found!");
         }
-    }
 
-    window.saveAvatar = async function() {
-        const btn = document.querySelector('.btn-save');
-        btn.textContent = '保存中...';
-        try { 
-            const res = await fetch('/api/save-avatar', { 
-                method: 'POST', 
-                headers: {'Content-Type': 'application/json'}, 
-                body: JSON.stringify({ config: currentConfig }) 
-            }); 
-            const data = await res.json();
-            if (res.ok) {
-                alert('✨ 形象已保存！');
-                location.href = '/games.html';
+        // 2. 初始化
+        init();
+
+        async function init() {
+            try {
+                const res = await fetch('/api/me');
+                const user = await res.json();
+                if(!user.id) return location.href='/';
+
+                const name = (user.student_name || "").toLowerCase();
+                if (/[aeiy]$/.test(name) || ['yolanda','cindy','alice'].some(n=>name.includes(n))) { 
+                    currentConfig.gender = 'girl'; 
+                    document.getElementById('genderLabel').textContent = "♀ Girl"; 
+                    document.getElementById('genderLabel').style.color = "#ff69b4";
+                } else { 
+                    currentConfig.gender = 'boy'; 
+                    document.getElementById('genderLabel').textContent = "♂ Boy"; 
+                    document.getElementById('genderLabel').style.color = "#4facfe";
+                }
+
+                let age = 7; 
+                if (user.dob) age = new Date().getFullYear() - new Date(user.dob).getFullYear();
+                currentConfig.ageGroup = age >= 10 ? 'senior' : 'junior';
+
+                if (user.avatar_config) {
+                    Object.assign(currentConfig, user.avatar_config);
+                    
+                    // 恢复滑块 UI
+                    if(currentConfig.bodyScale && slider) {
+                        slider.value = currentConfig.bodyScale;
+                    }
+                    // 恢复按钮选中态
+                    if(currentConfig.outfit && !currentConfig.useAiAvatar) {
+                         updateButtonState(currentConfig.outfit);
+                    }
+                }
+
+                updateImage();
+            } catch(e) { console.error(e); }
+        }
+
+        // 辅助函数：更新按钮状态
+        function updateButtonState(outfitCode) {
+            const map = {'uniform':'Uniform', 'ballet':'Ballet', 'jazz':'Jazz', 'hiphop':'HipHop', 'kpop':'K-POP'};
+            const text = map[outfitCode] || 'Uniform';
+            document.querySelectorAll('.outfit-btn').forEach(btn => {
+                btn.classList.remove('selected');
+                if(btn.innerText.includes(text)) btn.classList.add('selected');
+            });
+        }
+
+        // 3. 切换衣服 (挂载到 window 以便 HTML onclick 调用)
+        window.setOutfit = function(type, btn) {
+            currentConfig.outfit = type;
+            currentConfig.useAiAvatar = false; // 切换衣服退出 AI 模式
+            document.querySelectorAll('.outfit-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            updateImage();
+        }
+
+        // 4. AI 生成
+        window.generateAI = async function() {
+            const input = document.getElementById('aiInput');
+            if(input.files.length === 0) return;
+
+            document.getElementById('loader').style.display = 'flex';
+            const formData = new FormData();
+            formData.append('faceImage', input.files[0]);
+
+            try {
+                const res = await fetch('/api/generate-avatar', { method:'POST', body:formData });
+                const data = await res.json();
+                
+                if(data.success) {
+                    currentConfig.useAiAvatar = true;
+                    currentConfig.aiAvatarUrl = data.url;
+                    alert(data.mode === 'Mock' ? '⚠️ Mock Mode (No API Key) - Generated Random Avatar' : '✅ AI Avatar Generated!');
+                    updateImage();
+                } else {
+                    alert('Failed: ' + (data.detail || data.error));
+                }
+            } catch(e) { alert('Error: ' + e.message); }
+            finally { document.getElementById('loader').style.display = 'none'; input.value = ''; }
+        }
+
+        // 5. 更新图片显示
+        function updateImage() {
+            const img = document.getElementById('avatarDisplay');
+            if (!img) return;
+
+            if (currentConfig.useAiAvatar && currentConfig.aiAvatarUrl) {
+                img.src = currentConfig.aiAvatarUrl;
+                img.style.transform = 'scaleX(1)';
             } else {
-                alert('保存失败: ' + (data.error || data.detail));
+                const filename = `${currentConfig.gender}_${currentConfig.ageGroup}_${currentConfig.outfit}.png`;
+                const fullPath = `/avatars/${filename}`; // 确保图片在 public/avatars
+                
+                img.src = fullPath;
+                img.style.transform = `scaleX(${currentConfig.bodyScale})`;
+                
+                img.onerror = () => {
+                    console.warn("Missing:", fullPath);
+                    const seed = currentConfig.gender + currentConfig.outfit;
+                    img.src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}&backgroundColor=transparent`;
+                };
             }
-        } catch(e) { alert('网络错误: ' + e.message); }
-        btn.textContent = '✨ 保存我的形象';
-    }
+        }
 
-    init();
+        // 6. 保存
+        window.saveAvatar = async function() {
+            const btn = document.querySelector('.btn-save');
+            btn.textContent = 'Saving...';
+            try { 
+                await fetch('/api/save-avatar', { 
+                    method: 'POST', 
+                    headers: {'Content-Type': 'application/json'}, 
+                    body: JSON.stringify({ config: currentConfig }) 
+                }); 
+                alert('✨ Saved!'); 
+                location.href = '/games.html'; 
+            } catch(e) { alert('Error'); }
+            btn.textContent = '✨ Save Avatar';
+        }
+    });
 </script>
+</body>
+</html>
