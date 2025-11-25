@@ -3,88 +3,52 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>我的账单</title>
+  <title>Invoices</title>
   <style>
     body{font-family:Arial;margin:0;background:#f9f9f9;padding-bottom:4rem}
     .header{background:#ff6b35;color:white;padding:1rem;text-align:center}
     .container{max-width:800px;margin:1rem auto;padding:0 1rem}
-    
     .invoice-card{background:white;border-radius:8px;padding:1.5rem;margin-bottom:1rem;box-shadow:0 2px 8px rgba(0,0,0,0.05);border-left:5px solid #ddd}
     .invoice-card.unpaid{border-left-color: #ff4757}
     .invoice-card.paid{border-left-color: #2ed573}
-    
     .row{display:flex;justify-content:space-between;margin-bottom:5px}
     .course-name{font-size:1.1rem;font-weight:bold;color:#333}
     .price{font-size:1.2rem;font-weight:bold;color:#333}
     .status{font-size:0.8rem;padding:2px 8px;border-radius:10px;color:white}
     .status-unpaid{background:#ff4757}
     .status-paid{background:#2ed573}
-    
     .pay-info{margin-top:10px;padding-top:10px;border-top:1px dashed #eee;font-size:0.9rem;color:#666}
-    
-    .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:white;border-top:1px solid #eee;display:flex;justify-content:space-around;padding:10px 0}
-    .nav-item{text-decoration:none;color:#666;font-size:0.9rem;text-align:center}
+    .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:white;border-top:1px solid #eee;display:flex;justify-content:space-around;padding:8px 0;z-index:99; padding-bottom: max(8px, env(safe-area-inset-bottom));}
+    .nav-item{text-decoration:none;color:#666;font-size:0.75rem;text-align:center;display:flex;flex-direction:column;align-items:center;flex:1}
+    .nav-icon{font-size:1.4rem;margin-bottom:2px}
+    .nav-item.active{color:#ff6b35}
   </style>
 </head>
 <body>
-
-<div class="header">
-  <h2>我的账单 (Invoices)</h2>
-</div>
-
-<div class="container" id="invoiceList">
-  <p style="text-align:center;margin-top:2rem">加载中...</p>
-</div>
-
+<div class="header"><h2>My Invoices (我的账单)</h2></div>
+<div class="container" id="invoiceList"><p style="text-align:center;margin-top:2rem">Loading...</p></div>
 <div class="nav-bar">
-    <a href="/games.html" class="nav-item">🎮 首页</a>
-    <a href="/timetable.html" class="nav-item">📅 选课</a>
-    <a href="#" class="nav-item" style="color:#ff6b35">💰 账单</a>
+    <a href="/games.html" class="nav-item">🎮 Home</a>
+    <a href="/timetable.html" class="nav-item">📅 Book</a>
+    <a href="#" class="nav-item active" style="color:#ff6b35">💰 Bill</a>
 </div>
-
 <script>
   async function loadInvoices() {
     const list = document.getElementById('invoiceList');
     try {
       const res = await fetch('/api/my-invoices');
       const data = await res.json();
-      
       list.innerHTML = '';
-      if (data.length === 0) {
-        list.innerHTML = '<p style="text-align:center;color:#999;margin-top:2rem">暂无账单记录</p>';
-        return;
-      }
-
+      if (data.length === 0) { list.innerHTML = '<p style="text-align:center;color:#999;margin-top:2rem">No invoices found</p>'; return; }
       data.forEach(inv => {
         const isPaid = inv.status === 'PAID';
         const card = document.createElement('div');
         card.className = `invoice-card ${isPaid ? 'paid' : 'unpaid'}`;
-        
-        // 简单的转账指引
-        const payInstruction = isPaid 
-            ? '✅ 已付款' 
-            : '⚠️ 请转账至: 12-3456-7890123-00 (Ref: 学生姓名)';
-
-        card.innerHTML = `
-          <div class="row">
-            <div class="course-name">${inv.course_name}</div>
-            <div class="price">$${inv.price_snapshot}</div>
-          </div>
-          <div class="row">
-            <div style="color:#666;font-size:0.9rem">${inv.day_of_week} ${inv.start_time}</div>
-            <span class="status ${isPaid ? 'status-paid' : 'status-unpaid'}">${isPaid ? '已付' : '待付'}</span>
-          </div>
-          <div class="pay-info">
-            ${payInstruction}
-            <div style="float:right;font-size:0.8rem">${new Date(inv.created_at).toLocaleDateString()}</div>
-          </div>
-        `;
+        const payInstruction = isPaid ? '✅ Paid' : '⚠️ Bank: 12-3456-7890123-00 (Ref: Name)';
+        card.innerHTML = `<div class="row"><div class="course-name">${inv.course_name}</div><div class="price">$${inv.price_snapshot}</div></div><div class="row"><div style="color:#666;font-size:0.9rem">${inv.day_of_week} ${inv.start_time}</div><span class="status ${isPaid ? 'status-paid' : 'status-unpaid'}">${isPaid ? 'Paid' : 'Unpaid'}</span></div><div class="pay-info">${payInstruction}<div style="float:right;font-size:0.8rem">${new Date(inv.created_at).toLocaleDateString()}</div></div>`;
         list.appendChild(card);
       });
-
-    } catch (e) {
-      list.innerHTML = '加载失败';
-    }
+    } catch (e) { list.innerHTML = 'Error'; }
   }
   loadInvoices();
 </script>

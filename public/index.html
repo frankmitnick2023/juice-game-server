@@ -3,81 +3,55 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Juice Game - 登录</title>
+  <title>Juice Game - Login</title>
   <style>
     body{font-family:Arial;background:linear-gradient(135deg,#ff9a56,#ff6b35);margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}
     .card{background:white;border-radius:16px;padding:3rem;width:100%;max-width:420px;box-shadow:0 20px 40px rgba(0,0,0,0.2)}
     h1{text-align:center;color:#ff6b35;margin-bottom:2rem;font-size:2rem}
-    
-    /* 通用输入框样式 */
     input.common-input {display:block;width:100%;padding:1rem;margin:1rem 0;border:1px solid #ddd;border-radius:8px;font-size:1.1rem;box-sizing:border-box}
-    
-    /* 按钮样式 */
     button{width:100%;padding:1.1rem;background:#ff6b35;color:white;border:none;border-radius:8px;font-size:1.1rem;margin-top:1rem;cursor:pointer;font-weight:bold}
     button:hover{background:#e55a2b}
     button:disabled{background:#ccc;cursor:not-allowed}
-
     .switch{text-align:center;margin-top:1.5rem}
     .switch a{color:#ff6b35;text-decoration:none;font-weight:bold}
     .error{color:red;text-align:center;margin:1rem 0;font-weight:bold}
-
-    /* 新增：注册专用区域样式 */
     #register-extra { display: none; }
-    
-    /* 协议勾选框样式 */
-    .terms-container {
-        display: flex;
-        align-items: flex-start;
-        font-size: 0.9rem;
-        color: #666;
-        margin: 1rem 0;
-    }
-    .terms-container input {
-        width: auto;
-        margin-right: 10px;
-        margin-top: 4px;
-    }
-    .terms-container a {
-        color: #ff6b35;
-        text-decoration: none;
-    }
+    .terms-container { display: flex; align-items: flex-start; font-size: 0.9rem; color: #666; margin: 1rem 0; }
+    .terms-container input { width: auto; margin-right: 10px; margin-top: 4px; }
+    .terms-container a { color: #ff6b35; text-decoration: none; }
   </style>
 </head>
 <body>
   <div class="card">
-    <h1 id="title">登录</h1>
+    <h1 id="title">Login</h1>
     <div id="error" class="error" style="display:none"></div>
     
-    <input type="email" id="email" class="common-input" placeholder="邮箱 (Email)" required>
-    <input type="password" id="password" class="common-input" placeholder="密码 (Password)" required>
+    <input type="email" id="email" class="common-input" placeholder="Email (邮箱)" required>
+    <input type="password" id="password" class="common-input" placeholder="Password (密码)" required>
 
     <div id="register-extra">
-        <input type="text" id="studentName" class="common-input" placeholder="学生姓名 (Student Name)">
-        
-        <div style="color:#666;font-size:0.9rem;margin-bottom:5px;margin-top:10px;">出生日期 (Date of Birth):</div>
+        <input type="text" id="studentName" class="common-input" placeholder="Student Name (学生姓名)">
+        <div style="color:#666;font-size:0.9rem;margin-bottom:5px;margin-top:10px;">Date of Birth (出生日期):</div>
         <input type="date" id="dob" class="common-input" style="margin-top:0;">
-
         <div class="terms-container">
             <input type="checkbox" id="agreeTerms">
             <label for="agreeTerms">
-                我已阅读并同意 <a href="#">《用户协议》</a> 及 <a href="#">《隐私政策》</a>，并授权 WE DANCE 处理相关动作捕捉数据。
+                I agree to the <a href="#">Terms</a> & <a href="#">Privacy Policy</a>, and authorize WE DANCE to process AI motion data. (我已同意协议并授权AI数据处理)
             </label>
         </div>
     </div>
 
-    <button id="submit">登录</button>
+    <button id="submit">Login</button>
     
     <div class="switch">
-      <span id="switchText">没有账号？ </span><a href="#" id="switchLink">注册</a>
+      <span id="switchText">No account? </span><a href="#" id="switchLink">Register</a>
     </div>
   </div>
 
   <script>
-    // 获取 URL 参数
     let isRegister = new URLSearchParams(location.search).has('register');
     const redirect = new URLSearchParams(location.search).get('redirect');
     
-    // 获取 DOM 元素
     const title = document.getElementById('title');
     const submit = document.getElementById('submit');
     const switchLink = document.getElementById('switchLink');
@@ -85,94 +59,67 @@
     const error = document.getElementById('error');
     const registerExtra = document.getElementById('register-extra');
 
-    // 切换 登录/注册 模式
     function setMode(register) {
       isRegister = register;
-      title.textContent = register ? '注册' : '登录';
-      submit.textContent = register ? '注册' : '登录';
-      switchText.textContent = register ? '已有账号？ ' : '没有账号？ ';
-      switchLink.textContent = register ? '登录' : '注册';
-      
-      // 控制新增字段的显示/隐藏
+      title.textContent = register ? 'Register (注册)' : 'Login (登录)';
+      submit.textContent = register ? 'Register' : 'Login';
+      switchText.textContent = register ? 'Have account? ' : 'No account? ';
+      switchLink.textContent = register ? 'Login' : 'Register';
       registerExtra.style.display = register ? 'block' : 'none';
-
-      // 同步 URL 参数 (不刷新页面)
       const base = register ? '/?register' : '/';
       const url = redirect ? `${base}&redirect=${encodeURIComponent(redirect)}` : base;
       history.replaceState(null, '', url);
     }
 
-    // 初始化模式
     setMode(isRegister);
 
-    // 点击切换按钮
-    switchLink.onclick = e => {
-      e.preventDefault();
-      setMode(!isRegister);
-    };
+    switchLink.onclick = e => { e.preventDefault(); setMode(!isRegister); };
 
-    // 点击提交按钮
     submit.onclick = async () => {
       error.style.display = 'none';
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
 
-      // 基础验证
-      if (!email || !password) return showError('请填写邮箱和密码');
+      if (!email || !password) return showError('Please fill in all fields');
 
-      // 构造发送给服务器的数据
       const payload = { email, password };
 
-      // 如果是注册模式，进行额外验证并添加数据
       if (isRegister) {
           const studentName = document.getElementById('studentName').value.trim();
           const dob = document.getElementById('dob').value;
           const agreeTerms = document.getElementById('agreeTerms').checked;
 
-          if (!studentName) return showError('请输入学生姓名');
-          if (!dob) return showError('请选择出生日期');
-          if (!agreeTerms) return showError('请勾选同意用户协议及隐私政策');
+          if (!studentName) return showError('Name required');
+          if (!dob) return showError('DOB required');
+          if (!agreeTerms) return showError('Please agree to terms');
 
-          // 将新数据加入 payload
           payload.studentName = studentName;
           payload.dob = dob;
-          // 隐私协议同意记录 (可选，发给后端留底)
           payload.agreedToTerms = true; 
       }
 
-      // 发送请求
-      const endpoint = isRegister ? '/api/register' : '/api/login';
-      submit.disabled = true; // 防止重复点击
-      submit.textContent = '处理中...';
+      submit.disabled = true; 
+      submit.textContent = 'Processing...';
 
       try {
-        const res = await fetch(endpoint, {
+        const res = await fetch(isRegister ? '/api/register' : '/api/login', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify(payload)
         });
-        
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || (isRegister ? '注册失败' : '登录失败'));
-        
-        // 成功后跳转
+        if (!res.ok) throw new Error(data.error || 'Failed');
         location.href = redirect || '/games.html';
       } catch (e) {
         showError(e.message);
         submit.disabled = false;
-        submit.textContent = isRegister ? '注册' : '登录';
+        submit.textContent = isRegister ? 'Register' : 'Login';
       }
     };
 
-    function showError(msg) {
-      error.textContent = msg;
-      error.style.display = 'block';
-    }
+    function showError(msg) { error.textContent = msg; error.style.display = 'block'; }
 
-    // 自动登录检查 (保持原有逻辑不变，防止死循环)
-    fetch('/api/me').then(r => r.json()).then(user => {
-      if (user && user.id) location.href = redirect || '/games.html';
-    }).catch(() => {});
+    fetch('/api/me').then(r => r.json()).then(user => { if (user && user.id) location.href = redirect || '/games.html'; }).catch(() => {});
   </script>
 </body>
 </html>
