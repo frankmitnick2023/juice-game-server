@@ -76,7 +76,7 @@
         transition: opacity 0.5s;
     }
 
-    /* 年龄/等级标签 */
+    /* 年龄标签 */
     .age-tag {
         position: absolute; top: 15px; right: 15px;
         background: rgba(0,0,0,0.6);
@@ -86,7 +86,7 @@
         z-index: 20;
     }
 
-    /* 上传荣誉按钮 (左上角) */
+    /* 上传荣誉按钮 */
     .upload-btn {
         position: absolute; top: 15px; left: 15px;
         background: rgba(255,255,255,0.1);
@@ -101,7 +101,7 @@
     }
     .upload-btn:active { background: rgba(255,255,255,0.2); color: white; }
     
-    /* 编辑/换装按钮 (中下方) */
+    /* 编辑按钮 */
     .edit-btn { 
         position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
         background: #e94560; color: white; 
@@ -341,9 +341,6 @@
             }
 
             // === 优先级逻辑 ===
-            // 1. 如果有 AI 头像且用户选了用它 -> 显示 AI 图
-            // 2. 否则 -> 尝试加载本地高清拼图
-            // 3. 本地也找不到 -> 自动降级为 DiceBear 网络图
             if (useAiAvatar && aiAvatarUrl) {
                 imgEl.src = aiAvatarUrl;
                 imgEl.style.transform = `scaleX(1)`; 
@@ -373,15 +370,16 @@
         } catch (e) { console.error("Init error:", e); }
     }
 
-    // 3. 加载奖杯
+    // 3. 加载奖杯 (修复：增加证书图标)
     function loadTrophies() {
         fetch('/api/my-trophies').then(r=>r.json()).then(list => {
             const area = document.getElementById('trophyArea');
             area.innerHTML = '';
             list.forEach(t => {
-                let icon = '🥉';
+                let icon = '📜'; // 默认证书
                 if (t.trophy_type === 'gold') icon = '🏆';
                 if (t.trophy_type === 'silver') icon = '🥈';
+                if (t.trophy_type === 'bronze') icon = '🥉';
                 
                 const div = document.createElement('div');
                 div.className = 'trophy';
@@ -428,7 +426,7 @@
         });
     }
 
-    // 5. 上传荣誉 (OCR)
+    // 5. 上传荣誉 (仅提交)
     async function uploadTrophy() {
         const input = document.getElementById('fileInput');
         if(input.files.length === 0) return;
@@ -442,13 +440,13 @@
             const data = await res.json();
             
             if(data.success) {
-                alert(`✅ 识别成功！\n获得: ${data.type.toUpperCase()} 奖杯\n来源: ${data.source}`);
-                loadTrophies();
+                // 修改提示语
+                alert('✅ Uploaded Successfully (上传成功)!\nWaiting for teacher approval (请等待老师审核).');
             } else {
                 alert('⚠️ ' + data.error);
             }
         } catch(e) {
-            alert('上传出错');
+            alert('Upload Failed (上传失败)');
         } finally {
             document.getElementById('loader').style.display = 'none';
             input.value = ''; 
