@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>形象沙龙</title>
+  <style>
+    body { background: #1a1a2e; margin: 0; font-family: sans-serif; color: white; height: 100vh; display: flex; flex-direction: column; }
+    
+    /* === 1. 预览区 (舞台) === */
+    .preview-area { flex: 1; background: radial-gradient(circle at center, #2a2a4a, #1a1a2e); display: flex; justify-content: center; align-items: center; position: relative; }
+    
+    /* 核心：SVG 纸娃娃系统 */
+    .avatar-svg { height: 80%; width: auto; transition: all 0.3s; filter: drop-shadow(0 10px 20px rgba(0,0,0,0.5)); }
+    
+    /* === 2. 控制面板 === */
+    .controls { background: #16213e; padding: 20px; border-radius: 20px 20px 0 0; box-shadow: 0 -5px 20px rgba(0,0,0,0.3); }
+    
+    .c-section { margin-bottom: 15px; }
+    .c-title { font-size: 0.9rem; color: #aaa; margin-bottom: 8px; }
+    
+    /* 选项网格 */
+    .opt-grid { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 5px; }
+    .opt-btn { 
+        width: 50px; height: 50px; border-radius: 10px; border: 2px solid #333; flex-shrink: 0; cursor: pointer; 
+        display: flex; align-items: center; justify-content: center; font-size: 1.2rem; background: #222;
+    }
+    .opt-btn.selected { border-color: #e94560; box-shadow: 0 0 10px rgba(233, 69, 96, 0.5); }
+    
+    /* 肤色圆点 */
+    .color-dot { width: 100%; height: 100%; border-radius: 8px; }
+
+    /* 滑块 */
+    input[type=range] { width: 100%; accent-color: #e94560; }
+
+    .btn-save { width: 100%; background: #e94560; color: white; border: none; padding: 15px; border-radius: 12px; font-size: 1.1rem; font-weight: bold; margin-top: 10px; }
+    .btn-back { position: absolute; top: 20px; left: 20px; color: #ccc; text-decoration: none; font-size: 0.9rem; z-index: 10; }
+  </style>
+</head>
+<body>
+
+<a href="/games.html" class="btn-back">◀ 返回大厅</a>
+
+<div class="preview-area">
+    <svg id="avatar" class="avatar-svg" viewBox="0 0 200 400" xmlns="http://www.w3.org/2000/svg">
+        <g id="bodyGroup">
+            <path id="skinBody" d="M70,120 Q60,200 70,300 L80,380 L120,380 L130,300 Q140,200 130,120 Z" fill="#ffccaa" />
+            <circle id="skinHead" cx="100" cy="80" r="45" fill="#ffccaa" />
+            <path id="skinArmL" d="M70,130 L40,200" stroke="#ffccaa" stroke-width="15" stroke-linecap="round" />
+            <path id="skinArmR" d="M130,130 L160,200" stroke="#ffccaa" stroke-width="15" stroke-linecap="round" />
+        </g>
+
+        <g id="face">
+            <circle cx="85" cy="75" r="5" fill="#333" />
+            <circle cx="115" cy="75" r="5" fill="#333" />
+            <path d="M90,95 Q100,105 110,95" stroke="#333" stroke-width="2" fill="none" />
+        </g>
+
+        <g id="clothes">
+            <path id="outfitShape" d="M70,120 Q60,200 70,220 L130,220 Q140,200 130,120 L100,130 Z" fill="#ff69b4" />
+        </g>
+
+        <g id="hair">
+            <circle cx="100" cy="30" r="20" fill="#3e2723" /> <path d="M60,80 Q100,20 140,80 Q100,60 60,80" fill="#3e2723" />
+        </g>
+    </svg>
+    
+    <div id="ageLabel" style="position:absolute; bottom:20px; color:#888; font-size:0.8rem"></div>
+</div>
+
+<div class="controls">
+    <div class="c-section">
+        <div class="c-title">🎨 肤色 (Skin Tone)</div>
+        <div class="opt-grid" id="skinOpts">
+            </div>
+    </div>
+
+    <div class="c-section">
+        <div class="c-title">📏 身材 (Body Shape)</div>
+        <input type="range" id="bodySlider" min="0.8" max="1.2" step="0.05" value="1">
+    </div>
+
+    <div class="c-section">
+        <div class="c-title">👗 练功服 (Outfit)</div>
+        <div class="opt-grid">
+            <div class="opt-btn selected" onclick="setOutfit('ballet')" style="background:#ffb7b2">🩰</div>
+            <div class="opt-btn" onclick="setOutfit('tshirt')" style="background:#333">👕</div>
+            <div class="opt-btn" onclick="setOutfit('jazz')" style="background:#4facfe">💃</div>
+            <div class="opt-btn" onclick="setOutfit('jacket')" style="background:#ff9966">🧥</div>
+        </div>
+    </div>
+
+    <button class="btn-save" onclick="saveAvatar()">✨ 保存形象</button>
+</div>
+
+<script>
+    let currentConfig = {
+        skin: '#ffccaa',
+        bodyScale: 1.0,
+        outfit: 'ballet'
+    };
+
+    // 肤色预设
+    const skins = ['#ffccaa', '#f5d0b0', '#e0ac69', '#8d5524', '#c68642'];
+    
+    // 初始化
+    async function init() {
+        // 1. 生成肤色按钮
+        const skinDiv = document.getElementById('skinOpts');
+        skins.forEach(c => {
+            const d = document.createElement('div');
+            d.className = 'opt-btn';
+            d.innerHTML = `<div class="color-dot" style="background:${c}"></div>`;
+            d.onclick = () => setSkin(c, d);
+            skinDiv.appendChild(d);
+        });
+
+        // 2. 获取当前用户数据
+        const res = await fetch('/api/me');
+        const user = await res.json();
+        
+        if(user.avatar_config) {
+            currentConfig = user.avatar_config;
+            // 应用已保存的配置
+            updateView();
+        }
+
+        // 计算并显示年龄段 (只读)
+        let age = 7;
+        if(user.dob) age = new Date().getFullYear() - new Date(user.dob).getFullYear();
+        
+        let group = 'Junior (4-6岁)';
+        if(age>=7 && age<=9) group = 'Middle (7-9岁)';
+        if(age>=10) group = 'Senior (10岁+)';
+        document.getElementById('ageLabel').textContent = `当前组别: ${group}`;
+    }
+
+    // --- 交互逻辑 ---
+    function setSkin(color, el) {
+        currentConfig.skin = color;
+        // 更新 UI 选中态
+        document.querySelectorAll('#skinOpts .opt-btn').forEach(b => b.classList.remove('selected'));
+        if(el) el.classList.add('selected');
+        updateView();
+    }
+
+    document.getElementById('bodySlider').oninput = function() {
+        currentConfig.bodyScale = this.value;
+        updateView();
+    };
+
+    function setOutfit(type) {
+        currentConfig.outfit = type;
+        updateView();
+    }
+
+    // --- 渲染逻辑 ---
+    function updateView() {
+        const svg = document.getElementById('avatar');
+        const skinColor = currentConfig.skin;
+        
+        // 1. 应用肤色
+        document.getElementById('skinHead').setAttribute('fill', skinColor);
+        document.getElementById('skinBody').setAttribute('fill', skinColor);
+        document.getElementById('skinArmL').setAttribute('stroke', skinColor);
+        document.getElementById('skinArmR').setAttribute('stroke', skinColor);
+
+        // 2. 应用身材 (通过 scaleX 变形)
+        // 为了保持居中，需要用 transform-origin
+        svg.style.transform = `scaleX(${currentConfig.bodyScale})`;
+
+        // 3. 应用衣服 (切换 SVG Path 形状和颜色)
+        const cloth = document.getElementById('outfitShape');
+        switch(currentConfig.outfit) {
+            case 'ballet': // 粉色体操服
+                cloth.setAttribute('fill', '#ff69b4');
+                cloth.setAttribute('d', 'M70,120 Q60,200 70,220 L130,220 Q140,200 130,120 L100,130 Z');
+                break;
+            case 'tshirt': // 黑色T恤
+                cloth.setAttribute('fill', '#333');
+                cloth.setAttribute('d', 'M60,120 L60,250 L140,250 L140,120 L100,110 Z');
+                break;
+            case 'jazz': // 蓝色紧身衣
+                cloth.setAttribute('fill', '#4facfe');
+                cloth.setAttribute('d', 'M75,120 L75,300 L125,300 L125,120 Z');
+                break;
+            case 'jacket': // 舞团外套
+                cloth.setAttribute('fill', '#ff9966');
+                cloth.setAttribute('d', 'M60,120 Q50,200 60,280 L140,280 Q150,200 140,120 L100,130 Z'); // 宽大一点
+                break;
+        }
+    }
+
+    async function saveAvatar() {
+        const btn = document.querySelector('.btn-save');
+        btn.textContent = '保存中...';
+        try {
+            const res = await fetch('/api/save-avatar', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ config: currentConfig })
+            });
+            if(res.ok) {
+                alert('✨ 形象已更新！');
+                location.href = '/games.html'; // 回大厅看效果
+            }
+        } catch(e) { alert('保存失败'); }
+        btn.textContent = '✨ 保存形象';
+    }
+
+    init();
+</script>
+</body>
+</html>
