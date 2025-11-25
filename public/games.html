@@ -47,7 +47,7 @@
         overflow: hidden;
     }
     
-    /* 聚光灯特效 - 放大 */
+    /* 聚光灯特效 */
     .spotlight {
         position: absolute; top: -10%; left: 50%; transform: translateX(-50%);
         width: 80%; height: 120%;
@@ -55,7 +55,7 @@
         filter: blur(40px); pointer-events: none;
     }
 
-    /* 英雄形象 - 放大 */
+    /* 英雄形象 */
     .avatar-wrapper {
         position: relative;
         width: 85vw; 
@@ -76,7 +76,7 @@
         transition: opacity 0.5s;
     }
 
-    /* 年龄标签 */
+    /* 年龄/等级标签 */
     .age-tag {
         position: absolute; top: 15px; right: 15px;
         background: rgba(0,0,0,0.6);
@@ -86,7 +86,7 @@
         z-index: 20;
     }
 
-    /* 上传荣誉按钮 */
+    /* 上传荣誉按钮 (左上角) */
     .upload-btn {
         position: absolute; top: 15px; left: 15px;
         background: rgba(255,255,255,0.1);
@@ -101,7 +101,7 @@
     }
     .upload-btn:active { background: rgba(255,255,255,0.2); color: white; }
     
-    /* 编辑按钮 */
+    /* 编辑/换装按钮 (中下方) */
     .edit-btn { 
         position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
         background: #e94560; color: white; 
@@ -126,7 +126,7 @@
         padding: 1rem;
         display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
         max-width: 800px; 
-        margin: -40px auto 0; /* 向上重叠舞台更多一点 */
+        margin: -40px auto 0; /* 向上重叠舞台 */
         position: relative; z-index: 30;
     }
     
@@ -230,11 +230,11 @@
         <div id="ageTag" class="age-tag">Hero</div>
 
         <label class="upload-btn">
-            <span style="font-size:1.2rem">📷</span> <span>上传荣誉</span>
+            <span>📷 Upload Award (上传荣誉)</span>
             <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="uploadTrophy()">
         </label>
 
-        <a href="/avatar_editor.html" class="edit-btn">✏️ 换装</a>
+        <a href="/avatar_editor.html" class="edit-btn">✏️ Customize (换装)</a>
 
         <div class="avatar-wrapper">
             <img id="heroImg" class="avatar-img" src="" alt="Hero" onerror="this.style.opacity=0">
@@ -246,20 +246,20 @@
       <div class="portal-container">
         <div class="portal-card portal-battle" onclick="switchMode('battle')">
           <span class="p-icon">⚔️</span>
-          <div class="p-title">打怪升级</div>
-          <div class="p-sub">Battle Mode</div>
+          <div class="p-title">Battle Mode</div>
+          <div class="p-sub">打怪升级</div>
         </div>
         <div class="portal-card portal-train" onclick="location.href='/timetable.html'">
           <span class="p-icon">🛡️</span>
-          <div class="p-title">修炼本领</div>
-          <div class="p-sub">Training Mode</div>
+          <div class="p-title">Training Mode</div>
+          <div class="p-sub">修炼本领</div>
         </div>
       </div>
   </div>
 
   <div id="gameView" class="content-section">
     <div class="back-bar" onclick="switchMode('home')">
-        <span>◀ 返回大厅</span>
+        <span>◀ Back (返回大厅)</span>
     </div>
     <div class="section-header">Available Quests (当前任务)</div>
     <div id="gameGrid" class="game-grid">
@@ -268,15 +268,15 @@
   </div>
 
   <div class="loader-overlay" id="loader">
-    <div class="spinner">🤖</div>
-    <div id="loaderText">AI 正在识别荣誉...</div>
+    <div class="spinner" style="font-size:3rem">🤖</div>
+    <div id="loaderText">AI Analyzing... (识别中)</div>
   </div>
 
   <div class="nav-bar">
-    <a href="#" class="nav-item active"><span class="nav-icon">🎮</span>大厅</a>
-    <a href="/my_schedule.html" class="nav-item"><span class="nav-icon">📅</span>课表</a>
-    <a href="/timetable.html" class="nav-item"><span class="nav-icon">🛒</span>选课</a>
-    <a href="/growth.html" class="nav-item"><span class="nav-icon">📊</span>成长</a>
+    <a href="#" class="nav-item active"><span class="nav-icon">🎮</span>Home<br>(大厅)</a>
+    <a href="/my_schedule.html" class="nav-item"><span class="nav-icon">📅</span>Schedule<br>(课表)</a>
+    <a href="/timetable.html" class="nav-item"><span class="nav-icon">🛒</span>Book<br>(选课)</a>
+    <a href="/growth.html" class="nav-item"><span class="nav-icon">📊</span>Growth<br>(成长)</a>
   </div>
 
   <script>
@@ -290,7 +290,7 @@
         if (mode === 'battle') {
             lobby.style.display = 'none';
             games.style.display = 'block';
-            loadGames(); // 懒加载
+            loadGames();
         } else {
             games.style.display = 'none';
             lobby.style.display = 'block';
@@ -298,79 +298,80 @@
     }
 
     // 2. 加载用户数据 & 头像
-    fetch('/api/me').then(r=>r.json()).then(user => {
-        if(!user || !user.id) return location.href = '/';
-        
-        // 显示名字
-        document.getElementById('userInfo').textContent = user.student_name || user.email.split('@')[0];
+    async function init() {
+        try {
+            const res = await fetch('/api/me');
+            if (!res.ok) throw new Error('API Error');
+            const user = await res.json();
+            if (!user || !user.id) return location.href = '/';
 
-        // --- 头像加载逻辑 ---
-        const imgEl = document.getElementById('heroImg');
-        
-        // 计算属性
-        let age = 7;
-        if (user.dob) {
-            const dob = new Date(user.dob);
-            age = new Date().getFullYear() - dob.getFullYear();
-        }
-        
-        // 性别猜测
-        const nameStr = (user.student_name || "").toLowerCase();
-        let gender = 'boy';
-        if (/[aeiy]$/.test(nameStr) || ['yolanda','cindy','alice'].some(n=>nameStr.includes(n))) {
-            gender = 'girl';
-        }
+            document.getElementById('userInfo').textContent = user.student_name || user.email.split('@')[0];
 
-        // 年龄段
-        let ageGroup = 'junior';
-        if (age >= 10) ageGroup = 'senior';
-
-        // 显示标签
-        document.getElementById('ageTag').textContent = `Level ${user.level || 1} ${gender==='girl'?'Heroine':'Hero'}`;
-
-        // 衣服 (读取配置，默认 uniform)
-        let outfit = 'uniform';
-        let bodyScale = 1.0;
-        let useAiAvatar = false;
-        let aiAvatarUrl = null;
-
-        if (user.avatar_config) {
-            if(user.avatar_config.outfit) outfit = user.avatar_config.outfit;
-            if(user.avatar_config.bodyScale) bodyScale = user.avatar_config.bodyScale;
-            if(user.avatar_config.useAiAvatar) useAiAvatar = true;
-            if(user.avatar_config.aiAvatarUrl) aiAvatarUrl = user.avatar_config.aiAvatarUrl;
-        }
-
-        // 优先使用 AI 头像
-        if (useAiAvatar && aiAvatarUrl) {
-            imgEl.src = aiAvatarUrl;
-            imgEl.style.transform = `scaleX(1)`; // AI 图一般不需要缩放
-            imgEl.style.opacity = 1;
-        } else {
-            // 使用拼图
-            const localPath = `/avatars/${gender}_${ageGroup}_${outfit}.png`;
+            // --- 头像加载逻辑 ---
+            const imgEl = document.getElementById('heroImg');
             
-            imgEl.onerror = function() {
-                // 兜底
-                console.warn("Avatar not found:", localPath);
-                const style = age <= 8 ? 'fun-emoji' : 'adventurer';
-                const seed = user.student_name || 'hero';
-                this.src = `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}&backgroundColor=b6e3f4`;
-                this.style.opacity = 1;
-            };
-            
-            imgEl.onload = function() {
-                this.style.transform = `scaleX(${bodyScale})`;
-                this.style.opacity = 1;
+            // 计算属性
+            let age = 7;
+            if (user.dob) {
+                const dob = new Date(user.dob);
+                age = new Date().getFullYear() - dob.getFullYear();
             }
             
-            imgEl.src = localPath;
-        }
+            const nameStr = (user.student_name || "").toLowerCase();
+            let gender = 'boy';
+            if (/[aeiy]$/.test(nameStr) || ['yolanda','cindy','alice'].some(n=>nameStr.includes(n))) {
+                gender = 'girl';
+            }
 
-        // 加载奖杯
-        loadTrophies();
+            let ageGroup = age >= 10 ? 'senior' : 'junior';
 
-    }).catch(() => location.href='/');
+            document.getElementById('ageTag').textContent = `Level ${user.level || 1} ${gender==='girl'?'Heroine':'Hero'}`;
+
+            // 衣服 (读取配置，默认 uniform)
+            let outfit = 'uniform';
+            let bodyScale = 1.0;
+            let useAiAvatar = false;
+            let aiAvatarUrl = null;
+
+            if (user.avatar_config) {
+                if(user.avatar_config.outfit) outfit = user.avatar_config.outfit;
+                if(user.avatar_config.bodyScale) bodyScale = user.avatar_config.bodyScale;
+                if(user.avatar_config.useAiAvatar) useAiAvatar = true;
+                if(user.avatar_config.aiAvatarUrl) aiAvatarUrl = user.avatar_config.aiAvatarUrl;
+            }
+
+            // === 优先级逻辑 ===
+            // 1. 如果有 AI 头像且用户选了用它 -> 显示 AI 图
+            // 2. 否则 -> 尝试加载本地高清拼图
+            // 3. 本地也找不到 -> 自动降级为 DiceBear 网络图
+            if (useAiAvatar && aiAvatarUrl) {
+                imgEl.src = aiAvatarUrl;
+                imgEl.style.transform = `scaleX(1)`; 
+                imgEl.style.opacity = 1;
+            } else {
+                const localPath = `/avatars/${gender}_${ageGroup}_${outfit}.png`;
+                
+                imgEl.onload = () => {
+                    imgEl.style.transform = `scaleX(${bodyScale})`;
+                    imgEl.style.opacity = 1;
+                }
+                
+                imgEl.onerror = () => {
+                    console.warn("Local Avatar Not Found:", localPath);
+                    const style = age <= 8 ? 'fun-emoji' : 'adventurer';
+                    const seed = user.student_name || 'hero';
+                    imgEl.src = `https://api.dicebear.com/7.x/${style}/svg?seed=${seed}&backgroundColor=b6e3f4`;
+                    imgEl.style.opacity = 1;
+                };
+                
+                imgEl.src = localPath;
+            }
+
+            // 加载奖杯
+            loadTrophies();
+
+        } catch (e) { console.error("Init error:", e); }
+    }
 
     // 3. 加载奖杯
     function loadTrophies() {
@@ -385,7 +386,7 @@
                 const div = document.createElement('div');
                 div.className = 'trophy';
                 div.textContent = icon;
-                div.title = t.source_name; // 鼠标悬停显示来源
+                div.title = t.source_name;
                 area.appendChild(div);
             });
         });
@@ -459,6 +460,8 @@
         e.preventDefault();
         fetch('/api/logout', {method:'POST'}).then(() => location.href = '/');
     };
+
+    init();
   </script>
 </body>
 </html>
