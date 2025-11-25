@@ -7,7 +7,6 @@
   <style>
     body { background: #1a1a2e; margin: 0; font-family: sans-serif; color: white; height: 100vh; display: flex; flex-direction: column; }
     
-    /* === 1. 展台区 === */
     .preview-area { 
         flex: 1; 
         background: radial-gradient(circle at center, #2a2a4a, #1a1a2e); 
@@ -16,7 +15,6 @@
         overflow: hidden;
     }
     
-    /* 聚光灯 */
     .spotlight {
         position: absolute; top: -20%; left: 50%; transform: translateX(-50%);
         width: 60%; height: 80%;
@@ -24,18 +22,16 @@
         filter: blur(30px); pointer-events: none;
     }
 
-    /* 核心人物图 */
     .avatar-img { 
-        height: 75vh; /* 占据屏幕高度的75% */
+        height: 75vh; 
         width: auto; 
         max-width: 90%;
         object-fit: contain; 
-        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* 弹性动画 */
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         filter: drop-shadow(0 20px 30px rgba(0,0,0,0.6)); 
         z-index: 10;
     }
     
-    /* === 2. 控制面板 === */
     .controls { 
         background: rgba(22, 33, 62, 0.95); 
         padding: 20px; 
@@ -47,7 +43,6 @@
     
     .c-title { font-size: 0.9rem; color: #aaa; margin-bottom: 10px; display: flex; justify-content: space-between; }
     
-    /* 衣服选择器 */
     .outfit-scroll { display: flex; gap: 15px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none; }
     .outfit-btn { 
         flex-shrink: 0; width: 70px; height: 70px; 
@@ -61,7 +56,6 @@
     .outfit-btn.selected { border-color: #e94560; background: #2a1a2a; box-shadow: 0 0 15px rgba(233, 69, 96, 0.4); }
     .outfit-btn.selected span { color: #e94560; font-weight: bold; }
 
-    /* 身材滑块 */
     .slider-container { margin-top: 15px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 10px; }
     input[type=range] { width: 100%; accent-color: #e94560; cursor: pointer; }
 
@@ -75,9 +69,6 @@
     .btn-save:active { transform: scale(0.98); }
 
     .btn-back { position: absolute; top: 20px; left: 20px; color: rgba(255,255,255,0.7); text-decoration: none; font-size: 0.9rem; z-index: 50; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 15px; }
-
-    /* Loading */
-    .loading-mask { position: absolute; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 100;}
   </style>
 </head>
 <body>
@@ -86,14 +77,10 @@
 
 <div class="preview-area">
     <div class="spotlight"></div>
-    
     <img id="avatarDisplay" class="avatar-img" src="" alt="Avatar">
-    
-    <div id="imgLoader" class="loading-mask"><span>加载素材...</span></div>
 </div>
 
 <div class="controls">
-    
     <div class="c-title">
         <span>👔 选择装扮 (Outfit)</span>
         <span id="genderLabel" style="font-size:0.8rem; color:#4facfe">识别中...</span>
@@ -131,23 +118,20 @@
 </div>
 
 <script>
-    // 默认配置
     let currentConfig = {
         outfit: 'uniform',
         bodyScale: 1.0,
-        gender: 'girl', // 自动从数据库获取
-        ageGroup: 'junior' // 自动从数据库获取
+        gender: 'girl', 
+        ageGroup: 'junior'
     };
 
-    // 1. 初始化：获取用户资料，决定 Gender 和 AgeGroup
     async function init() {
         try {
             const res = await fetch('/api/me');
             const user = await res.json();
             if(!user.id) return location.href='/';
 
-            // --- 自动判定性别 ---
-            // 简单逻辑：名字结尾 a/e/i/y 或常见女名 -> Girl，否则 Boy
+            // 性别逻辑
             const name = (user.student_name || "").toLowerCase();
             if (/[aeiy]$/.test(name) || ['yolanda','cindy','alice'].some(n=>name.includes(n))) {
                 currentConfig.gender = 'girl';
@@ -159,20 +143,17 @@
                 document.getElementById('genderLabel').style.color = "#4facfe";
             }
 
-            // --- 自动判定年龄组 ---
+            // 年龄组逻辑
             let age = 7;
             if (user.dob) age = new Date().getFullYear() - new Date(user.dob).getFullYear();
             
             if (age <= 9) currentConfig.ageGroup = 'junior';
-            else currentConfig.ageGroup = 'senior'; // 简化为两档，方便你准备素材
+            else currentConfig.ageGroup = 'senior';
 
-            // 如果以前保存过配置，覆盖默认值
             if (user.avatar_config) {
-                // 只需要 outfit 和 scale，gender/ageGroup 始终重新计算以保持最新
                 if(user.avatar_config.outfit) currentConfig.outfit = user.avatar_config.outfit;
                 if(user.avatar_config.bodyScale) currentConfig.bodyScale = user.avatar_config.bodyScale;
                 
-                // 恢复滑块和按钮状态
                 document.getElementById('bodySlider').value = currentConfig.bodyScale;
                 document.querySelectorAll('.outfit-btn').forEach(btn => {
                     btn.classList.remove('selected');
@@ -187,13 +168,11 @@
         } catch(e) { console.error(e); }
     }
 
-    // 辅助：翻译英文代号用于匹配按钮
     function translateOutfit(code) {
         const map = {'uniform':'校服', 'ballet':'芭蕾', 'jazz':'爵士', 'hiphop':'街舞', 'kpop':'k-pop'};
         return map[code] || '校服';
     }
 
-    // 2. 切换衣服
     window.setOutfit = function(type, btn) {
         currentConfig.outfit = type;
         document.querySelectorAll('.outfit-btn').forEach(b => b.classList.remove('selected'));
@@ -201,47 +180,38 @@
         updateImage();
     }
 
-    // 3. 调整身材
     document.getElementById('bodySlider').oninput = function() {
         currentConfig.bodyScale = this.value;
         const img = document.getElementById('avatarDisplay');
         img.style.transform = `scaleX(${this.value})`;
     };
 
-    // 4. 核心：构建图片路径并加载
     function updateImage() {
         const img = document.getElementById('avatarDisplay');
-        const loader = document.getElementById('imgLoader');
         
-        // 路径规则：/assets/avatars/girl_junior_ballet.png
-        // 确保你上传的文件夹叫 assets/avatars 或者 uploads/avatars，并在 server.js 开放了访问
-        // 这里假设放在 public/games/avatars 下方便管理，或者 uploads/avatars
-        // 咱们统一用: /uploads/avatars/
-        
+        // 核心修正：指向 /avatars/
         const filename = `${currentConfig.gender}_${currentConfig.ageGroup}_${currentConfig.outfit}.png`;
-        const fullPath = `/uploads/avatars/${filename}`;
+        const fullPath = `/avatars/${filename}`;
 
         console.log("Loading:", fullPath);
         
-        // 预加载
         const tempImg = new Image();
         tempImg.onload = () => {
             img.src = fullPath;
-            img.style.transform = `scaleX(${currentConfig.bodyScale})`; // 保持身材
+            img.style.transform = `scaleX(${currentConfig.bodyScale})`;
         };
         tempImg.onerror = () => {
-            // 如果图片不存在，加载一个兜底图 (比如 DiceBear)
             console.warn("Missing image:", filename);
+            // 兜底
             const seed = currentConfig.gender + currentConfig.outfit;
             img.src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${seed}&backgroundColor=transparent`;
         };
         tempImg.src = fullPath;
     }
 
-    // 5. 保存配置到数据库
     window.saveAvatar = async function() {
         const btn = document.querySelector('.btn-save');
-        btn.textContent = '正在保存...';
+        btn.textContent = '保存中...';
         
         try {
             const res = await fetch('/api/save-avatar', {
