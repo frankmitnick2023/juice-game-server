@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WE DANCE 教务后台</title>
+  <style>
+    body{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin:0; background:#f2f4f8; padding-bottom:4rem}
+    .header{background:#333;color:white;padding:1rem;position:sticky;top:0;z-index:100;display:flex;justify-content:space-between;align-items:center}
+    
+    .day-tabs {display:flex;overflow-x:auto;background:white;padding:10px;box-shadow:0 2px 5px rgba(0,0,0,0.05)}
+    .day-tab {flex:0 0 auto;padding:6px 14px;margin-right:8px;border-radius:15px;background:#f0f0f0;color:#666;font-weight:bold;font-size:0.9rem;cursor:pointer}
+    .day-tab.active {background:#333;color:white}
+
+    .container{padding:15px}
+    .class-card{background:white;border-radius:10px;padding:15px;margin-bottom:15px;box-shadow:0 2px 8px rgba(0,0,0,0.05);border-left:5px solid #333;cursor:pointer;position:relative}
+    
+    .c-time{font-weight:bold;color:#333;font-size:1.1rem}
+    .c-name{font-size:1rem;color:#555;margin:5px 0}
+    .c-meta{font-size:0.8rem;color:#888}
+    .c-badge{position:absolute;right:15px;top:20px;background:#ffebee;color:#d32f2f;padding:4px 10px;border-radius:10px;font-weight:bold;font-size:0.9rem}
+    .c-badge.has-student{background:#e8f5e9;color:#2e7d32}
+
+    .modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:white;z-index:200;flex-direction:column}
+    .m-header{padding:15px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;background:#fff}
+    .m-body{flex:1;overflow-y:auto;padding:15px}
+    .m-close{font-size:1.5rem;cursor:pointer;padding:0 10px}
+
+    .student-row{display:flex;justify-content:space-between;align-items:center;padding:15px 0;border-bottom:1px solid #f5f5f5}
+    .btn-check{background:#4CAF50;color:white;border:none;padding:8px 20px;border-radius:20px;font-weight:bold}
+    .btn-done{background:#ddd;color:#999}
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>🎓 教务管理系统</div>
+  <div style="font-size:0.8rem">Admin</div>
+</div>
+
+<div class="day-tabs" id="dayTabs"></div>
+<div class="container" id="classList"></div>
+
+<div id="rollCallModal" class="modal">
+    <div class="m-header">
+        <h3 id="mTitle" style="margin:0">课程名</h3>
+        <div class="m-close" onclick="closeModal()">×</div>
+    </div>
+    <div class="m-body" id="mList"></div>
+</div>
+
+<script>
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  let allCourses = [];
+  let currentDay = 'Friday'; // 默认显示周五，方便您测试
+
+  async function init() {
+      const tabs = document.getElementById('dayTabs');
+      days.forEach(d => {
+          const div = document.createElement('div');
+          div.className = `day-tab ${d===currentDay?'active':''}`;
+          div.textContent = d.substring(0,3);
+          div.onclick = () => switchDay(d, div);
+          tabs.appendChild(div);
+      });
+
+      const res = await fetch('/api/teacher/schedule');
+      allCourses = await res.json();
+      renderClasses();
+  }
+
+  function switchDay(day, el) {
+      currentDay = day;
+      document.querySelectorAll('.day-tab').forEach(t=>t.classList.remove('active'));
+      el.classList.add('active');
+      renderClasses();
+  }
+
+  function renderClasses() {
+      const list = document.getElementById('classList');
+      list.innerHTML = '';
+      const todayClasses = allCourses.filter(c => c.day_of_week === currentDay);
+      
+      if(todayClasses.length === 0) {
+          list.innerHTML = '<p style="text-align:center;color:#999;margin-top:50px">今日无课程</p>';
+          return;
+      }
+
+      todayClasses.forEach(c => {
+          const count = parseInt(c.student_count);
+          const div = document.createElement('div');
+          div.className = 'class-card';
+          div.innerHTML = `
+            <div class="c-time">${c.start_time} - ${c.end_time}</div>
+            <div class="c-name">${c.name}</div>
+            <div class="c-meta">👨‍🏫 ${c.teacher} | ${c.category}</div>
+            <div class="c-badge ${count>0?'has-student':''}">${count}人报名</div>
+          `;
+          div.onclick = () => openRollCall(c);
+          list.appendChild(div);
+      });
+  }
+
+  async function openRollCall(course) {
+      document.getElementById('rollCallModal').style.display = 'flex';
+      document.getElementById('mTitle').textContent = course.name;
+      const list = document.getElementById('mList');
+      list.innerHTML = '加载中...';
+
+      const res = await fetch(`/api/teacher/bookings/${course.id}`);
+      const students = await res.json();
+
+      list.innerHTML = '';
+      if(students.length === 0) {
+          list.innerHTML = '<p style="text-align:center;color:#999">暂无学生报名</p>';
+          return;
+      }
+
+      students.forEach(s => {
+          const isAttended = s.status === 'attended' || s.status === 'active'; // 兼容新旧状态
+          const div = document.createElement('div');
+          div.className = 'student-row';
+          div.innerHTML = `
+            <div>
+                <div style="font-weight:bold;font-size:1.1rem">${s.student_name}</div>
+                <div style="font-size:0.8rem;color:#888">累计: ${(s.total_minutes/60).toFixed(1)}小时</div>
+            </div>
+            <button class="${isAttended ? 'btn-check btn-done' : 'btn-check'}" 
+                    onclick="checkIn(${s.id}, ${course.id}, this)" 
+                    ${isAttended ? 'disabled' : ''}>
+                ${isAttended ? '已到' : '签到'}
+            </button>
+          `;
+          list.appendChild(div);
+      });
+  }
+
+  function closeModal() {
+      document.getElementById('rollCallModal').style.display = 'none';
+  }
+
+  async function checkIn(bid, cid
