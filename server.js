@@ -15,6 +15,9 @@ let replicate = null;
 try {
     if (process.env.REPLICATE_API_TOKEN && process.env.REPLICATE_API_TOKEN.startsWith('r8_')) {
         replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
+        console.log("✅ AI Client Ready (High Quality Mode)");
+    } else {
+        console.log("⚠️ AI Client Skipped (Mock Mode)");
     }
 } catch (e) { console.error("AI Init Warning:", e.message); }
 
@@ -28,7 +31,7 @@ const sessionStore = new MemoryStore();
 
 app.use(session({
   store: sessionStore,
-  secret: process.env.SESSION_SECRET || 'juice-secret-2025',
+  secret: 'juice-secret-2025',
   resave: false,
   saveUninitialized: false,
   cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }
@@ -54,7 +57,6 @@ const upload = multer({ storage: storage });
 // === 数据库初始化 ===
 (async () => {
   try {
-    // 表结构初始化 (保持原有逻辑)
     await pool.query(`CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email TEXT UNIQUE, password_hash TEXT, level INTEGER DEFAULT 1, coins INTEGER DEFAULT 0, student_name TEXT, dob DATE, agreed_terms BOOLEAN DEFAULT FALSE, total_minutes INTEGER DEFAULT 0, makeup_credits INTEGER DEFAULT 0, avatar_config JSONB DEFAULT '{}')`);
     const uCols = ['student_name TEXT', 'dob DATE', 'agreed_terms BOOLEAN DEFAULT FALSE', 'total_minutes INTEGER DEFAULT 0', 'makeup_credits INTEGER DEFAULT 0', "avatar_config JSONB DEFAULT '{}'"];
     for(const c of uCols) await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ${c}`);
@@ -116,7 +118,7 @@ function scanGames() {
 }
 app.get('/api/games', (req, res) => res.json(scanGames()));
 
-// === 核心修复：AI 生成接口 (带自动降级保护) ===
+// === 核心升级：AI 生成接口 (换用 Face-to-Many 模型) ===
 app.post('/api/generate-avatar', upload.single('faceImage'), async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Login required' });
     if (!req.file) return res.status(400).json({ error: 'No file' });
@@ -125,33 +127,47 @@ app.post('/api/generate-avatar', upload.single('faceImage'), async (req, res) =>
     let mode = 'Mock';
 
     try {
-        // 1. 尝试调用真实 AI
         if (replicate) {
-            console.log("🚀 Running Replicate AI...");
+            console.log("🚀 Running Face-to-Many AI...");
+            
+            // 使用 fofr/face-to-many 模型
+            // 这是一个非常强大的模型，可以生成 3D/游戏/黏土风格
+            // 输入参数：image (必填), style (可选, 默认 video_game), prompt (可选)
             const output = await replicate.run(
-              "cjwbw/animeganv2:92da1447cb56306c66595b985f84a293505c743b783c5f2d94c26066556e6390",
-              { input: { image: fs.createReadStream(req.file.path) } }
+              "fofr/face-to-many:a07f252abbbd4328866205a5ef85b737cf775416869d146691534557c51214b6",
+              {
+                input: {
+                  image: fs.createReadStream(req.file.path),
+                  style: "video_game", // 风格可选: "3d", "video_game", "pixels", "clay"
+                  prompt: "cute, chibi, masterpiece, best quality", // 提示词增强
+                  negative_prompt: "ugly, low quality"
+                }
+              }
             );
-            avatarUrl = output; // AI 生成成功
+            
+            // Replicate 返回的可能是数组，取第一张
+            if (Array.isArray(output)) {
+                avatarUrl = output[0];
+            } else {
+                avatarUrl = output;
+            }
             mode = 'AI';
+            console.log("AI Success:", avatarUrl);
+
         } else {
-            throw new Error('No Replicate Key configured'); // 主动抛出错误，触发降级
+            throw new Error('No Replicate Key'); // 触发降级
         }
 
     } catch (e) {
-        // 2. 捕获错误，执行降级方案 (Fallback)
-        console.warn("⚠️ AI Failed/Skipped, switching to Fallback:", e.message);
-        
-        // 模拟思考时间，给用户一种“正在生成”的感觉
+        console.warn("⚠️ AI Failed, using Fallback:", e.message);
         await new Promise(r => setTimeout(r, 1500));
-        
-        // 使用 DiceBear 根据用户名生成唯一头像
         const seed = req.session.user.student_name + Date.now();
-        avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${seed}&backgroundColor=b6e3f4`;
+        // 兜底使用更可爱的 fun-emoji 风格
+        avatarUrl = `https://api.dicebear.com/7.x/fun-emoji/svg?seed=${seed}&backgroundColor=b6e3f4`;
         mode = 'Fallback';
     }
 
-    // 3. 无论如何，保存结果
+    // 保存
     try {
         const config = req.session.user.avatar_config || {};
         config.aiAvatarUrl = avatarUrl;
@@ -160,7 +176,6 @@ app.post('/api/generate-avatar', upload.single('faceImage'), async (req, res) =>
         await pool.query('UPDATE users SET avatar_config = $1 WHERE id = $2', [config, req.session.user.id]);
         req.session.user.avatar_config = config;
 
-        // 返回成功（即使是降级生成的，对用户来说也是成功）
         res.json({ success: true, url: avatarUrl, mode: mode });
         
     } catch (dbError) {
@@ -197,7 +212,6 @@ app.post('/api/teacher/remove-booking', async (req, res) => { res.json({success:
 app.post('/api/cancel-booking', async (req, res) => { const { bookingId } = req.body; await pool.query('DELETE FROM bookings WHERE id=$1', [bookingId]); res.json({ success: true }); });
 app.get('/api/ai-report', async (req, res) => { res.json({timeStats:[], aiAnalysis:{warnings:[], recommendations:[]}}); });
 
-// 路由
 const pages = ['index.html','games.html','timetable.html','my_schedule.html','invoices.html','admin.html','stats.html','growth.html','wrapper.html','avatar_editor.html'];
 pages.forEach(p => app.get('/'+(p==='index.html'?'':p), (req,res)=>res.sendFile(path.join(__dirname,'public',p))));
 
