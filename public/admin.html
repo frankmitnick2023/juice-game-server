@@ -8,7 +8,6 @@
     body{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin:0; background:#f2f4f8; padding-bottom:4rem}
     .header{background:#333;color:white;padding:1rem;position:sticky;top:0;z-index:100}
     
-    /* 星期栏 */
     .day-tabs {display:flex;overflow-x:auto;background:white;padding:10px;box-shadow:0 2px 5px rgba(0,0,0,0.05)}
     .day-tab {flex:0 0 auto;padding:6px 14px;margin-right:8px;border-radius:15px;background:#f0f0f0;color:#666;font-weight:bold;font-size:0.9rem;cursor:pointer}
     .day-tab.active {background:#333;color:white}
@@ -17,56 +16,42 @@
     .class-card{background:white;border-radius:10px;padding:15px;margin-bottom:15px;box-shadow:0 2px 8px rgba(0,0,0,0.05);border-left:5px solid #333;cursor:pointer;position:relative}
     .c-time{font-weight:bold;color:#333;font-size:1.1rem}
     .c-name{font-size:1rem;color:#555;margin:5px 0}
-    .c-badge{position:absolute;right:15px;top:20px;background:#e8f5e9;color:#2e7d32;padding:4px 10px;border-radius:10px;font-weight:bold;font-size:0.9rem}
+    .c-badge{position:absolute;right:15px;top:20px;background:#ffebee;color:#d32f2f;padding:4px 10px;border-radius:10px;font-weight:bold;font-size:0.9rem}
 
-    /* 弹窗 */
     .modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:white;z-index:200;flex-direction:column}
     .m-header{padding:15px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;background:#fff}
     .m-body{flex:1;overflow-y:auto;padding:15px}
     .m-close{font-size:2rem;cursor:pointer;padding:0 10px}
 
     .student-row{display:flex;justify-content:space-between;align-items:center;padding:15px 0;border-bottom:1px solid #f5f5f5}
-    .s-info{flex:1}
     .s-tag{background:#e3f2fd;color:#1976d2;padding:1px 5px;border-radius:4px;font-size:0.7rem;margin-left:5px}
-    .s-makeup{background:#fff3e0;color:#ef6c00}
-
-    .btn-group{display:flex;gap:5px}
-    .btn{border:none;padding:8px 12px;border-radius:6px;font-weight:bold;cursor:pointer;font-size:0.9rem}
-    .btn-check{background:#4CAF50;color:white}
-    .btn-absent{background:#ff9800;color:white}
-    .btn-disabled{background:#ddd;color:#999;cursor:not-allowed}
     
-    .time-warning{background:#ffebee;color:#c62828;padding:10px;text-align:center;font-size:0.9rem;display:none}
+    .btn-group{display:flex;gap:5px}
+    .btn{border:none;padding:6px 12px;border-radius:6px;font-weight:bold;cursor:pointer;font-size:0.8rem}
+    .btn-check{background:#4CAF50;color:white}
+    .btn-remove{background:transparent;color:#999;border:1px solid #ddd} /* 移除按钮样式 */
+    .btn-remove:hover{color:red;border-color:red}
+    .btn-done{background:#ddd;color:#888;cursor:default}
   </style>
 </head>
 <body>
 
-<div class="header">
-  <div>🎓 教务管理系统</div>
-</div>
-
+<div class="header"><div>🎓 教务后台</div></div>
 <div class="day-tabs" id="dayTabs"></div>
 <div class="container" id="classList"></div>
 
 <div id="rollCallModal" class="modal">
     <div class="m-header">
-        <div>
-            <h3 id="mTitle" style="margin:0">课程名</h3>
-            <div id="mTime" style="font-size:0.8rem;color:#666">16:00 - 17:00</div>
-        </div>
+        <h3 id="mTitle" style="margin:0"></h3>
         <div class="m-close" onclick="closeModal()">×</div>
     </div>
-    <div id="timeWarning" class="time-warning">⚠️ 未到上课时间，签到功能已锁定 (请于课前30分钟操作)</div>
     <div class="m-body" id="mList"></div>
 </div>
 
 <script>
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   let allCourses = [];
-  // 获取今天是周几 (例如 "Friday")
-  const todayIndex = new Date().getDay(); 
-  const todayName = days[todayIndex === 0 ? 6 : todayIndex - 1]; // 修正 JS getDay 0=周日
-  let currentDay = todayName;
+  let currentDay = days[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1];
 
   async function init() {
       const tabs = document.getElementById('dayTabs');
@@ -77,7 +62,6 @@
           div.onclick = () => switchDay(d, div);
           tabs.appendChild(div);
       });
-
       const res = await fetch('/api/teacher/schedule');
       allCourses = await res.json();
       renderClasses();
@@ -94,23 +78,15 @@
       const list = document.getElementById('classList');
       list.innerHTML = '';
       const todayClasses = allCourses.filter(c => c.day_of_week === currentDay);
+      if(todayClasses.length === 0) list.innerHTML = '<p style="text-align:center;color:#999;margin-top:50px">无课程</p>';
       
-      if(todayClasses.length === 0) {
-          list.innerHTML = '<p style="text-align:center;color:#999;margin-top:50px">今日无课程</p>';
-          return;
-      }
-
-      // 按时间排序
-      todayClasses.sort((a,b) => a.start_time.localeCompare(b.start_time));
-
       todayClasses.forEach(c => {
           const div = document.createElement('div');
           div.className = 'class-card';
           div.innerHTML = `
-            <div class="c-time">${c.start_time} - ${c.end_time}</div>
+            <div class="c-time">${c.start_time}</div>
             <div class="c-name">${c.name}</div>
-            <div class="c-meta">👨‍🏫 ${c.teacher}</div>
-            <div class="c-badge">${c.student_count || 0}人报名</div>
+            <div class="c-badge">${c.student_count||0}人</div>
           `;
           div.onclick = () => openRollCall(c);
           list.appendChild(div);
@@ -120,68 +96,28 @@
   async function openRollCall(course) {
       document.getElementById('rollCallModal').style.display = 'flex';
       document.getElementById('mTitle').textContent = course.name;
-      document.getElementById('mTime').textContent = `${course.start_time} - ${course.end_time}`;
-      
-      // === 核心逻辑：检查时间锁 ===
-      // 规则：必须是 当天，且 当前时间 > 开始时间 - 30分钟
-      const now = new Date();
-      const currentDayName = days[now.getDay() === 0 ? 6 : now.getDay() - 1];
-      const [sH, sM] = course.start_time.split(':').map(Number);
-      
-      const classTime = new Date();
-      classTime.setHours(sH, sM, 0);
-      // 允许提前 30 分钟
-      const unlockTime = new Date(classTime.getTime() - 30 * 60000);
-      
-      let isLocked = false;
-      // 如果不是今天，或者还没到时间
-      if (currentDayName !== course.day_of_week) {
-          isLocked = true;
-      } else if (now < unlockTime) {
-          isLocked = true;
-      }
-      
-      // 为了演示方便，您可以暂时注释掉下面这行，否则非周五无法测试
-      // isLocked = false; // <--- 调试开关
-
-      const warning = document.getElementById('timeWarning');
-      warning.style.display = isLocked ? 'block' : 'none';
-      if (currentDayName !== course.day_of_week) warning.textContent = `⚠️ 这不是今天的课程，无法签到`;
-
-      // 加载名单
       const list = document.getElementById('mList');
       list.innerHTML = '加载中...';
+      
       const res = await fetch(`/api/teacher/bookings/${course.id}`);
       const students = await res.json();
-
       list.innerHTML = '';
-      if(students.length === 0) {
-          list.innerHTML = '<p style="text-align:center;color:#999">暂无报名</p>'; return;
-      }
+      
+      if(students.length === 0) list.innerHTML = '<p style="text-align:center;color:#999">暂无报名</p>';
 
       students.forEach(s => {
-          const isDone = s.status === 'attended' || s.status === 'absent'; // 已处理
-          const isMakeup = s.is_makeup; // 是否补课生
-          
+          const isDone = s.status === 'attended';
           const div = document.createElement('div');
           div.className = 'student-row';
           div.innerHTML = `
-            <div class="s-info">
-                <div style="font-weight:bold">${s.student_name} 
-                    ${isMakeup ? '<span class="s-tag s-makeup">🔵 补课</span>' : '<span class="s-tag">⚪️ 正课</span>'}
-                </div>
-                <div style="font-size:0.8rem;color:#888">${s.selected_dates || '整学期'}</div>
+            <div>
+                <div style="font-weight:bold">${s.student_name}</div>
+                <div style="font-size:0.8rem;color:#888">${s.is_makeup?'🔵 补课':'⚪️ 正课'}</div>
             </div>
             <div class="btn-group">
-                <button class="btn ${isDone||isLocked ? 'btn-disabled' : 'btn-check'}" 
-                    onclick="takeAction(${s.id}, ${course.id}, 'present', this)" 
-                    ${isDone||isLocked ? 'disabled' : ''}>
-                    到
-                </button>
-                <button class="btn ${isDone||isLocked ? 'btn-disabled' : 'btn-absent'}" 
-                    onclick="takeAction(${s.id}, ${course.id}, 'absent', this)" 
-                    ${isDone||isLocked ? 'disabled' : ''}>
-                    缺
+                <button class="btn btn-remove" onclick="removeStudent(${s.id}, ${course.id})">🗑</button>
+                <button class="btn ${isDone?'btn-done':'btn-check'}" onclick="checkIn(${s.id}, ${course.id}, this)" ${isDone?'disabled':''}>
+                    ${isDone?'已到':'签到'}
                 </button>
             </div>
           `;
@@ -191,21 +127,32 @@
 
   function closeModal() { document.getElementById('rollCallModal').style.display = 'none'; }
 
-  async function takeAction(bid, cid, action, btn) {
-      if(!confirm(action==='present' ? '确认到课？' : '确认缺勤？\n系统将自动发放补课额度。')) return;
-      
+  async function checkIn(bid, cid, btn) {
+      if(!confirm('确认签到？')) return;
       const res = await fetch('/api/teacher/action', {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({bookingId:bid, courseId:cid, action})
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({bookingId:bid, courseId:cid, action:'present'})
+      });
+      if(res.ok) { 
+          btn.className = 'btn btn-done'; btn.textContent = '已到'; btn.disabled = true;
+      }
+  }
+
+  // === 老师端移除学生 ===
+  async function removeStudent(bid, cid) {
+      if(!confirm('⚠️ 危险操作：确认将该学生从名单中移除？\n如果是补课生，会自动退还补课额度。')) return;
+      
+      const res = await fetch('/api/teacher/remove-booking', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({bookingId:bid})
       });
       
       if(res.ok) {
-          alert(action==='present' ? '✅ 已签到' : '⚠️ 已标记缺勤，补课额度+1');
-          // 刷新页面或禁用按钮
-          openRollCall({id:cid, name:document.getElementById('mTitle').textContent, start_time:document.getElementById('mTime').textContent.split(' - ')[0]}); // 简单粗暴重载
+          alert('✅ 已移除');
+          // 重新加载名单
+          openRollCall({id:cid, name:document.getElementById('mTitle').textContent}); 
       } else {
-          alert('操作失败');
+          alert('移除失败');
       }
   }
 
