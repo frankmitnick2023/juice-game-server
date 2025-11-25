@@ -5,78 +5,72 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>2026 智能选课</title>
   <style>
+    /* ... CSS 保持不变，省略 ... */
     body{font-family:Arial;margin:0;background:#f9f9f9;padding-bottom:5rem}
     .header{background:#ff6b35;color:white;padding:1rem;text-align:center}
-    
-    /* 星期导航栏 */
     .day-tabs {display:flex;overflow-x:auto;background:white;padding:10px;box-shadow:0 2px 5px rgba(0,0,0,0.05);position:sticky;top:0;z-index:100}
     .day-tab {flex:0 0 auto;padding:8px 16px;margin-right:10px;border-radius:20px;background:#f0f0f0;color:#666;font-weight:bold;cursor:pointer;font-size:0.9rem}
     .day-tab.active {background:#ff6b35;color:white}
-    
     .container{max-width:800px;margin:1rem auto;padding:0 1rem}
-    .age-tip {text-align:center;color:#666;font-size:0.9rem;margin:10px 0}
-
     .course-card{background:white;border-radius:12px;padding:1.2rem;margin-bottom:1rem;box-shadow:0 2px 8px rgba(0,0,0,0.05);display:flex;justify-content:space-between;align-items:center}
     .c-main h3{margin:0 0 5px 0;color:#333}
     .c-detail{font-size:0.9rem;color:#666;margin:2px 0}
     .tag{font-size:0.8rem;background:#fff0e6;color:#ff6b35;padding:2px 5px;border-radius:4px;margin-right:5px}
-    
     .btn-book{background:#ff6b35;color:white;border:none;padding:8px 16px;border-radius:20px;cursor:pointer;font-weight:bold}
     
-    /* 弹窗样式 */
+    /* 弹窗 */
     .modal-overlay {display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:999;justify-content:center;align-items:end}
     .modal {background:white;width:100%;max-width:600px;border-radius:20px 20px 0 0;padding:20px;box-sizing:border-box;animation:slideUp 0.3s}
     @keyframes slideUp {from{transform:translateY(100%)} to{transform:translateY(0)}}
     
     .option-box {border:1px solid #ddd;border-radius:8px;padding:15px;margin-bottom:10px;cursor:pointer}
     .option-box.selected {border-color:#ff6b35;background:#fff0e6}
+    .makeup-box {border-color:#2196f3;background:#e3f2fd}
+    
     .date-grid {display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px;display:none}
     .date-item {background:#f0f0f0;padding:8px;text-align:center;border-radius:4px;font-size:0.8rem;cursor:pointer}
     .date-item.active {background:#ff6b35;color:white}
     
-    /* 底部导航 */
     .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:white;border-top:1px solid #eee;display:flex;justify-content:space-around;padding:10px 0;z-index:99}
     .nav-item{text-decoration:none;color:#888;font-size:0.8rem;text-align:center;display:flex;flex-direction:column}
     .nav-icon{font-size:1.4rem;margin-bottom:2px}
-    .nav-item.active{color:#ff6b35}
+    .active-nav{color:#ff6b35}
   </style>
 </head>
 <body>
 
-<div class="header">
-  <h3>2026 TERM 1 课表</h3>
-</div>
-
-<div class="day-tabs" id="dayTabs">
-  </div>
-
+<div class="header"><h3>2026 TERM 1 课表</h3></div>
+<div class="day-tabs" id="dayTabs"></div>
 <div class="container">
-  <div id="ageTip" class="age-tip">加载中...</div>
+  <div id="ageTip" style="text-align:center;color:#666;margin:10px">加载中...</div>
   <div id="courseList"></div>
 </div>
 
 <div id="bookModal" class="modal-overlay">
   <div class="modal">
     <h3 id="mTitle">课程名</h3>
-    <p style="color:#666;font-size:0.9rem">请选择报名方式：</p>
+    <div id="userCredits" style="font-size:0.8rem;color:#2196f3;margin-bottom:10px"></div>
     
     <div class="option-box selected" onclick="selectMode('term')" id="optTerm">
-      <div style="font-weight:bold">📅 整学期报名 (Full Term)</div>
+      <div style="font-weight:bold">📅 整学期报名</div>
       <div style="color:#ff6b35;margin-top:5px" id="mTermPrice">$200</div>
-      <div style="font-size:0.8rem;color:#999">包含所有 10 周课程，最优惠</div>
     </div>
 
     <div class="option-box" onclick="selectMode('casual')" id="optCasual">
-      <div style="font-weight:bold">🗓 自选日期 (Casual)</div>
+      <div style="font-weight:bold">🗓 自选日期</div>
       <div style="color:#ff6b35;margin-top:5px" id="mCasualPrice">$25 / 课</div>
-      
-      <div class="date-grid" id="dateGrid">
-        </div>
+      <div class="date-grid" id="dateGrid"></div>
+    </div>
+
+    <div class="option-box makeup-box" onclick="selectMode('makeup')" id="optMakeup" style="display:none">
+      <div style="font-weight:bold">🔵 使用补课卡</div>
+      <div style="color:#2196f3;margin-top:5px">免费 (消耗1额度)</div>
+      <div class="date-grid" id="makeupDateGrid"></div>
     </div>
 
     <div style="margin-top:20px;display:flex;gap:10px">
       <button onclick="closeModal()" style="flex:1;padding:12px;border:1px solid #ddd;background:white;border-radius:8px">取消</button>
-      <button onclick="confirmBooking()" style="flex:2;padding:12px;background:#ff6b35;color:white;border:none;border-radius:8px;font-weight:bold">确认报名</button>
+      <button onclick="confirmBooking()" style="flex:2;padding:12px;background:#ff6b35;color:white;border:none;border-radius:8px;font-weight:bold">确认</button>
     </div>
   </div>
 </div>
@@ -84,46 +78,52 @@
 <div class="nav-bar">
     <a href="/games.html" class="nav-item"><span class="nav-icon">🎮</span>大厅</a>
     <a href="/my_schedule.html" class="nav-item"><span class="nav-icon">📅</span>我的课表</a>
-    <a href="#" class="nav-item active"><span class="nav-icon">🛒</span>去选课</a>
+    <a href="#" class="nav-item active-nav"><span class="nav-icon">🛒</span>去选课</a>
     <a href="/growth.html" class="nav-item"><span class="nav-icon">📊</span>成长</a>
 </div>
 
 <script>
   const TERM_START = new Date("2026-02-02"); 
   const WEEKS = 10; 
-
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  
   let allCourses = [];
   let currentDay = 'Monday';
   let currentCourse = null;
   let selectedMode = 'term';
   let selectedDates = [];
+  let userMakeupCredits = 0;
 
   async function init() {
+    // Tab
     const tabContainer = document.getElementById('dayTabs');
     days.forEach((d, i) => {
         const div = document.createElement('div');
         div.className = `day-tab ${d === 'Monday' ? 'active' : ''}`;
-        div.textContent = d === 'Wednesday' ? 'Wed' : d.substring(0, 3);
+        div.textContent = d.substring(0, 3);
         div.onclick = () => switchDay(d, div);
         tabContainer.appendChild(div);
     });
 
+    // 获取用户信息 (额度)
+    fetch('/api/me').then(r=>r.json()).then(u => {
+        if(u) userMakeupCredits = u.makeup_credits || 0;
+    });
+
+    // 获取推荐课程
     try {
         const res = await fetch('/api/courses/recommended');
         const data = await res.json();
-        if(data.error) { alert(data.error); return; }
-        
-        document.getElementById('ageTip').textContent = `学员年龄: ${data.age}岁 (系统已自动筛选课程)`;
+        document.getElementById('ageTip').textContent = `学员年龄: ${data.age}岁 (智能推荐)`;
         allCourses = data.courses;
         renderList();
-    } catch(e) { console.error(e); }
+    } catch(e) {}
   }
 
-  function switchDay(day, tabElement) {
+  function switchDay(day, el) {
       currentDay = day;
       document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
-      tabElement.classList.add('active');
+      el.classList.add('active');
       renderList();
   }
 
@@ -132,10 +132,7 @@
       list.innerHTML = '';
       const todayCourses = allCourses.filter(c => c.day_of_week === currentDay);
       
-      if(todayCourses.length === 0) {
-          list.innerHTML = '<p style="text-align:center;color:#999;margin-top:2rem">该日暂无适合您年龄的课程</p>';
-          return;
-      }
+      if(todayCourses.length === 0) list.innerHTML = '<p style="text-align:center;color:#999">今日无适合课程</p>';
 
       todayCourses.forEach(c => {
           const div = document.createElement('div');
@@ -144,10 +141,7 @@
             <div class="c-main">
                 <h3>${c.name}</h3>
                 <div class="c-detail">⏰ ${c.start_time} - ${c.end_time}</div>
-                <div class="c-detail">
-                    <span class="tag">👩‍🏫 ${c.teacher}</span>
-                    <span class="tag">$${c.price} / Term</span>
-                </div>
+                <div class="c-detail"><span class="tag">👩‍🏫 ${c.teacher}</span><span class="tag">$${c.price}</span></div>
             </div>
             <button class="btn-book" onclick='openModal(${JSON.stringify(c)})'>报名</button>
           `;
@@ -164,8 +158,20 @@
       document.getElementById('mTermPrice').textContent = `$${course.price}`;
       document.getElementById('mCasualPrice').textContent = `$${course.casual_price || Math.ceil(course.price/8)} / 课`;
       
-      const grid = document.getElementById('dateGrid');
-      grid.innerHTML = '';
+      if(userMakeupCredits > 0) {
+          document.getElementById('optMakeup').style.display = 'block';
+          document.getElementById('userCredits').textContent = `可用补课额度: ${userMakeupCredits} 节`;
+      } else {
+          document.getElementById('optMakeup').style.display = 'none';
+          document.getElementById('userCredits').textContent = '';
+      }
+
+      // 生成日期
+      const gridCasual = document.getElementById('dateGrid');
+      const gridMakeup = document.getElementById('makeupDateGrid');
+      gridCasual.innerHTML = '';
+      gridMakeup.innerHTML = '';
+      
       const dayIndex = days.indexOf(course.day_of_week);
       let currentDate = new Date(TERM_START);
       currentDate.setDate(currentDate.getDate() + dayIndex); 
@@ -173,11 +179,19 @@
       for(let i=0; i<WEEKS; i++) {
           const dateStr = currentDate.toLocaleDateString('en-NZ'); 
           const isoDate = currentDate.toISOString().split('T')[0];
-          const div = document.createElement('div');
-          div.className = 'date-item';
-          div.textContent = dateStr.substring(0, 5); 
-          div.onclick = (e) => toggleDate(div, isoDate, e);
-          grid.appendChild(div);
+          
+          // Casual Grid
+          const d1 = document.createElement('div');
+          d1.className = 'date-item';
+          d1.textContent = dateStr.substring(0, 5);
+          d1.onclick = (e) => toggleDate(d1, isoDate, e, 'casual');
+          gridCasual.appendChild(d1);
+
+          // Makeup Grid
+          const d2 = d1.cloneNode(true);
+          d2.onclick = (e) => toggleDate(d2, isoDate, e, 'makeup'); // 只能选一个
+          gridMakeup.appendChild(d2);
+          
           currentDate.setDate(currentDate.getDate() + 7);
       }
 
@@ -187,36 +201,52 @@
 
   function selectMode(mode) {
       selectedMode = mode;
-      document.getElementById('optTerm').className = mode==='term' ? 'option-box selected' : 'option-box';
-      document.getElementById('optCasual').className = mode==='casual' ? 'option-box selected' : 'option-box';
-      document.getElementById('dateGrid').style.display = mode==='casual' ? 'grid' : 'none';
+      selectedDates = []; // 切换模式清空日期
+      document.querySelectorAll('.date-item').forEach(d => d.classList.remove('active'));
+      
+      document.getElementById('optTerm').className = mode==='term'?'option-box selected':'option-box';
+      document.getElementById('optCasual').className = mode==='casual'?'option-box selected':'option-box';
+      document.getElementById('optMakeup').className = mode==='makeup'?'option-box makeup-box selected':'option-box makeup-box';
+      
+      document.getElementById('dateGrid').style.display = mode==='casual'?'grid':'none';
+      document.getElementById('makeupDateGrid').style.display = mode==='makeup'?'grid':'none';
   }
 
-  function toggleDate(div, date, e) {
+  function toggleDate(div, date, e, mode) {
       e.stopPropagation();
-      if(selectedDates.includes(date)) {
-          selectedDates = selectedDates.filter(d => d !== date);
-          div.classList.remove('active');
-      } else {
-          selectedDates.push(date);
+      
+      if (mode === 'makeup') {
+          // 补课只能选一天
+          selectedDates = [date];
+          // 清除其他选中
+          div.parentNode.querySelectorAll('.date-item').forEach(d => d.classList.remove('active'));
           div.classList.add('active');
+      } else {
+          // Casual 可以多选
+          if(selectedDates.includes(date)) {
+              selectedDates = selectedDates.filter(d => d !== date);
+              div.classList.remove('active');
+          } else {
+              selectedDates.push(date);
+              div.classList.add('active');
+          }
       }
   }
 
-  function closeModal() {
-      document.getElementById('bookModal').style.display = 'none';
-  }
+  function closeModal() { document.getElementById('bookModal').style.display = 'none'; }
 
   async function confirmBooking() {
-      let finalPrice = currentCourse.price;
+      if (selectedMode === 'casual' && selectedDates.length === 0) return alert('请选择日期');
+      if (selectedMode === 'makeup' && selectedDates.length === 0) return alert('请选择补课日期');
+      
+      let price = currentCourse.price;
       if (selectedMode === 'casual') {
-          if (selectedDates.length === 0) { alert('请至少选择一个日期'); return; }
-          const casualPrice = currentCourse.casual_price || Math.ceil(currentCourse.price/8);
-          finalPrice = casualPrice * selectedDates.length;
+          price = (currentCourse.casual_price || 25) * selectedDates.length;
+      } else if (selectedMode === 'makeup') {
+          price = 0;
       }
 
-      const msg = selectedMode === 'term' ? `确认报名整学期？总价 $${finalPrice}` : `确认报名 ${selectedDates.length} 节课？总价 $${finalPrice}`;
-      if(!confirm(msg)) return;
+      if(!confirm(`确认报名？总价: $${price}`)) return;
 
       try {
           const res = await fetch('/api/book-course', {
@@ -225,17 +255,17 @@
               body: JSON.stringify({
                   courseId: currentCourse.id,
                   type: selectedMode,
-                  selectedDates: selectedMode === 'casual' ? selectedDates : null,
-                  totalPrice: finalPrice
+                  selectedDates: selectedDates,
+                  totalPrice: price
               })
           });
           const result = await res.json();
           if(result.success) {
-              alert('✅ 报名成功！');
+              alert(result.message);
               closeModal();
-              location.href = '/my_schedule.html'; // 报名成功后跳转到我的课表
+              location.href = '/my_schedule.html';
           } else {
-              alert('⚠️ ' + result.message);
+              alert(result.message);
           }
       } catch(e) { alert('提交失败'); }
   }

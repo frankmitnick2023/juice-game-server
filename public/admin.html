@@ -6,60 +6,69 @@
   <title>WE DANCE 教务后台</title>
   <style>
     body{font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin:0; background:#f2f4f8; padding-bottom:4rem}
-    .header{background:#333;color:white;padding:1rem;position:sticky;top:0;z-index:100;display:flex;justify-content:space-between;align-items:center}
+    .header{background:#333;color:white;padding:1rem;position:sticky;top:0;z-index:100}
     
+    /* 星期栏 */
     .day-tabs {display:flex;overflow-x:auto;background:white;padding:10px;box-shadow:0 2px 5px rgba(0,0,0,0.05)}
     .day-tab {flex:0 0 auto;padding:6px 14px;margin-right:8px;border-radius:15px;background:#f0f0f0;color:#666;font-weight:bold;font-size:0.9rem;cursor:pointer}
     .day-tab.active {background:#333;color:white}
 
-    .container{padding:15px;min-height: 300px;}
+    .container{padding:15px}
     .class-card{background:white;border-radius:10px;padding:15px;margin-bottom:15px;box-shadow:0 2px 8px rgba(0,0,0,0.05);border-left:5px solid #333;cursor:pointer;position:relative}
-    
     .c-time{font-weight:bold;color:#333;font-size:1.1rem}
     .c-name{font-size:1rem;color:#555;margin:5px 0}
-    .c-meta{font-size:0.8rem;color:#888}
-    .c-badge{position:absolute;right:15px;top:20px;background:#ffebee;color:#d32f2f;padding:4px 10px;border-radius:10px;font-weight:bold;font-size:0.9rem}
-    .c-badge.has-student{background:#e8f5e9;color:#2e7d32}
+    .c-badge{position:absolute;right:15px;top:20px;background:#e8f5e9;color:#2e7d32;padding:4px 10px;border-radius:10px;font-weight:bold;font-size:0.9rem}
 
+    /* 弹窗 */
     .modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:white;z-index:200;flex-direction:column}
     .m-header{padding:15px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;background:#fff}
     .m-body{flex:1;overflow-y:auto;padding:15px}
-    .m-close{font-size:1.5rem;cursor:pointer;padding:0 10px}
+    .m-close{font-size:2rem;cursor:pointer;padding:0 10px}
 
     .student-row{display:flex;justify-content:space-between;align-items:center;padding:15px 0;border-bottom:1px solid #f5f5f5}
-    .btn-check{background:#4CAF50;color:white;border:none;padding:8px 20px;border-radius:20px;font-weight:bold}
-    .btn-done{background:#ddd;color:#999}
+    .s-info{flex:1}
+    .s-tag{background:#e3f2fd;color:#1976d2;padding:1px 5px;border-radius:4px;font-size:0.7rem;margin-left:5px}
+    .s-makeup{background:#fff3e0;color:#ef6c00}
+
+    .btn-group{display:flex;gap:5px}
+    .btn{border:none;padding:8px 12px;border-radius:6px;font-weight:bold;cursor:pointer;font-size:0.9rem}
+    .btn-check{background:#4CAF50;color:white}
+    .btn-absent{background:#ff9800;color:white}
+    .btn-disabled{background:#ddd;color:#999;cursor:not-allowed}
     
-    .error-msg {color: red; text-align: center; padding: 20px; background: #ffebee; border-radius: 8px;}
+    .time-warning{background:#ffebee;color:#c62828;padding:10px;text-align:center;font-size:0.9rem;display:none}
   </style>
 </head>
 <body>
 
 <div class="header">
   <div>🎓 教务管理系统</div>
-  <div style="font-size:0.8rem">Admin</div>
 </div>
 
 <div class="day-tabs" id="dayTabs"></div>
-<div class="container" id="classList">
-    <p style="text-align:center;color:#666">正在加载数据...</p>
-</div>
+<div class="container" id="classList"></div>
 
 <div id="rollCallModal" class="modal">
     <div class="m-header">
-        <h3 id="mTitle" style="margin:0">课程名</h3>
+        <div>
+            <h3 id="mTitle" style="margin:0">课程名</h3>
+            <div id="mTime" style="font-size:0.8rem;color:#666">16:00 - 17:00</div>
+        </div>
         <div class="m-close" onclick="closeModal()">×</div>
     </div>
+    <div id="timeWarning" class="time-warning">⚠️ 未到上课时间，签到功能已锁定 (请于课前30分钟操作)</div>
     <div class="m-body" id="mList"></div>
 </div>
 
 <script>
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   let allCourses = [];
-  let currentDay = 'Friday'; // 默认周五
+  // 获取今天是周几 (例如 "Friday")
+  const todayIndex = new Date().getDay(); 
+  const todayName = days[todayIndex === 0 ? 6 : todayIndex - 1]; // 修正 JS getDay 0=周日
+  let currentDay = todayName;
 
   async function init() {
-      // 1. 渲染顶部星期栏
       const tabs = document.getElementById('dayTabs');
       days.forEach(d => {
           const div = document.createElement('div');
@@ -69,36 +78,9 @@
           tabs.appendChild(div);
       });
 
-      try {
-          // 2. 请求数据
-          const res = await fetch('/api/teacher/schedule');
-          
-          // 如果状态码不对 (比如 500 Error)，抛出错误
-          if (!res.ok) {
-              const errData = await res.json();
-              throw new Error(errData.error || '服务器内部错误');
-          }
-
-          allCourses = await res.json();
-          
-          // 检查数据格式
-          if (!Array.isArray(allCourses)) {
-              throw new Error('返回数据格式错误');
-          }
-
-          renderClasses();
-
-      } catch (e) {
-          // 3. 错误处理：显示在页面上，不再白屏
-          document.getElementById('classList').innerHTML = `
-            <div class="error-msg">
-                <h3>加载失败</h3>
-                <p>${e.message}</p>
-                <button onclick="location.reload()" style="margin-top:10px">重试</button>
-            </div>
-          `;
-          console.error(e);
-      }
+      const res = await fetch('/api/teacher/schedule');
+      allCourses = await res.json();
+      renderClasses();
   }
 
   function switchDay(day, el) {
@@ -111,28 +93,24 @@
   function renderClasses() {
       const list = document.getElementById('classList');
       list.innerHTML = '';
-      
-      if (!allCourses || allCourses.length === 0) {
-          list.innerHTML = '<p style="text-align:center;color:#999">数据库中暂无课程数据</p>';
-          return;
-      }
-
       const todayClasses = allCourses.filter(c => c.day_of_week === currentDay);
       
       if(todayClasses.length === 0) {
-          list.innerHTML = `<p style="text-align:center;color:#999;margin-top:50px">${currentDay} 没有排课</p>`;
+          list.innerHTML = '<p style="text-align:center;color:#999;margin-top:50px">今日无课程</p>';
           return;
       }
 
+      // 按时间排序
+      todayClasses.sort((a,b) => a.start_time.localeCompare(b.start_time));
+
       todayClasses.forEach(c => {
-          const count = parseInt(c.student_count || 0);
           const div = document.createElement('div');
           div.className = 'class-card';
           div.innerHTML = `
             <div class="c-time">${c.start_time} - ${c.end_time}</div>
             <div class="c-name">${c.name}</div>
-            <div class="c-meta">👨‍🏫 ${c.teacher} | ${c.category}</div>
-            <div class="c-badge ${count>0?'has-student':''}">${count}人报名</div>
+            <div class="c-meta">👨‍🏫 ${c.teacher}</div>
+            <div class="c-badge">${c.student_count || 0}人报名</div>
           `;
           div.onclick = () => openRollCall(c);
           list.appendChild(div);
@@ -142,72 +120,92 @@
   async function openRollCall(course) {
       document.getElementById('rollCallModal').style.display = 'flex';
       document.getElementById('mTitle').textContent = course.name;
-      const list = document.getElementById('mList');
-      list.innerHTML = '<p style="text-align:center">加载名单...</p>';
-
-      try {
-          const res = await fetch(`/api/teacher/bookings/${course.id}`);
-          const students = await res.json();
-
-          list.innerHTML = '';
-          if(students.length === 0) {
-              list.innerHTML = '<p style="text-align:center;color:#999;margin-top:20px">暂无学生报名</p>';
-              return;
-          }
-
-          students.forEach(s => {
-              // 兼容旧状态 'attended' 和新状态 'active'
-              const isAttended = s.status === 'attended' || s.status === 'active'; 
-              
-              const div = document.createElement('div');
-              div.className = 'student-row';
-              div.innerHTML = `
-                <div>
-                    <div style="font-weight:bold;font-size:1.1rem">${s.student_name || '未命名'}</div>
-                    <div style="font-size:0.8rem;color:#888">累计修练: ${(s.total_minutes/60).toFixed(1)}小时</div>
-                </div>
-                <button class="${isAttended ? 'btn-check btn-done' : 'btn-check'}" 
-                        onclick="checkIn(${s.id}, ${course.id}, this)" 
-                        ${isAttended ? 'disabled' : ''}>
-                    ${isAttended ? '已到' : '签到'}
-                </button>
-              `;
-              list.appendChild(div);
-          });
-      } catch(e) {
-          list.innerHTML = '<p style="color:red;text-align:center">加载名单失败</p>';
+      document.getElementById('mTime').textContent = `${course.start_time} - ${course.end_time}`;
+      
+      // === 核心逻辑：检查时间锁 ===
+      // 规则：必须是 当天，且 当前时间 > 开始时间 - 30分钟
+      const now = new Date();
+      const currentDayName = days[now.getDay() === 0 ? 6 : now.getDay() - 1];
+      const [sH, sM] = course.start_time.split(':').map(Number);
+      
+      const classTime = new Date();
+      classTime.setHours(sH, sM, 0);
+      // 允许提前 30 分钟
+      const unlockTime = new Date(classTime.getTime() - 30 * 60000);
+      
+      let isLocked = false;
+      // 如果不是今天，或者还没到时间
+      if (currentDayName !== course.day_of_week) {
+          isLocked = true;
+      } else if (now < unlockTime) {
+          isLocked = true;
       }
+      
+      // 为了演示方便，您可以暂时注释掉下面这行，否则非周五无法测试
+      // isLocked = false; // <--- 调试开关
+
+      const warning = document.getElementById('timeWarning');
+      warning.style.display = isLocked ? 'block' : 'none';
+      if (currentDayName !== course.day_of_week) warning.textContent = `⚠️ 这不是今天的课程，无法签到`;
+
+      // 加载名单
+      const list = document.getElementById('mList');
+      list.innerHTML = '加载中...';
+      const res = await fetch(`/api/teacher/bookings/${course.id}`);
+      const students = await res.json();
+
+      list.innerHTML = '';
+      if(students.length === 0) {
+          list.innerHTML = '<p style="text-align:center;color:#999">暂无报名</p>'; return;
+      }
+
+      students.forEach(s => {
+          const isDone = s.status === 'attended' || s.status === 'absent'; // 已处理
+          const isMakeup = s.is_makeup; // 是否补课生
+          
+          const div = document.createElement('div');
+          div.className = 'student-row';
+          div.innerHTML = `
+            <div class="s-info">
+                <div style="font-weight:bold">${s.student_name} 
+                    ${isMakeup ? '<span class="s-tag s-makeup">🔵 补课</span>' : '<span class="s-tag">⚪️ 正课</span>'}
+                </div>
+                <div style="font-size:0.8rem;color:#888">${s.selected_dates || '整学期'}</div>
+            </div>
+            <div class="btn-group">
+                <button class="btn ${isDone||isLocked ? 'btn-disabled' : 'btn-check'}" 
+                    onclick="takeAction(${s.id}, ${course.id}, 'present', this)" 
+                    ${isDone||isLocked ? 'disabled' : ''}>
+                    到
+                </button>
+                <button class="btn ${isDone||isLocked ? 'btn-disabled' : 'btn-absent'}" 
+                    onclick="takeAction(${s.id}, ${course.id}, 'absent', this)" 
+                    ${isDone||isLocked ? 'disabled' : ''}>
+                    缺
+                </button>
+            </div>
+          `;
+          list.appendChild(div);
+      });
   }
 
-  function closeModal() {
-      document.getElementById('rollCallModal').style.display = 'none';
-  }
+  function closeModal() { document.getElementById('rollCallModal').style.display = 'none'; }
 
-  async function checkIn(bid, cid, btn) {
-      if(!confirm('确认该学生已到课？')) return;
+  async function takeAction(bid, cid, action, btn) {
+      if(!confirm(action==='present' ? '确认到课？' : '确认缺勤？\n系统将自动发放补课额度。')) return;
       
-      const originalText = btn.textContent;
-      btn.textContent = '...';
+      const res = await fetch('/api/teacher/action', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({bookingId:bid, courseId:cid, action})
+      });
       
-      try {
-          const res = await fetch('/api/teacher/check-in', {
-              method:'POST',
-              headers:{'Content-Type':'application/json'},
-              body: JSON.stringify({bookingId:bid, courseId:cid})
-          });
-          if(res.ok) {
-              const d = await res.json();
-              alert(`✅ 签到成功 (+${d.added_minutes}分钟)`);
-              btn.className = 'btn-check btn-done';
-              btn.textContent = '已到';
-              btn.disabled = true;
-          } else {
-              alert('操作失败');
-              btn.textContent = originalText;
-          }
-      } catch(e) {
-          alert('网络错误');
-          btn.textContent = originalText;
+      if(res.ok) {
+          alert(action==='present' ? '✅ 已签到' : '⚠️ 已标记缺勤，补课额度+1');
+          // 刷新页面或禁用按钮
+          openRollCall({id:cid, name:document.getElementById('mTitle').textContent, start_time:document.getElementById('mTime').textContent.split(' - ')[0]}); // 简单粗暴重载
+      } else {
+          alert('操作失败');
       }
   }
 
