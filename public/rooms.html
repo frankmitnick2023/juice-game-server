@@ -36,9 +36,10 @@
     .btn-confirm {width:100%;padding:14px;background:#2c3e50;color:white;border:none;border-radius:10px;font-weight:bold;margin-top:15px;font-size:1.1rem}
     .btn-confirm:active {transform:scale(0.98)}
 
-    .info-row {display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px dashed #eee}
+    .info-row {display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px dashed #eee}
     .info-label {color:#888}
     .info-val {font-weight:bold; color:#333}
+    .input-row {display:flex; gap:10px; align-items:center; justify-content:flex-end; width:60%} /* Added for date/time input */
 
     .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:white;border-top:1px solid #eee;display:flex;justify-content:space-around;padding:8px 0;z-index:99; padding-bottom: max(8px, env(safe-area-inset-bottom));}
     .nav-item{text-decoration:none;color:#999;font-size:0.75rem;text-align:center;display:flex;flex-direction:column;align-items:center;flex:1}
@@ -64,17 +65,23 @@
         
         <div style="margin:20px 0;">
             <div class="info-row">
-                <span class="info-label">📅 Day</span>
-                <span class="info-val" id="mDate">--</span>
+                <span class="info-label">Start Time (开始时间)</span>
+                <span class="info-val" id="mStartTime">--</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="info-label">📅 Date (日期)</span>
+                <div class="input-row">
+                    <input type="date" id="dateInput" style="padding:5px; border:1px solid #ddd; border-radius:5px; width:100%" onchange="updateBookingDay()">
+                </div>
             </div>
             
             <div class="info-row">
                 <span class="info-label">⏰ Duration (时长)</span>
-                <select id="durationSelect" onchange="updateModalPrice()" style="border:1px solid #ddd; padding:5px; border-radius:5px">
-                    <option value="1">1 Hour</option>
-                    <option value="2">2 Hours</option>
-                    <option value="3">3 Hours</option>
-                </select>
+                <div class="input-row">
+                    <input type="number" id="durationInput" min="0.5" max="8" step="0.5" value="1" oninput="updateModalPrice()" style="padding:5px; border:1px solid #ddd; border-radius:5px; text-align:right"> 
+                    <span style="color:#666; font-weight:bold">hrs</span>
+                </div>
             </div>
             
             <div class="info-row" style="border:none">
@@ -84,7 +91,7 @@
         </div>
 
         <div style="background:#f8f9fa;padding:12px;border-radius:8px;font-size:0.85rem;color:#666;line-height:1.4">
-            💡 <strong>Note:</strong> Valid for personal practice or rehearsal only.
+            ⚠️ **Note on Availability:** The schedule grid only reflects **TERM 1 class times**. Booking beyond the current day/term or for custom hours assumes availability, but **requires external confirmation**.
         </div>
         
         <button class="btn-confirm" onclick="confirmHire()">Confirm & Book</button>
@@ -119,7 +126,7 @@
     const SHORT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     let currentDayIndex = 0; 
     let allCourses = []; 
-    let selectedSlot = null; // 存储当前点击的房间和时间信息
+    let selectedSlot = null; 
 
     // R1 辅助函数：根据星期几的索引，计算出本周具体的日期对象
     function getSpecificDate(dayIndex) {
@@ -189,7 +196,7 @@
                 
                 const occupiedCourse = allCourses.find(c => {
                     if (c.day_of_week !== todayName) return false;
-                    if (c.classroom !== r.id) return false; // 确保使用 room id (Classroom 1)
+                    if (c.classroom !== r.id) return false; 
 
                     const start = parseInt(c.start_time.split(':')[0]);
                     const end = parseInt(c.end_time.split(':')[0]);
@@ -212,26 +219,40 @@
         });
     }
 
-    function updateModalPrice() {
+    // R2 & R3 价格联动函数
+    window.updateModalPrice = function() {
         if (!selectedSlot) return;
-        const duration = parseFloat(document.getElementById('durationSelect').value);
+        // 读取时长输入框的值
+        const duration = parseFloat(document.getElementById('durationInput').value) || 0;
+        
+        // 价格计算 (单价 * 时长 * 1.15 GST)
         const totalPrice = (selectedSlot.room.price * duration * 1.15).toFixed(2);
         document.getElementById('mPrice').textContent = `$${totalPrice}`;
+    }
+
+    // R1 更新日期显示
+    window.updateBookingDay = function() {
+        // 当用户手动修改日期时，仅更新日期，不影响表格显示
+        const dateInput = document.getElementById('dateInput');
+        const specificDate = new Date(dateInput.value);
+        const dayOfWeek = specificDate.toLocaleDateString('en-NZ', { weekday: 'long' });
+        
+        // 可以在这里给用户一个提示：当前显示的表格是 [dayOfWeek] 的占用情况
+        console.log(`User manually selected date: ${dateInput.value} (${dayOfWeek})`);
     }
 
     function openBooking(room, time, hourInt) {
         selectedSlot = {room, time, hourInt};
         
-        // R1 修复：显示完整日期
+        // R1 修复：设置日期选择器的默认值 (本周的该天)
         const specificDate = getSpecificDate(currentDayIndex);
-        const dateString = specificDate.toLocaleDateString('en-NZ', { month: 'short', day: 'numeric' });
+        const isoDate = specificDate.toISOString().split('T')[0];
         
         document.getElementById('mRoomName').textContent = room.name;
-        // R1 修复：显示完整的 星期 + 日期
-        document.getElementById('mDate').textContent = `${DAYS[currentDayIndex]}, ${dateString}`;
+        document.getElementById('mStartTime').textContent = time; // 明确开始时间
+        document.getElementById('dateInput').value = isoDate; // 设置日期输入框的值
         
-        // R2：时间始终显示选中的 1 小时，然后价格根据时长调整
-        document.getElementById('durationSelect').value = 1; // 重置为 1 小时
+        document.getElementById('durationInput').value = 1; // 默认 1 小时
         updateModalPrice(); // 计算 1 小时的价格
         
         document.getElementById('bookingModal').style.display = 'flex';
@@ -239,15 +260,20 @@
 
     function confirmHire() {
         if(!selectedSlot) return;
-        const duration = parseFloat(document.getElementById('durationSelect').value);
+        const duration = parseFloat(document.getElementById('durationInput').value) || 0;
+        const bookingDate = document.getElementById('dateInput').value;
+        const startTime = selectedSlot.time;
+
+        if(duration <= 0) return alert('Duration must be greater than 0.');
+        
         const totalPrice = document.getElementById('mPrice').textContent;
 
-        if(!confirm(`Confirm ${duration} hours booking? Total: ${totalPrice}`)) return;
+        if(!confirm(`Confirm ${duration} hours booking on ${bookingDate} starting at ${startTime}? Total: ${totalPrice}`)) return;
         
-        alert(`🎉 Booking Request Sent!\nRoom: ${selectedSlot.room.name}\nDuration: ${duration} hrs\nTotal: ${totalPrice}`);
+        alert(`✅ Booking Request Sent!\nRoom: ${selectedSlot.room.name}\nDate: ${bookingDate}\nDuration: ${duration} hrs\nTotal: ${totalPrice}`);
         document.getElementById('bookingModal').style.display = 'none';
         
-        // NOTE: In a real system, you would send API requests for all booked hours here.
+        // NOTE: Real system needs to send API request with bookingDate, startTime, and duration.
     }
 
     init();
