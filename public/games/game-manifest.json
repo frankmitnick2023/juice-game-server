@@ -1,0 +1,16 @@
+[
+  {
+    "id": "rhythm-challenger",
+    "name": "节奏挑战者",
+    "description": "跟随音乐点击节拍",
+    "type": "folder",
+    "thumbnail": "/games/rhythm-challenger/thumbnail.jpg"
+  },
+  {
+    "id": "ballet-pro",
+    "name": "英皇芭蕾-智能防拐范儿",
+    "description": "双机位AI矫正，专业动作姿态练习",
+    "type": "folder",
+    "thumbnail": "/games/ballet-pro/thumbnail.jpg"
+  }
+]

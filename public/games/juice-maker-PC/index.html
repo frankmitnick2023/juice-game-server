@@ -1,0 +1,1666 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaPipe体感榨汁机游戏 - 优化版</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 1200px;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 20px;
+        }
+        
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+            justify-content: center;
+        }
+        
+        .game-area {
+            flex: 1;
+            min-width: 300px;
+            max-width: 800px;
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        }
+        
+        #game {
+            width: 100%;
+            height: 500px;
+            background: #0b1226;
+            display: block;
+        }
+        
+        .video-container {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 200px;
+            height: 150px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        #webcam {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+        
+        .pose-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .control-panel {
+            flex: 1;
+            min-width: 300px;
+            max-width: 400px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-bottom: 5px;
+        }
+        
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+        }
+        
+        .energy-bar-container {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .energy-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .energy-bar {
+            height: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        #barEnergy {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #ff9a00, #ff5e00);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+        
+        .buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        button {
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        #btnCalibrateMain {
+            background: linear-gradient(135deg, #9b59b6, #8e44ad);
+            color: white;
+        }
+        
+        #btnCalibrateMain:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        #btnStart {
+            background: linear-gradient(135deg, #00b09b, #96c93d);
+            color: white;
+        }
+        
+        #btnStart:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        #btnStop {
+            background: linear-gradient(135deg, #ff416c, #ff4b2b);
+            color: white;
+        }
+        
+        #btnStop:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        #btnDownload {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            display: none;
+        }
+        
+        #btnDownload:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .hint-box {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        #hint {
+            text-align: center;
+            line-height: 1.5;
+        }
+        
+        .instructions {
+            margin-top: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            max-width: 1200px;
+            width: 100%;
+        }
+        
+        .instructions h2 {
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .instructions ul {
+            list-style-position: inside;
+            padding-left: 10px;
+        }
+        
+        .instructions li {
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+        
+        .bad {
+            color: #ff6b6b;
+        }
+        
+        .ok {
+            color: #4ecdc4;
+        }
+        
+        .prompt {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px 30px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 1.2rem;
+            color: #ffcc00;
+            z-index: 10;
+            animation: pulse 2s infinite;
+            display: none;
+        }
+        
+        .calibration-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            display: none;
+        }
+        
+        .calibration-content {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 600px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        .calibration-title {
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            color: #ffcc00;
+        }
+        
+        .calibration-steps {
+            text-align: left;
+            margin: 20px 0;
+            line-height: 1.6;
+        }
+        
+        .calibration-steps li {
+            margin-bottom: 10px;
+        }
+        
+        .calibration-progress {
+            width: 100%;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+        
+        .calibration-progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #00b09b, #96c93d);
+            border-radius: 5px;
+            transition: width 0.5s ease;
+        }
+        
+        .calibration-check {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            text-align: left;
+        }
+        
+        .check-icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 10px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .check-icon.checked {
+            background: #4ecdc4;
+        }
+        
+        .motion-path {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            height: 300px;
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            display: none;
+            z-index: 5;
+        }
+        
+        .shoulder-dot, .hip-dot {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        .shoulder-dot {
+            background: #ff6b6b;
+        }
+        
+        .hip-dot {
+            background: #4ecdc4;
+        }
+        
+        .school-logo {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 80px;
+            height: 80px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            text-align: center;
+            color: white;
+            z-index: 5;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .recording-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            background: rgba(220, 53, 69, 0.8);
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 14px;
+            color: white;
+            z-index: 5;
+            display: none;
+        }
+        
+        .recording-dot {
+            width: 10px;
+            height: 10px;
+            background: white;
+            border-radius: 50%;
+            margin-right: 6px;
+            animation: recording-pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.05); }
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
+        
+        @keyframes recording-pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .game-area, .control-panel {
+                max-width: 100%;
+            }
+            
+            .video-container {
+                width: 150px;
+                height: 110px;
+            }
+            
+            .calibration-content {
+                padding: 20px;
+                margin: 0 10px;
+            }
+            
+            .motion-path {
+                width: 200px;
+                height: 200px;
+            }
+            
+            .school-logo {
+                width: 60px;
+                height: 60px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>MediaPipe体感榨汁机游戏 - 优化版</h1>
+        <p class="subtitle">通过腰部和胯部扭转控制榨汁机，制作美味果汁！</p>
+    </header>
+    
+    <div class="container">
+        <div class="game-area">
+            <canvas id="game" width="1280" height="720"></canvas>
+            <div class="video-container">
+                <video id="webcam" playsinline></video>
+                <canvas class="pose-canvas" id="pose-canvas"></canvas>
+            </div>
+            <div class="prompt" id="prompt">转起来才有果汁喝哟！</div>
+            
+            <!-- 学校Logo -->
+     <div class="school-logo" id="schoolLogo">
+         <img src="https://static.wixstatic.com/media/9cbb1c_e10d313646eb4d999ac2f0161fae607c~mv2.png/v1/fill/w_288,h_239,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/Logo_1_edited.png" 
+         alt="学校 Logo" 
+         style="width: 80%; height: 80%; object-fit: contain;"
+         loading="eager" 
+         decoding="sync">
+     </div>
+            
+            <!-- 录制指示器 -->
+            <div class="recording-indicator" id="recordingIndicator">
+                <div class="recording-dot"></div>
+                录制中
+            </div>
+            
+            <!-- 运动轨迹可视化 -->
+            <div class="motion-path" id="motionPath">
+                <div class="shoulder-dot" id="shoulderDot"></div>
+                <div class="hip-dot" id="hipDot"></div>
+            </div>
+            
+            <!-- 校准覆盖层 -->
+            <div class="calibration-overlay" id="calibrationOverlay">
+                <div class="calibration-content">
+                    <h2 class="calibration-title">摄像头校准</h2>
+                    <p>为了获得最佳游戏体验，请完成以下校准步骤：</p>
+                    
+                    <div class="calibration-steps">
+                        <div class="calibration-check" id="step1">
+                            <div class="check-icon" id="icon1">1</div>
+                            <div>确保全身在摄像头视野内</div>
+                        </div>
+                        <div class="calibration-check" id="step2">
+                            <div class="check-icon" id="icon2">2</div>
+                            <div>保持站立姿势，面向摄像头</div>
+                        </div>
+                        <div class="calibration-check" id="step3">
+                            <div class="check-icon" id="icon3">3</div>
+                            <div>进行腰部和胯部扭转测试</div>
+                        </div>
+                    </div>
+                    
+                    <div class="calibration-progress">
+                        <div class="calibration-progress-bar" id="calibrationProgress"></div>
+                    </div>
+                    
+                    <div id="calibrationHint">请站到摄像头前，确保全身可见...</div>
+                    
+                    <button id="btnCalibrate" style="margin-top: 20px;">开始校准</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="control-panel">
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-label">剩余时间</div>
+                    <div id="lblTime" class="stat-value">00:30</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">当前转速</div>
+                    <div id="lblRPM" class="stat-value">0</div>
+                </div>
+            </div>
+            
+            <div class="energy-bar-container">
+                <div class="energy-label">
+                    <span>果汁能量</span>
+                    <span id="energyPercent">0%</span>
+                </div>
+                <div class="energy-bar">
+                    <div id="barEnergy"></div>
+                </div>
+            </div>
+            
+            <div class="buttons">
+                <!-- 添加了主界面的校准按钮 -->
+                <button id="btnCalibrateMain">开始校准</button>
+                <button id="btnStart" disabled>开始游戏</button>
+                <button id="btnStop" disabled>停止游戏</button>
+                <button id="btnDownload" disabled>下载视频</button>
+            </div>
+            
+            <div class="hint-box">
+                <div id="hint">请先点击"开始校准"按钮完成摄像头校准</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="instructions">
+        <h2>游戏说明</h2>
+        <ul>
+            <li>面向摄像头站立，确保上半身可见</li>
+            <li>通过腰部和胯部协调扭转控制榨汁机转速</li>
+            <li>保持高转速以填充果汁能量</li>
+            <li>游戏持续30秒，结束后会根据表现评分</li>
+            <li>评分标准：转速、稳定性和能量填充度</li>
+            <li><strong>技巧：</strong>想象肩膀和髋部在做圆形运动，而不是上下摆动</li>
+            <li><strong>分享：</strong>游戏结束后可以下载30秒的游戏视频分享到朋友圈</li>
+        </ul>
+    </div>
+
+    <script>
+        /* ========= Utilities ========= */
+        const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+        const wrapPi = x => {
+            while (x > Math.PI) x -= 2 * Math.PI;
+            while (x < -Math.PI) x += 2 * Math.PI;
+            return x;
+        };
+        const lerp = (a, b, t) => a + (b - a) * t;
+        const fmtTime = ms => {
+            const s = Math.max(0, Math.ceil(ms / 1000));
+            return "00:" + String(s).padStart(2, "0");
+        };
+
+        /* ========= DOM refs ========= */
+        const $ = sel => document.querySelector(sel);
+        const btnStart = $("#btnStart");
+        const btnStop = $("#btnStop");
+        const btnDownload = $("#btnDownload");
+        const lblTime = $("#lblTime");
+        const lblRPM = $("#lblRPM");
+        const barEnergy = $("#barEnergy");
+        const energyPercent = $("#energyPercent");
+        const hint = $("#hint");
+        const prompt = $("#prompt");
+        const webcam = $("#webcam");
+        const canvas = $("#game");
+        const ctx = canvas.getContext("2d");
+        const poseCanvas = $("#pose-canvas");
+        const poseCtx = poseCanvas.getContext("2d");
+        const recordingIndicator = $("#recordingIndicator");
+        const schoolLogo = $("#schoolLogo");
+        
+        // 校准相关元素
+        const calibrationOverlay = $("#calibrationOverlay");
+        const btnCalibrate = $("#btnCalibrate");
+        const btnCalibrateMain = $("#btnCalibrateMain"); // 主界面校准按钮
+        const calibrationProgress = $("#calibrationProgress");
+        const calibrationHint = $("#calibrationHint");
+        const step1 = $("#step1");
+        const step2 = $("#step2");
+        const step3 = $("#step3");
+        const icon1 = $("#icon1");
+        const icon2 = $("#icon2");
+        const icon3 = $("#icon3");
+        
+        // 运动轨迹可视化元素
+        const motionPath = $("#motionPath");
+        const shoulderDot = $("#shoulderDot");
+        const hipDot = $("#hipDot");
+
+        /* ========= Game State ========= */
+        let pose = null, running = false, calibrated = false;
+        let tStart = 0, tLast = 0, duration = 30_000; // 30s
+        let energy = 0, rpmMin = 0, rpmMax = 2200, thetaCap = 45, thetaThresh = 12;
+        let aPrev = 0, rpmHist = [];
+        let audioCtx = null, motorOsc = null, motorGain = null;
+        let lastPoseTime = 0;
+        let lastTheta = 0;
+        let angularVelocity = 0;
+        let noMotionTimer = 0;
+        let motionHistory = []; // 存储最近几帧的动作状态
+        
+        // 校准状态
+        let calibrationState = 0; // 0: 未开始, 1: 检测全身, 2: 站立姿势, 3: 扭转测试
+        let calibrationTimer = 0;
+        let calibrationData = {
+            fullBodyDetected: false,
+            standingPose: false,
+            torsoRotation: false
+        };
+        
+        // 运动轨迹跟踪
+        let shoulderHistory = [];
+        let hipHistory = [];
+        let maxHistoryLength = 30;
+        
+        // 视频录制
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let isRecording = false;
+        let combinedCanvas = null;
+        let combinedCtx = null;
+
+        /* ========= Audio ========= */
+        function ensureAudio() {
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            motorGain = audioCtx.createGain();
+            motorGain.gain.value = 0.0;
+            motorOsc = audioCtx.createOscillator();
+            motorOsc.type = "sawtooth";
+            motorOsc.frequency.value = 100;
+            motorOsc.connect(motorGain).connect(audioCtx.destination);
+            motorOsc.start();
+        }
+
+        function updateMotorSound(rpm) {
+            if (!motorOsc || !motorGain) return;
+            
+            // 只有当有动作时才发出声音
+            if (rpm > 50) {
+                const f = 80 + (rpm / 2200) * 420;
+                const g = 0.05 + (rpm / 2200) * 0.22;
+                motorOsc.frequency.setTargetAtTime(f, audioCtx.currentTime, 0.03);
+                motorGain.gain.setTargetAtTime(g, audioCtx.currentTime, 0.05);
+            } else {
+                // 没有动作时关闭声音
+                motorGain.gain.setTargetAtTime(0.0, audioCtx.currentTime, 0.1);
+            }
+        }
+
+        window.beep = (freq = 880, dur = 0.12, type = "sine", vol = 0.2) => {
+            if (!audioCtx) ensureAudio();
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.type = type;
+            o.frequency.value = freq;
+            g.gain.value = vol;
+            o.connect(g).connect(audioCtx.destination);
+            o.start();
+            o.stop(audioCtx.currentTime + dur);
+        };
+
+        async function countdownBeep() {
+            ensureAudio();
+            const seq = [660, 660, 660, 1000];
+            for (let i = 0; i < seq.length; i++) {
+                beep(seq[i], i === 3 ? 0.2 : 0.12, i === 3 ? "square" : "sine", i === 3 ? 0.35 : 0.22);
+                await new Promise(r => setTimeout(r, 600));
+            }
+        }
+
+        /* ========= MediaPipe Pose Detection ========= */
+        async function createPoseDetector() {
+            hint.innerHTML = "正在加载MediaPipe姿态检测模型...";
+            
+            pose = new Pose({
+                locateFile: (file) => {
+                    return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+                }
+            });
+            
+            pose.setOptions({
+                modelComplexity: 1,
+                smoothLandmarks: true,
+                enableSegmentation: false,
+                smoothSegmentation: true,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+            
+            pose.onResults(onPoseResults);
+            
+            // 设置摄像头
+            const camera = new Camera(webcam, {
+                onFrame: async () => {
+                    if (running || calibrationState > 0) {
+                        await pose.send({image: webcam});
+                    }
+                },
+                width: 640,
+                height: 480
+            });
+            
+            try {
+                await camera.start();
+                hint.innerHTML = "MediaPipe姿态检测模型加载完成！请点击开始校准按钮";
+                btnCalibrateMain.disabled = false;
+                return true;
+            } catch (e) {
+                console.error("Camera error:", e);
+                hint.innerHTML = '<span class="bad">无法访问摄像头。请允许权限并刷新页面。</span>';
+                return false;
+            }
+        }
+
+        function isFullBodyDetected(landmarks) {
+            // 检查关键身体部位是否都被检测到
+            const keyPoints = [0, 11, 12, 23, 24]; // 鼻子，左肩，右肩，左髋，右髋
+            return keyPoints.every(index => landmarks[index] && landmarks[index].visibility > 0.5);
+        }
+
+        function isStandingPose(landmarks) {
+            // 检查是否站立姿势
+            const LEFT_SHOULDER = 11;
+            const RIGHT_SHOULDER = 12;
+            const LEFT_HIP = 23;
+            const RIGHT_HIP = 24;
+            
+            const Ls = landmarks[LEFT_SHOULDER];
+            const Rs = landmarks[RIGHT_SHOULDER];
+            const Lh = landmarks[LEFT_HIP];
+            const Rh = landmarks[RIGHT_HIP];
+            
+            if (!(Ls && Rs && Lh && Rh)) return false;
+            
+            // 计算肩膀和髋部的角度
+            const shoulderAngle = Math.atan2(Rs.y - Ls.y, Rs.x - Ls.x);
+            const hipAngle = Math.atan2(Rh.y - Lh.y, Rh.x - Lh.x);
+            
+            // 计算角度差异
+            const angleDiff = Math.abs(wrapPi(shoulderAngle - hipAngle)) * 180 / Math.PI;
+            
+            // 站立时角度差异应该较小
+            return angleDiff < 15;
+        }
+
+        // 改进的躯干扭转检测 - 检测圆形轨迹
+        function isTorsoRotation(landmarks) {
+            // 检查肩膀和髋部的相对角度变化
+            const LEFT_SHOULDER = 11;
+            const RIGHT_SHOULDER = 12;
+            const LEFT_HIP = 23;
+            const RIGHT_HIP = 24;
+            
+            const Ls = landmarks[LEFT_SHOULDER];
+            const Rs = landmarks[RIGHT_SHOULDER];
+            const Lh = landmarks[LEFT_HIP];
+            const Rh = landmarks[RIGHT_HIP];
+            
+            if (!(Ls && Rs && Lh && Rh)) return false;
+            
+            // 计算肩膀和髋部的角度
+            const shoulderAngle = Math.atan2(Rs.y - Ls.y, Rs.x - Ls.x);
+            const hipAngle = Math.atan2(Rh.y - Lh.y, Rh.x - Lh.x);
+            
+            // 计算角度差异
+            const angleDiff = Math.abs(wrapPi(shoulderAngle - hipAngle)) * 180 / Math.PI;
+            
+            // 计算肩膀中点和髋部中点
+            const shoulderMidX = (Ls.x + Rs.x) / 2;
+            const shoulderMidY = (Ls.y + Rs.y) / 2;
+            const hipMidX = (Lh.x + Rh.x) / 2;
+            const hipMidY = (Lh.y + Rh.y) / 2;
+            
+            // 计算肩膀和髋部中点的相对位置
+            const shoulderHipDiffX = Math.abs(shoulderMidX - hipMidX);
+            const shoulderHipDiffY = Math.abs(shoulderMidY - hipMidY);
+            
+            // 只有当角度差异超过阈值并且肩膀和髋部中点有相对运动时才认为是躯干扭转
+            const isRotation = angleDiff > thetaThresh && shoulderHipDiffX > 0.02;
+            
+            return isRotation;
+        }
+
+        // 检测圆形运动轨迹
+        function detectCircularMotion(landmarks) {
+            const LEFT_SHOULDER = 11;
+            const RIGHT_SHOULDER = 12;
+            const LEFT_HIP = 23;
+            const RIGHT_HIP = 24;
+            
+            const Ls = landmarks[LEFT_SHOULDER];
+            const Rs = landmarks[RIGHT_SHOULDER];
+            const Lh = landmarks[LEFT_HIP];
+            const Rh = landmarks[RIGHT_HIP];
+            
+            if (!(Ls && Rs && Lh && Rh)) return { shoulderCircular: false, hipCircular: false, coordination: 0 };
+            
+            // 计算肩膀和髋部中点
+            const shoulderMidX = (Ls.x + Rs.x) / 2;
+            const shoulderMidY = (Ls.y + Rs.y) / 2;
+            const hipMidX = (Lh.x + Rh.x) / 2;
+            const hipMidY = (Lh.y + Rh.y) / 2;
+            
+            // 记录历史位置
+            shoulderHistory.push({ x: shoulderMidX, y: shoulderMidY });
+            hipHistory.push({ x: hipMidX, y: hipMidY });
+            
+            // 限制历史记录长度
+            if (shoulderHistory.length > maxHistoryLength) {
+                shoulderHistory.shift();
+                hipHistory.shift();
+            }
+            
+            // 计算运动轨迹的圆形度
+            let shoulderCircular = false;
+            let hipCircular = false;
+            let coordination = 0;
+            
+            if (shoulderHistory.length > 10) {
+                // 计算肩膀运动轨迹的圆形度
+                const shoulderVariance = calculateCircularVariance(shoulderHistory);
+                shoulderCircular = shoulderVariance < 0.3; // 值越小表示越接近圆形
+                
+                // 计算髋部运动轨迹的圆形度
+                const hipVariance = calculateCircularVariance(hipHistory);
+                hipCircular = hipVariance < 0.3;
+                
+                // 计算协调性（肩膀和髋部运动方向的相关性）
+                coordination = calculateCoordination(shoulderHistory, hipHistory);
+            }
+            
+            return { shoulderCircular, hipCircular, coordination };
+        }
+
+        // 计算运动轨迹的圆形方差
+        function calculateCircularVariance(history) {
+            if (history.length < 3) return 1;
+            
+            // 计算中心点
+            let centerX = 0, centerY = 0;
+            for (const point of history) {
+                centerX += point.x;
+                centerY += point.y;
+            }
+            centerX /= history.length;
+            centerY /= history.length;
+            
+            // 计算平均半径
+            let totalRadius = 0;
+            for (const point of history) {
+                const dx = point.x - centerX;
+                const dy = point.y - centerY;
+                totalRadius += Math.sqrt(dx * dx + dy * dy);
+            }
+            const avgRadius = totalRadius / history.length;
+            
+            // 计算半径的方差
+            let radiusVariance = 0;
+            for (const point of history) {
+                const dx = point.x - centerX;
+                const dy = point.y - centerY;
+                const radius = Math.sqrt(dx * dx + dy * dy);
+                radiusVariance += Math.pow(radius - avgRadius, 2);
+            }
+            radiusVariance /= history.length;
+            
+            // 归一化方差
+            const normalizedVariance = radiusVariance / (avgRadius * avgRadius);
+            
+            return normalizedVariance;
+        }
+
+        // 计算肩膀和髋部运动的协调性
+        function calculateCoordination(shoulderHistory, hipHistory) {
+            if (shoulderHistory.length !== hipHistory.length || shoulderHistory.length < 3) return 0;
+            
+            // 计算肩膀和髋部运动的相对方向
+            let coordination = 0;
+            for (let i = 1; i < shoulderHistory.length; i++) {
+                const shoulderDX = shoulderHistory[i].x - shoulderHistory[i-1].x;
+                const shoulderDY = shoulderHistory[i].y - shoulderHistory[i-1].y;
+                const hipDX = hipHistory[i].x - hipHistory[i-1].x;
+                const hipDY = hipHistory[i].y - hipHistory[i-1].y;
+                
+                // 计算方向向量的点积
+                const dotProduct = shoulderDX * hipDX + shoulderDY * hipDY;
+                const shoulderMagnitude = Math.sqrt(shoulderDX * shoulderDX + shoulderDY * shoulderDY);
+                const hipMagnitude = Math.sqrt(hipDX * hipDX + hipDY * hipDY);
+                
+                if (shoulderMagnitude > 0 && hipMagnitude > 0) {
+                    const cosine = dotProduct / (shoulderMagnitude * hipMagnitude);
+                    // 协调性：当肩膀和髋部向相反方向运动时，协调性更高
+                    coordination += (1 - cosine) / 2;
+                }
+            }
+            
+            return coordination / (shoulderHistory.length - 1);
+        }
+
+        // 更新运动轨迹可视化
+        function updateMotionVisualization(landmarks) {
+            if (!landmarks) {
+                motionPath.style.display = 'none';
+                return;
+            }
+            
+            const LEFT_SHOULDER = 11;
+            const RIGHT_SHOULDER = 12;
+            const LEFT_HIP = 23;
+            const RIGHT_HIP = 24;
+            
+            const Ls = landmarks[LEFT_SHOULDER];
+            const Rs = landmarks[RIGHT_SHOULDER];
+            const Lh = landmarks[LEFT_HIP];
+            const Rh = landmarks[RIGHT_HIP];
+            
+            if (!(Ls && Rs && Lh && Rh)) {
+                motionPath.style.display = 'none';
+                return;
+            }
+            
+            // 计算肩膀和髋部中点
+            const shoulderMidX = (Ls.x + Rs.x) / 2;
+            const shoulderMidY = (Ls.y + Rs.y) / 2;
+            const hipMidX = (Lh.x + Rh.x) / 2;
+            const hipMidY = (Lh.y + Rh.y) / 2;
+            
+            // 更新可视化点位置
+            const motionPathRect = motionPath.getBoundingClientRect();
+            const gameRect = canvas.getBoundingClientRect();
+            
+            const shoulderX = (shoulderMidX * motionPathRect.width) + (gameRect.left - motionPathRect.left);
+            const shoulderY = (shoulderMidY * motionPathRect.height) + (gameRect.top - motionPathRect.top);
+            const hipX = (hipMidX * motionPathRect.width) + (gameRect.left - motionPathRect.left);
+            const hipY = (hipMidY * motionPathRect.height) + (gameRect.top - motionPathRect.top);
+            
+            shoulderDot.style.left = `${shoulderX}px`;
+            shoulderDot.style.top = `${shoulderY}px`;
+            hipDot.style.left = `${hipX}px`;
+            hipDot.style.top = `${hipY}px`;
+            
+            motionPath.style.display = 'block';
+        }
+
+        /* ========= 视频录制功能 ========= */
+        function startRecording() {
+            recordedChunks = [];
+            
+            try {
+                // 创建组合画布，包含所有元素
+                combinedCanvas = document.createElement('canvas');
+                combinedCanvas.width = canvas.width;
+                combinedCanvas.height = canvas.height;
+                combinedCtx = combinedCanvas.getContext('2d');
+                
+                // 从组合画布获取流
+                const stream = combinedCanvas.captureStream(30); // 30 FPS
+                
+                // 尝试使用MP4格式
+                const options = { mimeType: 'video/mp4; codecs=avc1.42E01E' };
+                
+                // 创建MediaRecorder
+                mediaRecorder = new MediaRecorder(stream, options);
+                
+                // 收集数据
+                mediaRecorder.ondataavailable = function(event) {
+                    if (event.data.size > 0) {
+                        recordedChunks.push(event.data);
+                    }
+                };
+                
+                // 录制完成
+                mediaRecorder.onstop = function() {
+                    const blob = new Blob(recordedChunks, { type: 'video/mp4' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    // 启用下载按钮
+                    btnDownload.disabled = false;
+                    btnDownload.style.display = 'block';
+                    btnDownload.onclick = function() {
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `榨汁机游戏_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.mp4`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                    };
+                };
+                
+                // 开始录制
+                mediaRecorder.start();
+                isRecording = true;
+                recordingIndicator.style.display = 'flex';
+            } catch (e) {
+                console.error('录制失败:', e);
+                // 如果MP4不支持，尝试WebM
+                try {
+                    const stream = combinedCanvas.captureStream(30);
+                    mediaRecorder = new MediaRecorder(stream, {
+                        mimeType: 'video/webm; codecs=vp9'
+                    });
+                    
+                    // 重新设置事件处理器
+                    mediaRecorder.ondataavailable = function(event) {
+                        if (event.data.size > 0) {
+                            recordedChunks.push(event.data);
+                        }
+                    };
+                    
+                    mediaRecorder.onstop = function() {
+                        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                        const url = URL.createObjectURL(blob);
+                        
+                        btnDownload.disabled = false;
+                        btnDownload.style.display = 'block';
+                        btnDownload.onclick = function() {
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `榨汁机游戏_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                        };
+                    };
+                    
+                    mediaRecorder.start();
+                    isRecording = true;
+                    recordingIndicator.style.display = 'flex';
+                } catch (e2) {
+                    console.error('WebM录制也失败:', e2);
+                    alert('视频录制功能不可用，请使用现代浏览器如Chrome或Firefox');
+                }
+            }
+        }
+        
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                recordingIndicator.style.display = 'none';
+            }
+        }
+        
+        // 绘制组合画面到录制画布
+        function drawCombinedScene() {
+            if (!combinedCtx) return;
+            
+            // 清空画布
+            combinedCtx.clearRect(0, 0, combinedCanvas.width, combinedCanvas.height);
+            
+            // 绘制游戏主画面
+            combinedCtx.drawImage(canvas, 0, 0);
+            
+            // 绘制动作捕捉小窗口
+            const videoContainer = document.querySelector('.video-container');
+            if (videoContainer && videoContainer.style.display !== 'none') {
+                combinedCtx.save();
+                combinedCtx.globalAlpha = 0.9;
+                combinedCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                combinedCtx.fillRect(combinedCanvas.width - 210, 10, 200, 150);
+                combinedCtx.drawImage(poseCanvas, combinedCanvas.width - 210, 10, 200, 150);
+                combinedCtx.restore();
+            }
+            
+            // 绘制学校Logo
+            const logoRect = schoolLogo.getBoundingClientRect();
+            const gameRect = canvas.getBoundingClientRect();
+            if (logoRect && gameRect) {
+                combinedCtx.save();
+                combinedCtx.globalAlpha = 0.8;
+                combinedCtx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                combinedCtx.beginPath();
+                combinedCtx.arc(logoRect.left - gameRect.left + 40, logoRect.top - gameRect.top + 40, 40, 0, Math.PI * 2);
+                combinedCtx.fill();
+                
+                combinedCtx.fillStyle = 'white';
+                combinedCtx.font = 'bold 14px Arial';
+                combinedCtx.textAlign = 'center';
+                combinedCtx.textBaseline = 'middle';
+                combinedCtx.fillText('学校', logoRect.left - gameRect.left + 40, logoRect.top - gameRect.top + 35);
+                combinedCtx.fillText('Logo', logoRect.left - gameRect.left + 40, logoRect.top - gameRect.top + 50);
+                combinedCtx.restore();
+            }
+            
+            // 绘制录制指示器
+            if (isRecording) {
+                combinedCtx.save();
+                combinedCtx.fillStyle = 'rgba(220, 53, 69, 0.8)';
+                combinedCtx.beginPath();
+                combinedCtx.arc(combinedCanvas.width - 30, 30, 8, 0, Math.PI * 2);
+                combinedCtx.fill();
+                combinedCtx.restore();
+            }
+        }
+
+        function onPoseResults(results) {
+            // 处理校准逻辑
+            if (calibrationState > 0) {
+                handleCalibration(results);
+                return;
+            }
+            
+            if (!running) return;
+            
+            // 绘制骨架到小窗口
+            poseCtx.clearRect(0, 0, poseCanvas.width, poseCanvas.height);
+            poseCtx.save();
+            poseCtx.scale(-1, 1);
+            poseCtx.translate(-poseCanvas.width, 0);
+            
+            if (results.poseLandmarks) {
+                drawConnectors(poseCtx, results.poseLandmarks, POSE_CONNECTIONS, {
+                    color: '#00FF00',
+                    lineWidth: 2
+                });
+                drawLandmarks(poseCtx, results.poseLandmarks, {
+                    color: '#FF0000',
+                    lineWidth: 1,
+                    radius: 2
+                });
+            }
+            
+            poseCtx.restore();
+            
+            const now = performance.now();
+            const dt = Math.min(100, now - lastPoseTime) / 1000; // 转换为秒，限制最大时间差
+            lastPoseTime = now;
+            
+            let rpm = rpmMin;
+            let motionDetected = false;
+            
+            if (results.poseLandmarks) {
+                const currentTheta = computeTheta(results.poseLandmarks);
+                
+                // 计算角速度 (度/秒)
+                if (lastTheta !== 0) {
+                    const deltaTheta = Math.abs(currentTheta - lastTheta);
+                    angularVelocity = deltaTheta / dt;
+                    
+                    // 检查是否是躯干扭转
+                    const isRotation = isTorsoRotation(results.poseLandmarks);
+                    
+                    // 检测圆形运动轨迹
+                    const circularMotion = detectCircularMotion(results.poseLandmarks);
+                    
+                    // 只有当角速度超过阈值并且是躯干扭转，并且有圆形运动轨迹时才认为有动作
+                    if (angularVelocity > 20 && isRotation && 
+                        (circularMotion.shoulderCircular || circularMotion.hipCircular) &&
+                        circularMotion.coordination > 0.3) {
+                        
+                        motionDetected = true;
+                        
+                        // 记录动作历史
+                        motionHistory.push(true);
+                        if (motionHistory.length > 5) motionHistory.shift();
+                        
+                        // 使用角速度计算RPM，考虑协调性
+                        const coordinationBonus = 1 + (circularMotion.coordination * 0.5);
+                        rpm = clamp(angularVelocity * 10 * coordinationBonus, rpmMin, rpmMax);
+                        
+                        // 对rpm进行平滑处理
+                        rpm = lerp(aPrev, rpm, 0.3);
+                        aPrev = rpm;
+                        
+                        // 根据转速累积果汁能量，考虑协调性
+                        const energyMultiplier = 1 + (circularMotion.coordination * 0.3);
+                        energy = clamp(energy + (rpm / rpmMax) * dt * 20 * energyMultiplier, 0, 100);
+                    } else {
+                        // 不是躯干扭转或角速度不够，转速逐渐降低
+                        motionHistory.push(false);
+                        if (motionHistory.length > 5) motionHistory.shift();
+                        
+                        rpm = lerp(aPrev, 0, 0.2);
+                        aPrev = rpm;
+                    }
+                } else {
+                    // 第一帧，初始化lastTheta
+                    motionHistory.push(false);
+                    if (motionHistory.length > 5) motionHistory.shift();
+                }
+                
+                lastTheta = currentTheta;
+                
+                // 更新运动轨迹可视化
+                updateMotionVisualization(results.poseLandmarks);
+            } else {
+                // 没有检测到人体，转速逐渐降低
+                motionHistory.push(false);
+                if (motionHistory.length > 5) motionHistory.shift();
+                
+                rpm = lerp(aPrev, 0, 0.2);
+                aPrev = rpm;
+                
+                // 隐藏运动轨迹可视化
+                motionPath.style.display = 'none';
+            }
+            
+            // 更新马达声音
+            updateMotorSound(rpm);
+            
+            // 更新无动作计时器
+            if (motionDetected) {
+                noMotionTimer = 0;
+                prompt.style.display = 'none';
+            } else {
+                noMotionTimer += dt;
+                // 如果3秒内没有检测到动作，显示提示
+                if (noMotionTimer > 3) {
+                    prompt.style.display = 'block';
+                }
+            }
+            
+            const progress = (now - tStart) / duration;
+            drawScene(rpm, energy/100, progress, results.poseLandmarks);
+            
+            // 绘制组合画面用于录制
+            drawCombinedScene();
+
+            rpmHist.push(rpm);
+            lblRPM.textContent = rpm.toFixed(0);
+            lblTime.textContent = fmtTime(duration - (now - tStart));
+            barEnergy.style.width = energy.toFixed(1) + "%";
+            energyPercent.textContent = energy.toFixed(1) + "%";
+
+            if (now - tStart >= duration) {
+                stopGame(true);
+                return;
+            }
+        }
+
+        /* ========= 校准逻辑 ========= */
+        function startCalibration() {
+            calibrationState = 1;
+            calibrationOverlay.style.display = 'flex';
+            btnCalibrate.disabled = true;
+            calibrationTimer = 0;
+            calibrationData = {
+                fullBodyDetected: false,
+                standingPose: false,
+                torsoRotation: false
+            };
+            
+            // 重置图标状态
+            icon1.className = 'check-icon';
+            icon2.className = 'check-icon';
+            icon3.className = 'check-icon';
+            icon1.textContent = '1';
+            icon2.textContent = '2';
+            icon3.textContent = '3';
+            
+            calibrationProgress.style.width = '0%';
+            calibrationHint.textContent = '请站到摄像头前，确保全身可见...';
+        }
+
+        function handleCalibration(results) {
+            if (!results.poseLandmarks) {
+                // 没有检测到人体
+                calibrationHint.textContent = '未检测到人体，请确保全身在摄像头视野内...';
+                return;
+            }
+            
+            const now = performance.now();
+            const dt = Math.min(100, now - lastPoseTime) / 1000;
+            lastPoseTime = now;
+            calibrationTimer += dt;
+            
+            // 根据当前校准状态处理
+            switch(calibrationState) {
+                case 1: // 检测全身
+                    if (isFullBodyDetected(results.poseLandmarks)) {
+                        calibrationData.fullBodyDetected = true;
+                        icon1.className = 'check-icon checked';
+                        icon1.textContent = '✓';
+                        calibrationHint.textContent = '全身检测成功！请保持站立姿势...';
+                        
+                        // 等待2秒后进入下一步
+                        if (calibrationTimer > 2) {
+                            calibrationState = 2;
+                            calibrationTimer = 0;
+                            calibrationProgress.style.width = '33%';
+                        }
+                    } else {
+                        calibrationHint.textContent = '请调整位置，确保全身在摄像头视野内...';
+                    }
+                    break;
+                    
+                case 2: // 检测站立姿势
+                    if (isStandingPose(results.poseLandmarks)) {
+                        calibrationData.standingPose = true;
+                        icon2.className = 'check-icon checked';
+                        icon2.textContent = '✓';
+                        calibrationHint.textContent = '站立姿势检测成功！请进行腰部和胯部扭转测试...';
+                        
+                        // 等待2秒后进入下一步
+                        if (calibrationTimer > 2) {
+                            calibrationState = 3;
+                            calibrationTimer = 0;
+                            calibrationProgress.style.width = '66%';
+                        }
+                    } else {
+                        calibrationHint.textContent = '请保持站立姿势，面向摄像头...';
+                    }
+                    break;
+                    
+                case 3: // 检测躯干扭转
+                    // 检测圆形运动轨迹
+                    const circularMotion = detectCircularMotion(results.poseLandmarks);
+                    
+                    if (isTorsoRotation(results.poseLandmarks) && 
+                        (circularMotion.shoulderCircular || circularMotion.hipCircular) &&
+                        circularMotion.coordination > 0.3) {
+                        
+                        calibrationData.torsoRotation = true;
+                        icon3.className = 'check-icon checked';
+                        icon3.textContent = '✓';
+                        calibrationHint.textContent = '腰部和胯部扭转测试成功！校准完成...';
+                        
+                        // 等待2秒后完成校准
+                        if (calibrationTimer > 2) {
+                            calibrationState = 0;
+                            calibrationProgress.style.width = '100%';
+                            
+                            // 完成校准
+                            setTimeout(() => {
+                                calibrationOverlay.style.display = 'none';
+                                calibrated = true;
+                                hint.innerHTML = '<span class="ok">校准完成！点击"开始游戏"按钮开始游戏。</span>';
+                                btnStart.disabled = false;
+                            }, 1000);
+                        }
+                    } else {
+                        calibrationHint.textContent = '请进行腰部和胯部协调扭转动作，想象肩膀和髋部在做圆形运动...';
+                    }
+                    break;
+            }
+        }
+
+        /* ========= Geometry ========= */
+        function computeTheta(landmarks) {
+            // MediaPipe Pose landmarks indices
+            const LEFT_SHOULDER = 11;
+            const RIGHT_SHOULDER = 12;
+            const LEFT_HIP = 23;
+            const RIGHT_HIP = 24;
+            
+            const Ls = landmarks[LEFT_SHOULDER];
+            const Rs = landmarks[RIGHT_SHOULDER];
+            const Lh = landmarks[LEFT_HIP];
+            const Rh = landmarks[RIGHT_HIP];
+            
+            if (!(Ls && Rs && Lh && Rh)) return 0;
+            
+            // 计算肩膀和髋部的角度
+            const as = Math.atan2(Rs.y - Ls.y, Rs.x - Ls.x);
+            const ah = Math.atan2(Rh.y - Lh.y, Rh.x - Lh.x);
+            
+            let d = Math.abs(wrapPi(as - ah)) * 180 / Math.PI;
+            return d;
+        }
+
+        /* ========= Render ========= */
+        const W = 1280, H = 720;
+        function drawScene(rpm, energy, progress, landmarks) {
+            ctx.clearRect(0, 0, W, H);
+            const g = ctx.createLinearGradient(0, 0, 0, H);
+            g.addColorStop(0, "#0b1226"); g.addColorStop(1, "#0a1020");
+            ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+            // 进度条
+            ctx.fillStyle = "#1e293b"; ctx.fillRect(40, 36, W - 80, 14);
+            ctx.fillStyle = "#60a5fa"; ctx.fillRect(40, 36, (1 - progress) * (W - 80), 14);
+
+            // 果汁碗
+            const bowl = { x: 140, y: 120, w: 440, h: 440, r: 24 };
+            ctx.strokeStyle = "#7dd3fc"; ctx.lineWidth = 8;
+            roundRect(ctx, bowl.x, bowl.y, bowl.w, bowl.h, bowl.r); ctx.stroke();
+
+            // 绘制果汁液面
+            const juiceLevel = bowl.y + bowl.h - energy * bowl.h;
+            
+            // 果汁液体
+            ctx.save();
+            ctx.beginPath(); 
+            roundRect(ctx, bowl.x + 2, juiceLevel, bowl.w - 4, bowl.y + bowl.h - juiceLevel, 18);
+            ctx.clip();
+            
+            // 果汁渐变
+            const jg = ctx.createLinearGradient(0, juiceLevel, 0, bowl.y + bowl.h);
+            jg.addColorStop(0, "#ffa726"); jg.addColorStop(1, "#fb8c00");
+            ctx.fillStyle = jg; 
+            ctx.fillRect(bowl.x, juiceLevel, bowl.w, bowl.y + bowl.h - juiceLevel);
+            
+            // 果汁表面光泽
+            const highlight = ctx.createLinearGradient(bowl.x, juiceLevel, bowl.x + bowl.w, juiceLevel);
+            highlight.addColorStop(0, "rgba(255,255,255,0.3)");
+            highlight.addColorStop(0.5, "rgba(255,255,255,0.1)");
+            highlight.addColorStop(1, "rgba(255,255,255,0.3)");
+            ctx.fillStyle = highlight;
+            ctx.fillRect(bowl.x, juiceLevel, bowl.w, 10);
+            
+            // 气泡
+            for (let i = 0; i < 20; i++) {
+                const bx = bowl.x + 20 + (i * 23 % (bowl.w - 40));
+                const by = juiceLevel + 20 + (i * 37 % (bowl.y + bowl.h - juiceLevel - 20));
+                const r = 3 + (i % 4);
+                ctx.globalAlpha = 0.2 + (i % 3) * 0.1;
+                ctx.fillStyle = "#fff";
+                ctx.beginPath(); 
+                ctx.arc(bx, by, r, 0, Math.PI * 2); 
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+            ctx.restore();
+
+            // 榨汁机
+            const cx = 930, cy = 360, r = 130;
+            ctx.beginPath(); 
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+            ctx.strokeStyle = "#93c5fd"; 
+            ctx.lineWidth = 10; 
+            ctx.stroke();
+
+            // 榨汁机叶片 - 只有在有动作时才转动
+            const ang = (performance.now() / 1000) * (rpm / 60) * 2 * Math.PI;
+            for (let i = 0; i < 3; i++) {
+                ctx.save(); 
+                ctx.translate(cx, cy); 
+                ctx.rotate(ang + i * 2 * Math.PI / 3);
+                ctx.fillStyle = "#e5e7eb"; 
+                ctx.fillRect(0, -14, r * 0.88, 28);
+                ctx.restore();
+            }
+
+            // 榨汁机中心
+            ctx.beginPath();
+            ctx.arc(cx, cy, 20, 0, Math.PI * 2);
+            ctx.fillStyle = "#94a3b8";
+            ctx.fill();
+
+            // 转速显示
+            ctx.fillStyle = "#e5e7eb"; 
+            ctx.font = "700 28px ui-sans-serif";
+            ctx.fillText(`RPM: ${rpm.toFixed(0)}`, cx - 78, cy + r + 40);
+            
+            // 在游戏画面右侧绘制骨架（如果检测到）
+            if (landmarks) {
+                ctx.save();
+                ctx.translate(W - 250, 100);
+                ctx.scale(0.7, 0.7);
+                
+                // 绘制骨架连接线
+                drawConnectors(ctx, landmarks, POSE_CONNECTIONS, {
+                    color: '#00FF00',
+                    lineWidth: 3
+                });
+                
+                // 绘制关键点
+                drawLandmarks(ctx, landmarks, {
+                    color: '#FF0000',
+                    lineWidth: 2,
+                    radius: 4
+                });
+                
+                ctx.restore();
+                
+                // 骨架标题
+                ctx.fillStyle = "#e5e7eb";
+                ctx.font = "16px ui-sans-serif";
+                ctx.fillText("姿态检测", W - 250, 80);
+            }
+        }
+
+        function roundRect(ctx, x, y, w, h, r) {
+            ctx.beginPath(); 
+            ctx.moveTo(x + r, y);
+            ctx.arcTo(x + w, y, x + w, y + h, r);
+            ctx.arcTo(x + w, y + h, x, y + h, r);
+            ctx.arcTo(x, y + h, x, y, r);
+            ctx.arcTo(x, y, x + w, y, r);
+            ctx.closePath();
+        }
+
+        /* ========= Start/Stop ========= */
+        async function startGame() {
+            if (!calibrated) {
+                hint.innerHTML = '<span class="bad">请先完成校准！</span>';
+                return;
+            }
+            
+            btnStart.disabled = true; 
+            btnStop.disabled = true;
+            
+            if (!pose) {
+                const success = await createPoseDetector();
+                if (!success) {
+                    btnStart.disabled = false;
+                    return;
+                }
+            }
+
+            hint.innerHTML = "准备开始！";
+
+            await countdownBeep();
+
+            running = true;
+            tStart = performance.now();
+            tLast = tStart;
+            lastPoseTime = tStart;
+            lastTheta = 0;
+            rpmHist = [];
+            energy = 0;
+            aPrev = 0;
+            angularVelocity = 0;
+            noMotionTimer = 0;
+            motionHistory = [];
+            btnStop.disabled = false;
+            prompt.style.display = 'none';
+            hint.innerHTML = '<span class="ok">开始！持续扭转躯干 30 秒，越大越快越好！</span>';
+            
+            // 开始录制视频
+            startRecording();
+        }
+
+        function stopGame(withSettle = false) {
+            running = false;
+            btnStart.disabled = false;
+            btnStop.disabled = true;
+            prompt.style.display = 'none';
+            motionPath.style.display = 'none';
+            
+            // 停止录制视频
+            stopRecording();
+            
+            if (motorGain) motorGain.gain.setTargetAtTime(0.0, audioCtx?.currentTime || 0, 0.1);
+            if (withSettle) settle();
+        }
+
+        function settle() {
+            // 果汁量是主要评分因素
+            const juiceScore = energy;
+            
+            // 计算稳定性分数
+            const norm = rpmHist.map(v => (v - rpmMin) / (rpmMax - rpmMin));
+            const mean = norm.length ? norm.reduce((a, b) => a + b, 0) / norm.length : 0;
+            const sd = Math.sqrt(norm.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / Math.max(1, norm.length));
+            const stabilityScore = clamp(100 - 100 * sd * 1.8, 0, 100);
+            
+            // 计算总分 - 果汁量占70%，稳定性占30%
+            const totalScore = 0.7 * juiceScore + 0.3 * stabilityScore;
+            
+            let tier;
+            if (totalScore >= 90) tier = "丝滑满杯 🌟";
+            else if (totalScore >= 75) tier = "浓郁可口 ✅";
+            else if (totalScore >= 60) tier = "略有果粒 ⚠️";
+            else tier = "继续努力 💪";
+            
+            alert(`完成！\n\n果汁量: ${juiceScore.toFixed(1)}%\n稳定性: ${stabilityScore.toFixed(1)}\n\n总分: ${totalScore.toFixed(1)} — ${tier}\n\n您可以点击"下载视频"按钮保存游戏视频分享到朋友圈！`);
+        }
+
+        /* ========= UI ========= */
+        btnStart.addEventListener("click", startGame);
+        btnStop.addEventListener("click", () => stopGame(false));
+        btnCalibrate.addEventListener("click", startCalibration);
+        btnCalibrateMain.addEventListener("click", startCalibration); // 主界面校准按钮的点击事件
+
+        // 初始化
+        window.addEventListener('load', async () => {
+            // 设置姿态画布尺寸
+            poseCanvas.width = 200;
+            poseCanvas.height = 150;
+            
+            hint.innerHTML = "正在加载模型，请稍候...";
+            
+            // 自动加载姿态检测模型
+            try {
+                await createPoseDetector();
+                hint.innerHTML = "模型加载完成！请点击'开始校准'按钮进行校准";
+            } catch (e) {
+                console.error("Failed to load pose detector:", e);
+                hint.innerHTML = '<span class="bad">模型加载失败，请刷新页面重试</span>';
+            }
+        });
+
+		 
+// 游戏结束时调用（替换 yourGameScore 为实际分数变量）
+function submitJuiceScore(score) {
+  parent.postMessage({
+    type: 'JUICE_GAME_SCORE',
+    score: score
+  }, '*');
+}
+
+// 测试：5秒后提交
+setTimeout(() => submitJuiceScore(666), 5000);
+ 
+    </script>
+</body>
+</html>
