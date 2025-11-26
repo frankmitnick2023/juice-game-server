@@ -3,98 +3,154 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Admin</title>
+  <title>Course Manager</title>
   <style>
-    body{font-family:sans-serif;margin:0;background:#f2f4f8;padding-bottom:4rem}
-    .header{background:#333;color:white;padding:1rem;position:sticky;top:0;z-index:100;display:flex;justify-content:space-between}
-    .nav-tab{cursor:pointer;opacity:0.7;font-weight:bold}
-    .nav-tab.active{opacity:1;border-bottom:2px solid white}
-    .container{padding:15px}
-    .class-card{background:white;padding:15px;margin-bottom:10px;border-radius:8px}
+    body{font-family:'Segoe UI', sans-serif;margin:0;background:#f2f4f8;padding:20px}
+    .header{margin-bottom:20px; display:flex; justify-content:space-between; align-items:center}
+    h2 {margin:0; color:#2c3e50}
     
-    /* 审核卡片 */
-    .review-card{background:white;padding:15px;margin-bottom:15px;border-radius:8px}
-    .r-img{width:100%;height:200px;object-fit:contain;background:#eee;margin:10px 0}
-    .btn-row{display:flex;gap:10px;margin-top:10px}
-    .btn{flex:1;padding:10px;border:none;border-radius:5px;cursor:pointer;font-weight:bold}
-    .btn-gold{background:#ffd700} .btn-silver{background:#c0c0c0} .btn-bronze{background:#cd7f32;color:white} .btn-reject{background:#ff4757;color:white}
+    /* 输入表单 */
+    .form-card {background:white; padding:20px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.05); margin-bottom:20px}
+    .form-grid {display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:15px; margin-bottom:15px}
+    
+    input, select {width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box}
+    label {font-size:0.8rem; color:#666; font-weight:bold; display:block; margin-bottom:5px}
+    
+    .btn-add {background:#27ae60; color:white; border:none; padding:12px 25px; border-radius:6px; font-weight:bold; cursor:pointer; width:100%}
+    .btn-add:hover {background:#219150}
+
+    /* 列表 */
+    .list-card {background:white; padding:20px; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.05)}
+    table {width:100%; border-collapse:collapse}
+    th {text-align:left; padding:10px; border-bottom:2px solid #eee; color:#888; font-size:0.85rem}
+    td {padding:12px 10px; border-bottom:1px solid #eee; font-size:0.9rem}
+    
+    .btn-del {background:#e74c3c; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer}
   </style>
 </head>
 <body>
 
 <div class="header">
-  <div>Admin</div>
-  <div style="display:flex;gap:20px">
-    <div class="nav-tab active" onclick="switchTab('classes')">Classes</div>
-    <div class="nav-tab" onclick="switchTab('reviews')">Trophies</div>
-  </div>
+  <h2>🎓 Course Manager (课程管理后台)</h2>
+  <a href="/" style="text-decoration:none; color:#666">Back to App</a>
 </div>
 
-<div id="tabClasses" class="container">
-    <div id="classList">Loading...</div>
+<div class="form-card">
+    <h3 style="margin-top:0">Add New Course (录入新课)</h3>
+    <div class="form-grid">
+        <div><label>Course Name</label><input type="text" id="cName" placeholder="e.g. RAD Grade 5"></div>
+        <div>
+            <label>Day</label>
+            <select id="cDay">
+                <option value="Monday">Monday</option>
+                <option value="Tuesday">Tuesday</option>
+                <option value="Wednesday">Wednesday</option>
+                <option value="Thursday">Thursday</option>
+                <option value="Friday">Friday</option>
+                <option value="Saturday">Saturday</option>
+                <option value="Sunday">Sunday</option>
+            </select>
+        </div>
+        <div><label>Start Time</label><input type="time" id="cStart" value="16:00"></div>
+        <div><label>End Time</label><input type="time" id="cEnd" value="17:00"></div>
+        <div><label>Teacher</label><input type="text" id="cTeacher" placeholder="e.g. Demi"></div>
+        <div>
+            <label>Classroom</label>
+            <select id="cRoom">
+                <option value="Classroom 1">Studio 1</option>
+                <option value="Classroom 2">Studio 2</option>
+                <option value="Classroom 3">Studio 3</option>
+                <option value="Classroom 4">Studio 4</option>
+                <option value="Classroom 5">Studio 5</option>
+                <option value="Classroom 6">Studio 6</option>
+                <option value="Classroom 7">Studio 7</option>
+                <option value="Yoga Room">Yoga Room</option>
+            </select>
+        </div>
+        <div><label>Price ($)</label><input type="number" id="cPrice" value="230"></div>
+        <div><label>Age (e.g. 9-11)</label><input type="text" id="cAge" placeholder="9-11"></div>
+    </div>
+    <button class="btn-add" onclick="addCourse()">➕ Add to Database</button>
 </div>
 
-<div id="tabReviews" class="container" style="display:none">
-    <div id="pendingList">Loading...</div>
+<div class="list-card">
+    <h3>Existing Courses (现有课程)</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Day</th>
+                <th>Time</th>
+                <th>Room</th>
+                <th>Name</th>
+                <th>Teacher</th>
+                <th>Age</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody id="courseTable">
+            <tr><td colspan="7">Loading...</td></tr>
+        </tbody>
+    </table>
 </div>
 
 <script>
-  function switchTab(t) {
-      document.getElementById('tabClasses').style.display = t==='classes'?'block':'none';
-      document.getElementById('tabReviews').style.display = t==='reviews'?'block':'none';
-      if(t==='reviews') loadPending();
-      else loadClasses();
-  }
+    async function loadCourses() {
+        const res = await fetch('/api/admin/all-courses');
+        const data = await res.json();
+        const tbody = document.getElementById('courseTable');
+        tbody.innerHTML = '';
+        
+        data.forEach(c => {
+            const row = `
+                <tr>
+                    <td><b>${c.day_of_week}</b></td>
+                    <td>${c.start_time} - ${c.end_time}</td>
+                    <td>${c.classroom}</td>
+                    <td>${c.name}</td>
+                    <td>${c.teacher}</td>
+                    <td>${c.age_group}</td>
+                    <td><button class="btn-del" onclick="deleteCourse(${c.id})">Del</button></td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
+        });
+    }
 
-  // 1. 课表逻辑 (简化版)
-  async function loadClasses() {
-      const res = await fetch('/api/teacher/schedule');
-      const data = await res.json();
-      const list = document.getElementById('classList');
-      list.innerHTML = '';
-      data.forEach(c => {
-          list.innerHTML += `<div class="class-card"><b>${c.name}</b><br>${c.day_of_week} ${c.start_time} (${c.student_count}人)</div>`;
-      });
-  }
+    async function addCourse() {
+        const payload = {
+            name: document.getElementById('cName').value,
+            day: document.getElementById('cDay').value,
+            start: document.getElementById('cStart').value,
+            end: document.getElementById('cEnd').value,
+            teacher: document.getElementById('cTeacher').value,
+            price: document.getElementById('cPrice').value,
+            classroom: document.getElementById('cRoom').value,
+            age: document.getElementById('cAge').value
+        };
 
-  // 2. 审核逻辑
-  async function loadPending() {
-      const res = await fetch('/api/admin/trophies/pending');
-      const data = await res.json();
-      const list = document.getElementById('pendingList');
-      list.innerHTML = '';
-      if(data.length===0) list.innerHTML='No pending items';
-      
-      data.forEach(item => {
-          list.innerHTML += `
-            <div class="review-card">
-                <div>Student: <b>${item.student_name}</b></div>
-                <img src="${item.image_path}" class="r-img">
-                <div class="btn-row">
-                    <button class="btn btn-gold" onclick="audit(${item.id}, 'gold')">🥇 Gold</button>
-                    <button class="btn btn-silver" onclick="audit(${item.id}, 'silver')">🥈 Silver</button>
-                    <button class="btn btn-bronze" onclick="audit(${item.id}, 'bronze')">🥉 Bronze</button>
-                    <button class="btn btn-reject" onclick="audit(${item.id}, 'reject')">❌ Reject</button>
-                </div>
-            </div>
-          `;
-      });
-  }
+        if(!payload.name) return alert('Name required');
 
-  async function audit(id, type) {
-      const action = type === 'reject' ? 'reject' : 'approve';
-      const name = action === 'approve' ? prompt("Award Name (e.g. RAD G1):", "Certificate") : "";
-      if(action==='approve' && !name) return;
+        const res = await fetch('/api/admin/courses', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        
+        if(res.ok) {
+            alert('Saved!');
+            loadCourses();
+        } else {
+            alert('Error');
+        }
+    }
 
-      await fetch('/api/admin/trophies/approve', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ trophyId: id, action, type, sourceName: name })
-      });
-      alert('Done');
-      loadPending();
-  }
-  
-  loadClasses();
+    async function deleteCourse(id) {
+        if(!confirm('Delete this course?')) return;
+        await fetch(`/api/admin/courses/${id}`, { method: 'DELETE' });
+        loadCourses();
+    }
+
+    loadCourses();
 </script>
 </body>
 </html>
