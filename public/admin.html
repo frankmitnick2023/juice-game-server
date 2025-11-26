@@ -21,48 +21,49 @@
     th {text-align:left; padding:10px; border-bottom:2px solid #eee; color:#888; font-size:0.85rem}
     td {padding:12px 10px; border-bottom:1px solid #eee; font-size:0.9rem}
 
-    /* --- General Styles (Kept for other tabs) --- */
+    /* === Course Manager Styles (Restored Form) === */
     .form-grid {display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:15px; margin-bottom:15px}
     input, select {width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box}
+    label {font-size:0.8rem; color:#666; font-weight:bold; display:block; margin-bottom:5px}
+    .btn-add {background:#27ae60; color:white; border:none; padding:12px 25px; border-radius:6px; font-weight:bold; cursor:pointer; width:100%}
+    .btn-del {background:#e74c3c; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer}
+
+    /* === Invoice/Roll Call Styles === */
     .status-paid {background:#2ed573; color:white; padding:4px 8px; border-radius:4px; font-weight:bold}
     .status-unpaid {background:#ff4757; color:white; padding:4px 8px; border-radius:4px; font-weight:bold}
+    .btn-pay, .btn-unpay {background:#4a90e2; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer}
+    .btn-unpay {background:#ff4757}
 
-    /* === Check In Grid Styles (R1 - New UI) === */
-    .check-in-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-top:10px; }
+    .roll-call-list > div {padding:10px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center}
+    .roll-call-list > div.paid {background:#e6ffe6; border-left: 5px solid #2ed573;} 
+    .roll-call-list > div.unpaid {background:#ffe6e6; border-left: 5px solid #ff4757;} 
+    .rc-select {padding:8px 10px; border-radius:6px; border:1px solid #ddd; margin-bottom:15px; width:100%}
+
+    /* Trophy Review Styles */
+    .review-card { border-left: 5px solid #e94560; }
+    .r-header { color:#2c3e50; font-size:1.1rem; }
+    .r-gallery { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 15px; }
+    .r-main-img { height: 200px; width: auto; border-radius: 8px; border: 2px solid #e94560; cursor: zoom-in; }
+    .r-extra-img { height: 80px; width: auto; border-radius: 6px; opacity: 0.7; cursor: zoom-in; transition: 0.2s; border: 1px solid #ddd; }
+    .btn-audit { flex: 1; min-width: 80px; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: #333; transition: 0.2s; display:flex; align-items:center; justify-content:center; gap:5px; }
+    .btn-gold { background: #ffd700; } 
+    .btn-reject { background: #ff4757; color: white; flex: 0 0 auto; }
+
+    /* Check In Grid Styles */
+    .check-in-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px; margin-top:10px; }
     .grid-day-header { text-align:center; font-weight:bold; color:#2c3e50; padding-bottom:5px; border-bottom:2px solid #eee; }
     .grid-time { font-size:0.8rem; color:#666; padding:5px 0; border-right:1px solid #eee; text-align:center; }
-    
-    .class-block {
-        background:#f0f0f0; border-radius:8px; padding:10px 5px; 
-        font-size:0.8rem; font-weight:bold; text-align:center; 
-        margin-bottom:5px; cursor:pointer; overflow:hidden;
-        transition:0.2s; color:white;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
+    .class-block { background:#f0f0f0; border-radius:8px; padding:10px 5px; font-size:0.8rem; font-weight:bold; text-align:center; margin-bottom:5px; cursor:pointer; overflow:hidden; transition:0.2s; color:white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
     .class-block:hover { transform:translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
     .block-rad { background:#1976d2; }
     .block-jazz { background:#f57c00; }
     .block-hiphop { background:#7b1fa2; }
     .block-other { background:#555; }
     .block-name { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-    /* === Check In Modal Styles === */
-    .check-in-modal-content { display:flex; flex-direction:column; gap:10px; }
-    .student-row { background:#fff; padding:12px; border-radius:8px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+    
     .student-row.paid { border-left: 5px solid #2ed573; }
     .student-row.unpaid { border-left: 5px solid #ff4757; }
-    
-    .status-btn-group button { 
-        padding:6px 10px; margin-left:5px; border:none; border-radius:4px; font-weight:bold; cursor:pointer; transition:0.1s;
-        font-size:0.8rem;
-    }
-    .btn-present { background:#2ed573; color:white; }
-    .btn-absent { background:#ffc107; color:#333; }
-    .btn-excused { background:#2196f3; color:white; }
-
-    /* Modal Styling (using global styles) */
-    .modal-overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); z-index: 200; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; }
-    .modal-box { background: white; width: 100%; max-width: 600px; border-radius: 16px; padding: 20px; position: relative; max-height: 80vh; overflow-y: auto; }
+    .student-row { padding:12px; border-radius:8px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(0,0,0,0.1); margin-bottom: 5px; }
     
   </style>
 </head>
@@ -78,11 +79,79 @@
   </div>
 </div>
 
-<div id="tabCourses" class="container" style="display:none">...</div>
+<div id="tabCourses" class="container">
+    <div class="tab-content-card">
+        <h3>Add New Course</h3>
+        <div class="form-grid">
+            <div><label>Name</label><input type="text" id="cName" placeholder="e.g. RAD Grade 5"></div>
+            <div>
+                <label>Day</label>
+                <select id="cDay">
+                    <option value="Monday">Monday</option>
+                    <option value="Tuesday">Tuesday</option>
+                    <option value="Wednesday">Wednesday</option>
+                    <option value="Thursday">Thursday</option>
+                    <option value="Friday">Friday</option>
+                    <option value="Saturday">Saturday</option>
+                    <option value="Sunday">Sunday</option>
+                </select>
+            </div>
+            <div><label>Start</label><input type="time" id="cStart" value="16:00"></div>
+            <div><label>End</label><input type="time" id="cEnd" value="17:00"></div>
+            <div><label>Teacher</label><input type="text" id="cTeacher" placeholder="e.g. Demi"></div>
+            <div>
+                <label>Room</label>
+                <select id="cRoom">
+                    <option value="Classroom 1">Studio 1</option>
+                    <option value="Classroom 2">Studio 2</option>
+                    <option value="Classroom 3">Studio 3</option>
+                    <option value="Classroom 4">Studio 4</option>
+                    <option value="Classroom 5">Studio 5</option>
+                    <option value="Classroom 6">Studio 6</option>
+                    <option value="Classroom 7">Studio 7</option>
+                    <option value="Yoga Room">Yoga Room</option>
+                </select>
+            </div>
+            <div><label>Age</label><input type="text" id="cAge" placeholder="9-11"></div>
+        </div>
+        <button class="btn-add" onclick="addCourse()">➕ Add Course</button>
+    </div>
 
-<div id="tabReviews" class="container" style="display:none">...</div>
+    <div class="tab-content-card">
+        <h3>Course List</h3>
+        <table>
+            <thead><tr><th>Day</th><th>Time</th><th>Room</th><th>Name</th><th>Teacher</th><th>Age</th><th>Action</th></tr></thead>
+            <tbody id="courseTable"><tr><td colspan="7">Loading...</td></tr></tbody>
+        </table>
+    </div>
+</div>
 
-<div id="tabInvoices" class="container" style="display:none">...</div>
+<div id="tabReviews" class="container" style="display:none">
+    <div class="tab-content-card">
+        <h3>Trophy Reviews</h3>
+        <div id="pendingList">Loading...</div>
+    </div>
+</div>
+
+<div id="tabInvoices" class="container" style="display:none">
+    <div class="tab-content-card">
+        <h3>All Bookings & Invoices</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Course</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="invoiceTable">
+                <tr><td colspan="5">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
 
 <div id="tabCheckin" class="container" style="display:none">
     <div class="tab-content-card">
@@ -97,7 +166,7 @@
     <div class="modal-box">
         <h3 id="modalCourseTitle" style="margin-top:0"></h3>
         <div style="font-size:0.9rem; color:#666; margin-bottom:15px">Date: <span id="modalLessonDate"></span></div>
-        <div id="studentListContainer" class="check-in-modal-content">
+        <div id="studentListContainer" style="background:#f9f9f9; padding:10px; border-radius:8px">
             </div>
         <button onclick="closeModal('checkInModal')" style="width:100%; padding:10px; margin-top:15px; border:1px solid #ddd; border-radius:8px; background:#f0f0f0">Close</button>
     </div>
@@ -107,10 +176,7 @@
 <script>
   let globalCourses = [];
   const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-  
-  // Hardcode Lesson Date for current week Mon (for testing Check-in)
-  // In a real system, this would be passed dynamically based on the week number
-  const MOCK_LESSON_DATE = '2026-02-09'; 
+  const MOCK_LESSON_DATE = '2026-02-09'; // Used for Check-in submission and display
 
   function switchTab(t) {
       document.getElementById('tabCourses').style.display = t==='courses'?'block':'none';
@@ -126,8 +192,91 @@
       else if(t==='invoices') loadInvoices();
       else if(t==='checkin') setupCheckInGrid();
   }
+  
+  // --- Tab: Courses (CRUD) ---
+  async function loadCourses() {
+      try {
+          const res = await fetch('/api/admin/all-courses');
+          globalCourses = await res.json();
+          const tbody = document.getElementById('courseTable');
+          tbody.innerHTML = '';
+          globalCourses.forEach(c => {
+              tbody.innerHTML += `
+                <tr>
+                    <td><b>${c.day_of_week.substring(0,3)}</b></td>
+                    <td>${c.start_time.substring(0,5)}</td>
+                    <td>${c.classroom}</td>
+                    <td>${c.name}</td>
+                    <td>${c.teacher}</td>
+                    <td>${c.age_group}</td>
+                    <td><button class="btn-del" onclick="deleteCourse(${c.id})">Del</button></td>
+                </tr>`;
+          });
+      } catch(e) { tbody.innerHTML = '<tr><td colspan="7">Error loading courses.</td></tr>'; console.error(e); }
+  }
+  async function addCourse() {
+      const payload = {
+          name: document.getElementById('cName').value,
+          day: document.getElementById('cDay').value,
+          start: document.getElementById('cStart').value,
+          end: document.getElementById('cEnd').value,
+          teacher: document.getElementById('cTeacher').value,
+          price: 230,
+          classroom: document.getElementById('cRoom').value,
+          age: document.getElementById('cAge').value
+      };
+      if(!payload.name) return alert('Name required');
+      await fetch('/api/admin/courses', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+      loadCourses();
+      alert('Added!');
+  }
+  async function deleteCourse(id) {
+      if(!confirm('Delete?')) return;
+      await fetch(`/api/admin/courses/${id}`, {method:'DELETE'});
+      loadCourses();
+  }
 
-  // --- Tab: Check In / Roll Call (New Logic) ---
+  // --- Tab: Invoices ---
+  async function loadInvoices() {
+      const tbody = document.getElementById('invoiceTable');
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Loading...</td></tr>';
+      
+      try {
+          const res = await fetch('/api/admin/invoices');
+          const data = await res.json();
+
+          tbody.innerHTML = '';
+          data.forEach(inv => {
+              const isPaid = inv.status === 'PAID';
+              const statusTag = `<span class="${isPaid ? 'status-paid' : 'status-unpaid'}">${inv.status}</span>`;
+              const actionBtn = isPaid 
+                  ? `<button class="btn-unpay" onclick="updateStatus(${inv.id}, 'UNPAID')">Mark Unpaid</button>`
+                  : `<button class="btn-pay" onclick="updateStatus(${inv.id}, 'PAID')">Mark Paid</button>`;
+              
+              tbody.innerHTML += `
+                  <tr>
+                      <td>${inv.student_name}</td>
+                      <td>${inv.course_name}</td>
+                      <td>$${inv.total_price.toFixed(2)}</td>
+                      <td>${statusTag}</td>
+                      <td>${actionBtn}</td>
+                  </tr>
+              `;
+          });
+      } catch(e) { tbody.innerHTML = '<tr><td colspan="5" style="color:red;text-align:center">Error loading invoices.</td></tr>'; }
+  }
+
+  async function updateStatus(bookingId, newStatus) {
+      if(!confirm(`Confirm change status to ${newStatus}?`)) return;
+      await fetch('/api/admin/invoices/update-status', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ bookingId, newStatus })
+      });
+      loadInvoices(); 
+  }
+
+  // --- Tab: Check In Grid (Weekly UI) ---
   
   function getBlockClass(courseName) {
       const name = courseName.toLowerCase();
@@ -140,16 +289,15 @@
   async function setupCheckInGrid() {
       const gridContainer = document.getElementById('weeklyScheduleGrid');
       gridContainer.style.display = 'grid';
-      gridContainer.style.gridTemplateColumns = '1fr repeat(7, 1fr)';
-
-      // Fetch weekly schedule (all courses)
+      gridContainer.style.gridTemplateColumns = '100px repeat(7, 1fr)'; // Add fixed column for Time
+      
       const res = await fetch('/api/admin/check-in/weekly-schedule');
-      const data = await res.json(); // Data is object keyed by DayName (e.g., {Monday: [...], Tuesday: [...]})
+      const data = await res.json();
       
       gridContainer.innerHTML = '';
       
       // 1. Render Headers
-      let headerHTML = '<div></div>'; // Empty top-left cell
+      let headerHTML = '<div></div>'; 
       DAYS.forEach(day => {
           headerHTML += `<div class="grid-day-header">${day.substring(0,3)}</div>`;
       });
@@ -159,21 +307,20 @@
       const allTimes = new Set();
       DAYS.forEach(day => {
           if (data[day]) data[day].forEach(c => {
-              allTimes.add(c.start_time);
+              allTimes.add(c.start_time.substring(0,5));
           });
       });
       const sortedTimes = Array.from(allTimes).sort();
 
       // 3. Render Grid Body
       sortedTimes.forEach(time => {
-          let rowHTML = `<div class="grid-time">${time}</div>`;
+          let rowHTML = `<div class="grid-time">${time}</div>`; // Time Column
           DAYS.forEach(day => {
-              const classesAtThisSlot = data[day] ? data[day].filter(c => c.start_time === time) : [];
+              const classesAtThisSlot = data[day] ? data[day].filter(c => c.start_time.substring(0,5) === time) : [];
               
-              let cellHTML = '<div></div>'; // Default empty cell
+              let cellHTML = '<div></div>';
               
               if (classesAtThisSlot.length > 0) {
-                  // If multiple classes overlap (e.g., in different rooms), list them
                   cellHTML = classesAtThisSlot.map(c => `
                       <div 
                           class="class-block ${getBlockClass(c.name)}" 
@@ -192,10 +339,9 @@
   }
 
   // --- Modal Logic ---
-
   window.openCheckInModal = async function(courseId, courseName, startTime) {
       document.getElementById('modalCourseTitle').textContent = `Check In: ${courseName} (${startTime})`;
-      document.getElementById('modalLessonDate').textContent = MOCK_LESSON_DATE; // Use the mock date for now
+      document.getElementById('modalLessonDate').textContent = MOCK_LESSON_DATE;
 
       const container = document.getElementById('studentListContainer');
       container.innerHTML = '<div style="text-align:center; padding:20px;">Loading students...</div>';
@@ -205,26 +351,21 @@
       try {
           const res = await fetch(`/api/admin/check-in/class-list/${courseId}`);
           const students = await res.json();
-
+          
           container.innerHTML = '';
-          if (students.length === 0) {
-              container.innerHTML = '<div style="color:#666;text-align:center;padding:20px;">No enrolled students found.</div>';
-              return;
-          }
 
           students.forEach(s => {
               const isPaid = s.payment_status === 'PAID';
-              const isMakeup = s.booking_type === 'MAKEUP';
               const statusClass = isPaid ? 'paid' : 'unpaid';
               
               container.innerHTML += `
                   <div class="student-row ${statusClass}" data-user-id="${s.user_id}" data-course-id="${courseId}" data-course-name="${courseName}">
                       <div>
                           👤 <b>${s.student_name}</b> 
-                          <span style="font-size:0.8rem; color:#1976d2">(${isMakeup ? 'Makeup' : 'Enrolled'})</span>
+                          <span style="font-size:0.8rem; color:#1976d2">(${s.booking_type || 'Enrolled'})</span>
                           <span style="font-size:0.8rem; color:${isPaid?'green':'red'}"> | ${s.payment_status}</span>
                       </div>
-                      <div>
+                      <div class="status-btn-group">
                           <button class="btn-present" onclick="submitAttendance(this, 'PRESENT')">Present</button>
                           <button class="btn-absent" onclick="submitAttendance(this, 'ABSENT_UNEXCUSED')">Absent (No Credit)</button>
                           <button class="btn-excused" onclick="submitAttendance(this, 'ABSENT_EXCUSED')">Excused (Grant Credit)</button>
@@ -232,10 +373,7 @@
                   </div>
               `;
           });
-      } catch(e) {
-          console.error(e);
-          container.innerHTML = '<div style="color:red;text-align:center;padding:20px;">Error loading class list.</div>';
-      }
+      } catch(e) { container.innerHTML = '<div style="color:red;text-align:center;padding:20px;">Error loading class list.</div>'; }
   }
 
   window.submitAttendance = async function(btn, status) {
@@ -247,7 +385,6 @@
       btn.disabled = true;
       btn.textContent = '...';
 
-      // Call the new API
       const res = await fetch('/api/admin/check-in/submit-attendance', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
@@ -255,12 +392,9 @@
       });
 
       if (res.ok) {
-          alert('Attendance recorded! (Refresh to see experience updates)');
-          row.style.background = status === 'PRESENT' ? '#d4edda' : '#f8d7da';
-          row.querySelector('.btn-present').style.display = 'none';
-          row.querySelector('.btn-absent').style.display = 'none';
-          row.querySelector('.btn-excused').style.display = 'none';
-          // Close modal and refresh UI after successful submission is recommended in real life
+          alert('Attendance recorded! Status: ' + status);
+          row.style.background = status === 'PRESENT' ? '#e6ffe6' : '#ffe6e6';
+          row.querySelector('.status-btn-group').innerHTML = `<span style="font-weight:bold; color:green">Recorded: ${status}</span>`;
       } else {
           alert('Failed to record attendance.');
           btn.disabled = false;
@@ -268,12 +402,10 @@
       }
   }
 
-  // --- Remaining Functions (Need to be defined in admin.html) ---
-  // ... (loadCourses, addCourse, deleteCourse, loadReviews, audit, updateStatus, etc.)
-  // The user should ensure these helper functions are included from previous turns.
-
+  function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+  
   // Init
-  switchTab('checkin'); // Start on the new Check In tab
+  switchTab('courses'); // Start on Courses tab
 </script>
 </body>
 </html>
