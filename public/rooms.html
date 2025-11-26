@@ -7,10 +7,14 @@
   <style>
     /* ... 样式保持不变 ... */
     body{font-family:'Segoe UI', sans-serif;margin:0;background:#f2f4f8;padding-bottom:5rem}
-    .header{background:#2c3e50;color:white;padding:1rem;text-align:center;position:sticky;top:0;z-index:100;box-shadow:0 2px 10px rgba(0,0,0,0.2)}
+    .header{background:#2c3e50;color:white;padding:1rem;text-align:center;position:sticky;top:0;z-index:100}
+    
+    /* 顶部控制栏 */
     .controls {background:white;padding:12px;display:flex;overflow-x:auto;gap:10px;box-shadow:0 2px 5px rgba(0,0,0,0.05); white-space:nowrap;}
     .day-selector {padding:8px 16px;background:#f0f0f0;border-radius:20px;font-size:0.9rem;cursor:pointer;font-weight:bold;color:#666;transition:0.2s}
     .day-selector.active {background:#2c3e50;color:white;box-shadow:0 2px 5px rgba(0,0,0,0.2)}
+    
+    /* 表格容器 */
     .table-wrapper {overflow-x:auto; margin-top:15px; background:white; padding-bottom:20px; border-top:1px solid #ddd}
     .room-table {border-collapse:separate; border-spacing:0; width:100%; min-width:800px}
     .room-table th {background:#fff; color:#333; font-size:0.85rem; padding:10px; border-bottom:2px solid #e94560; border-right:1px solid #eee; position:sticky; top:0; z-index:10; min-width:90px}
@@ -18,7 +22,6 @@
     .room-table td {border-right:1px solid #eee; border-bottom:1px solid #eee; height:45px; text-align:center; font-size:0.8rem; cursor:pointer; position:relative; transition:0.1s}
     .room-table td:first-child {background:#f9f9f9; font-weight:bold; position:sticky; left:0; border-right:2px solid #ddd; z-index:5; color:#555}
     
-    /* 状态颜色 */
     .cell-free {background:white}
     .cell-free:hover {background:#e3f2fd}
     .cell-booked {background:#ffcdd2; color:#b71c1c; cursor:not-allowed; font-size:0.7rem; font-weight:bold; background-image:repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.5) 5px, rgba(255,255,255,0.5) 10px);}
@@ -29,7 +32,10 @@
     .modal-overlay {display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:999;justify-content:center;align-items:end}
     .modal {background:white;width:100%;max-width:500px;border-radius:20px 20px 0 0;padding:25px;box-sizing:border-box;animation:slideUp 0.3s; box-shadow:0 -5px 20px rgba(0,0,0,0.2)}
     @keyframes slideUp {from{transform:translateY(100%)} to{transform:translateY(0)}}
+    
     .btn-confirm {width:100%;padding:14px;background:#2c3e50;color:white;border:none;border-radius:10px;font-weight:bold;margin-top:15px;font-size:1.1rem}
+    .btn-confirm:active {transform:scale(0.98)}
+
     .info-row {display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px dashed #eee}
     .info-label {color:#888}
     .info-val {font-weight:bold; color:#333}
@@ -55,14 +61,32 @@
 <div id="bookingModal" class="modal-overlay">
     <div class="modal">
         <h2 id="mRoomName" style="margin-top:0; color:#2c3e50">Studio Name</h2>
+        
         <div style="margin:20px 0;">
-            <div class="info-row"><span class="info-label">📅 Date</span><span class="info-val" id="mDate">--</span></div>
-            <div class="info-row"><span class="info-label">⏰ Time</span><span class="info-val" id="mTime">--</span></div>
-            <div class="info-row" style="border:none"><span class="info-label">💰 Price (+GST)</span><span class="info-val" style="color:#e94560; font-size:1.2rem" id="mPrice">--</span></div>
+            <div class="info-row">
+                <span class="info-label">📅 Day</span>
+                <span class="info-val" id="mDate">--</span>
+            </div>
+            
+            <div class="info-row">
+                <span class="info-label">⏰ Duration (时长)</span>
+                <select id="durationSelect" onchange="updateModalPrice()" style="border:1px solid #ddd; padding:5px; border-radius:5px">
+                    <option value="1">1 Hour</option>
+                    <option value="2">2 Hours</option>
+                    <option value="3">3 Hours</option>
+                </select>
+            </div>
+            
+            <div class="info-row" style="border:none">
+                <span class="info-label">💰 Total Price (Inc. GST)</span>
+                <span class="info-val" style="color:#e94560; font-size:1.2rem" id="mPrice">--</span>
+            </div>
         </div>
+
         <div style="background:#f8f9fa;padding:12px;border-radius:8px;font-size:0.85rem;color:#666;line-height:1.4">
             💡 <strong>Note:</strong> Valid for personal practice or rehearsal only.
         </div>
+        
         <button class="btn-confirm" onclick="confirmHire()">Confirm & Book</button>
         <button onclick="document.getElementById('bookingModal').style.display='none'" style="width:100%;padding:12px;background:none;border:none;color:#999;margin-top:5px;font-weight:bold">Cancel</button>
     </div>
@@ -76,16 +100,16 @@
 </div>
 
 <script>
-    // 1. 教室配置
+    // 价格配置
     const ROOMS = [
         {id: 'Classroom 1', name: "Studio 1", price: 35},
         {id: 'Classroom 2', name: "Studio 2", price: 35},
-        {id: 'Classroom 3', name: "Studio 3", price: 35},
-        {id: 'Classroom 4', name: "Studio 4 (Large)", price: 50},
-        {id: 'Classroom 5', name: "Studio 5", price: 35},
-        {id: 'Classroom 6', name: "Studio 6", price: 35},
-        {id: 'Classroom 7', name: "Studio 7 (Small)", price: 30},
-        {id: 'Yoga Room', name: "Yoga Room", price: 35},
+        {id: 3, name: "Studio 3", price: 35},
+        {id: 4, name: "Studio 4 (Large)", price: 50},
+        {id: 5, name: "Studio 5", price: 35},
+        {id: 6, name: "Studio 6", price: 35},
+        {id: 7, name: "Studio 7 (Small)", price: 30},
+        {id: 8, name: "Yoga Room", price: 35},
     ];
     
     const HOURS = [];
@@ -94,9 +118,18 @@
     const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     const SHORT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     let currentDayIndex = 0; 
-    
-    // ★★★ 动态数据源 ★★★
     let allCourses = []; 
+    let selectedSlot = null; // 存储当前点击的房间和时间信息
+
+    // R1 辅助函数：根据星期几的索引，计算出本周具体的日期对象
+    function getSpecificDate(dayIndex) {
+        const today = new Date();
+        const todayDayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1; // 0=Mon, 6=Sun (JS getDay: 0=Sun, 1=Mon)
+        const diff = (dayIndex - todayDayIndex + 7) % 7;
+        const targetDate = new Date(today);
+        targetDate.setDate(today.getDate() + diff);
+        return targetDate;
+    }
 
     async function init() {
         // 生成星期导航
@@ -109,11 +142,10 @@
             c.appendChild(btn);
         });
 
-        // ★★★ 核心：从服务器获取所有课程 ★★★
+        // 从服务器获取所有课程
         try {
             const res = await fetch('/api/public-schedule');
             allCourses = await res.json();
-            console.log("Loaded courses:", allCourses.length);
         } catch(e) { console.error('Failed to load schedule'); }
 
         renderTable();
@@ -129,16 +161,19 @@
     function renderTable() {
         const table = document.getElementById('roomTable');
         table.innerHTML = '';
+        
+        // 确保房间 ID 始终是字符串，避免 JS 查找错误
+        const ROOM_IDS = ROOMS.map(r => r.id);
 
         // 表头
         const thead = document.createElement('tr');
         thead.innerHTML = '<th>Time</th>';
         ROOMS.forEach(r => {
-            thead.innerHTML += `<th>${r.name}<br><span class="price-tag"><span class="price-val">$${r.price}</span>+GST</span></th>`;
+            thead.innerHTML += `<th>${r.name}<br><span class="price-tag"><span class="price-val">$${r.price}</span>+G</span></th>`;
         });
         table.appendChild(thead);
 
-        const todayName = DAYS[currentDayIndex]; // e.g., "Monday"
+        const todayName = DAYS[currentDayIndex];
 
         // 表格内容
         HOURS.forEach(time => {
@@ -152,23 +187,19 @@
             ROOMS.forEach(r => {
                 const cell = document.createElement('td');
                 
-                // ★★★ 智能匹配：检查该时段是否有课 ★★★
                 const occupiedCourse = allCourses.find(c => {
                     if (c.day_of_week !== todayName) return false;
-                    if (c.classroom !== r.id) return false;
-                    
-                    // 检查时间重叠
+                    if (c.classroom !== r.id) return false; // 确保使用 room id (Classroom 1)
+
                     const start = parseInt(c.start_time.split(':')[0]);
-                    // 简单判断：如果课程在 16:00 开始，那么 16:00 这一格被占用
-                    // 如果课程 16:00-17:30，那么 16:00 和 17:00 都被占
                     const end = parseInt(c.end_time.split(':')[0]);
                     return hourInt >= start && hourInt < end;
                 });
                 
                 if (occupiedCourse) {
                     cell.className = 'cell-booked';
-                    cell.textContent = 'BUSY'; // 显示课名太挤了，显示BUSY即可
-                    cell.title = occupiedCourse.name; // 鼠标悬停显示课名
+                    cell.textContent = 'BUSY';
+                    cell.title = occupiedCourse.name;
                 } else {
                     cell.className = 'cell-free';
                     cell.innerHTML = '<span style="color:#ddd;font-size:1.2rem">+</span>';
@@ -181,22 +212,42 @@
         });
     }
 
-    let selectedSlot = null;
+    function updateModalPrice() {
+        if (!selectedSlot) return;
+        const duration = parseFloat(document.getElementById('durationSelect').value);
+        const totalPrice = (selectedSlot.room.price * duration * 1.15).toFixed(2);
+        document.getElementById('mPrice').textContent = `$${totalPrice}`;
+    }
 
     function openBooking(room, time, hourInt) {
         selectedSlot = {room, time, hourInt};
-        const gstPrice = (room.price * 1.15).toFixed(2); 
+        
+        // R1 修复：显示完整日期
+        const specificDate = getSpecificDate(currentDayIndex);
+        const dateString = specificDate.toLocaleDateString('en-NZ', { month: 'short', day: 'numeric' });
+        
         document.getElementById('mRoomName').textContent = room.name;
-        document.getElementById('mDate').textContent = `${DAYS[currentDayIndex]}`;
-        document.getElementById('mTime').textContent = `${time} - ${hourInt+1}:00`;
-        document.getElementById('mPrice').textContent = `$${gstPrice}`;
+        // R1 修复：显示完整的 星期 + 日期
+        document.getElementById('mDate').textContent = `${DAYS[currentDayIndex]}, ${dateString}`;
+        
+        // R2：时间始终显示选中的 1 小时，然后价格根据时长调整
+        document.getElementById('durationSelect').value = 1; // 重置为 1 小时
+        updateModalPrice(); // 计算 1 小时的价格
+        
         document.getElementById('bookingModal').style.display = 'flex';
     }
 
     function confirmHire() {
         if(!selectedSlot) return;
-        alert(`✅ Booking Request Sent!\nRoom: ${selectedSlot.room.name}\nTime: ${selectedSlot.time}\n\n(Mock Payment Processed)`);
+        const duration = parseFloat(document.getElementById('durationSelect').value);
+        const totalPrice = document.getElementById('mPrice').textContent;
+
+        if(!confirm(`Confirm ${duration} hours booking? Total: ${totalPrice}`)) return;
+        
+        alert(`🎉 Booking Request Sent!\nRoom: ${selectedSlot.room.name}\nDuration: ${duration} hrs\nTotal: ${totalPrice}`);
         document.getElementById('bookingModal').style.display = 'none';
+        
+        // NOTE: In a real system, you would send API requests for all booked hours here.
     }
 
     init();
