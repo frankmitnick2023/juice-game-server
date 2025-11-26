@@ -112,13 +112,33 @@ app.post('/api/register', async (req, res) => {
     req.session.userId = r.rows[0].id; res.json({ success: true, id: r.rows[0].id });
   } catch (e) { res.status(400).json({ error: 'Email exists' }); }
 });
+// --- 兼容版登录接口 (同时支持明文和哈希) ---
 app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body;
   try {
-    const hashedPassword = hashPassword(req.body.password);
-    const r = await pool.query("SELECT * FROM users WHERE email = $1 AND password = $2", [req.body.email, hashedPassword]);
-    if (r.rows.length === 0) return res.status(400).json({ error: 'Invalid credentials' });
-    req.session.userId = r.rows[0].id; res.json({ success: true, user: r.rows[0] });
-  } catch (e) { res.status(500).json({ error: 'DB Error' }); }
+    // 1. 先尝试直接匹配明文密码 (兼容你现在的旧数据)
+    let result = await pool.query("SELECT * FROM users WHERE email = $1 AND password = $2", [email, password]);
+    
+    // 2. 如果明文没找到，再尝试匹配哈希密码 (兼容新注册用户)
+    if (result.rows.length === 0) {
+        const hashedPassword = hashPassword(password);
+        result = await pool.query("SELECT * FROM users WHERE email = $1 AND password = $2", [email, hashedPassword]);
+    }
+
+    if (result.rows.length === 0) {
+        return res.status(400).json({ error: 'Invalid credentials' });
+    }
+
+    const user = result.rows[0];
+    req.session.userId = user.id;
+    // 兼容没有 is_admin 字段的情况
+    req.session.isAdmin = user.is_admin || false; 
+    
+    res.json({ success: true, user: { name: user.student_name, isAdmin: req.session.isAdmin } });
+  } catch (e) {
+    console.error(e); // 打印错误以便调试
+    res.status(500).json({ error: 'DB Error' });
+  }
 });
 app.get('/api/me', requireLogin, async (req, res) => {
   try { const r = await pool.query("SELECT id, email, student_name, dob, level, makeup_credits, avatar_config FROM users WHERE id = $1", [req.session.userId]); if(r.rows.length > 0) { const u = r.rows[0]; if(u.avatar_config) u.avatar_config = JSON.parse(u.avatar_config); res.json(u); } else { res.status(404).json({error: 'Not found'}); } } catch(e) { res.status(500).json({error: e.message}); }
