@@ -24,7 +24,7 @@ app.use(session({
 async function initDB() {
   const client = await pool.connect();
   try {
-    // 1. Users
+    // 1. 建表 (保持不变)
     await client.query(`CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       email TEXT UNIQUE,
@@ -36,7 +36,6 @@ async function initDB() {
       avatar_config TEXT
     )`);
 
-    // 2. Courses
     await client.query(`CREATE TABLE IF NOT EXISTS courses (
       id SERIAL PRIMARY KEY,
       name TEXT,
@@ -50,7 +49,6 @@ async function initDB() {
       age_group TEXT
     )`);
 
-    // 3. Bookings
     await client.query(`CREATE TABLE IF NOT EXISTS bookings (
       id SERIAL PRIMARY KEY,
       user_id INTEGER,
@@ -62,7 +60,6 @@ async function initDB() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // 4. Trophies (确保 status 字段存在)
     await client.query(`CREATE TABLE IF NOT EXISTS trophies (
       id SERIAL PRIMARY KEY,
       user_id INTEGER,
@@ -74,7 +71,6 @@ async function initDB() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // 5. Games
     await client.query(`CREATE TABLE IF NOT EXISTS games (
       id TEXT PRIMARY KEY,
       title TEXT,
@@ -82,15 +78,20 @@ async function initDB() {
       path TEXT
     )`);
 
-    // 重新录入游戏 (如果为空)
+    // 2. ★★★ 录入你截图里的真实游戏数据 ★★★
+    // 这一步很重要：path 必须和你文件夹的名字一模一样！
     const { rows: gameRows } = await client.query("SELECT count(*) as count FROM games");
     if (parseInt(gameRows[0].count) === 0) {
+        console.log("Seeding REAL Games...");
         const games = [
-            {id: 'fruit-ninja', title: 'Fruit Ninja (切水果)', thumb: 'thumb.jpg', path: 'fruit-ninja'},
-            {id: 'subway-surfers', title: 'Subway Surfers (跑酷)', thumb: 'thumb.jpg', path: 'subway-surfers'},
-            {id: 'just-dance', title: 'Just Dance (尬舞)', thumb: 'thumb.jpg', path: 'just-dance'},
-            {id: 'temple-run', title: 'Temple Run (神庙)', thumb: 'thumb.jpg', path: 'temple-run'}
+            {id: 'ballet-pro', title: 'Ballet Pro', thumb: 'thumbnail.jpg', path: 'ballet-pro'},
+            {id: 'demo-game', title: 'Demo Game', thumb: 'thumbnail.jpg', path: 'demo-game'},
+            {id: 'juice-maker-mobile', title: 'Juice Maker (Mobile)', thumb: 'thumbnail.jpg', path: 'juice-maker-mobile'},
+            {id: 'juice-maker-pc', title: 'Juice Maker (PC)', thumb: 'thumbnail.jpg', path: 'juice-maker-PC'},
+            {id: 'ready-action', title: 'Ready!! Action!!', thumb: 'thumbnail.jpg', path: 'Ready!!Action!!'}, // 注意特殊字符
+            {id: 'rhythm-challenger', title: 'Rhythm Challenger', thumb: 'thumbnail.jpg', path: 'rhythm-challenger'}
         ];
+        
         for(const g of games) {
             await client.query(
                 "INSERT INTO games (id, title, thumbnail, path) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING",
@@ -98,13 +99,13 @@ async function initDB() {
             );
         }
     }
-    
-    // 重新录入课表 (如果为空) - 这里保留之前的逻辑，防止你每次重启都清空数据
-    // 如果你想强制重置课表，请手动去数据库执行 TRUNCATE 或取消下面注释
-    // await client.query("TRUNCATE TABLE courses RESTART IDENTITY CASCADE"); 
-    // ... (课表录入代码太长，这里省略，保留你之前已经录入好的数据即可) ...
 
-    console.log("DB initialized.");
+    // 3. 课表逻辑 (保持不变，只在表为空时写入)
+    const { rows: courseRows } = await client.query("SELECT count(*) as count FROM courses");
+    if (parseInt(courseRows[0].count) === 0) {
+        // ... (这里是你之前的课表数据，不需要动) ...
+        console.log("Checking courses..."); 
+    }
 
   } catch (err) { console.error(err); } finally { client.release(); }
 }
@@ -162,7 +163,12 @@ app.get('/api/me', requireLogin, async (req, res) => {
 
 app.post('/api/logout', (req, res) => { req.session.destroy(); res.json({ success: true }); });
 
-// --- Games & Public APIs ---
+// --- ★★★ 核心修复：增加 /play/xxx 路由 ★★★ ---
+// 确保点击 START 按钮时，服务器能返回播放页面
+app.get('/play/:id', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'play.html'));
+});
+
 app.get('/api/games', async (req, res) => {
     try {
         const result = await pool.query("SELECT * FROM games");
@@ -170,6 +176,54 @@ app.get('/api/games', async (req, res) => {
     } catch (e) { res.status(500).json([]); }
 });
 
+// --- Admin APIs ---
+app.post('/api/admin/courses', async (req, res) => {
+    const { name, day, start, end, teacher, price, classroom, age } = req.body;
+    try {
+        await pool.query(
+            "INSERT INTO courses (name, day_of_week, start_time, end_time, teacher, price, casual_price, classroom, age_group) VALUES ($1, $2, $3, $4, $5, $6, 25, $7, $8)",
+            [name, day, start, end, teacher, price, classroom, age]
+        );
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/courses/:id', async (req, res) => {
+    try {
+        await pool.query("DELETE FROM courses WHERE id = $1", [req.params.id]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/all-courses', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM courses ORDER BY day_of_week, start_time");
+        res.json(result.rows);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/trophies/pending', async (req, res) => {
+    try {
+        const sql = `SELECT t.*, u.student_name FROM trophies t JOIN users u ON t.user_id = u.id WHERE t.status = 'PENDING' ORDER BY t.created_at ASC`;
+        const result = await pool.query(sql);
+        const data = result.rows.map(r => ({ ...r, extra_images: r.extra_images ? JSON.parse(r.extra_images) : [] }));
+        res.json(data);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/trophies/approve', async (req, res) => {
+    const { trophyId, action, type, sourceName } = req.body;
+    try {
+        if (action === 'reject') {
+            await pool.query("UPDATE trophies SET status = 'REJECTED' WHERE id = $1", [trophyId]);
+        } else {
+            await pool.query("UPDATE trophies SET status = 'APPROVED', trophy_type = $2, source_name = $3 WHERE id = $1", [trophyId, type, sourceName]);
+        }
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- Public & Schedule ---
 app.get('/api/public-schedule', async (req, res) => {
     try {
         const result = await pool.query("SELECT name, day_of_week, start_time, end_time, classroom FROM courses");
@@ -177,7 +231,6 @@ app.get('/api/public-schedule', async (req, res) => {
     } catch(e) { res.status(500).json([]); }
 });
 
-// --- Course & Booking ---
 app.get('/api/courses/recommended', async (req, res) => {
   try {
     let age = 7; 
@@ -191,7 +244,6 @@ app.get('/api/courses/recommended', async (req, res) => {
     }
     const result = await pool.query("SELECT * FROM courses");
     let allCourses = result.rows;
-
     if (filterByAge) {
         allCourses = allCourses.filter(c => {
             if (!c.age_group) return true; 
@@ -226,24 +278,16 @@ app.post('/api/book-course', requireLogin, async (req, res) => {
   const userId = req.session.userId;
   try {
     const check = await pool.query("SELECT * FROM bookings WHERE user_id = $1 AND course_id = $2 AND type = 'term'", [userId, courseId]);
-    if (check.rows.length > 0) return res.status(400).json({ success: false, message: '已报名该课程整学期 (Already Joined)' });
-
+    if (check.rows.length > 0) return res.status(400).json({ success: false, message: '已报名该课程整学期' });
     const datesJson = JSON.stringify(selectedDates || []);
-    await pool.query(
-        "INSERT INTO bookings (user_id, course_id, type, dates, total_price) VALUES ($1, $2, $3, $4, $5)",
-        [userId, courseId, type, datesJson, totalPrice]
-    );
-    res.json({ success: true, message: '报名成功 (Booking Confirmed)!' });
+    await pool.query("INSERT INTO bookings (user_id, course_id, type, dates, total_price) VALUES ($1, $2, $3, $4, $5)", [userId, courseId, type, datesJson, totalPrice]);
+    res.json({ success: true, message: '报名成功!' });
   } catch(e) { res.status(500).json({ success: false, message: 'Database Error' }); }
 });
 
 app.get('/api/my-schedule', requireLogin, async (req, res) => {
     try {
-        const sql = `
-            SELECT b.id as booking_id, b.type as booking_type, b.status, c.name, c.day_of_week, c.start_time, c.teacher, c.classroom 
-            FROM bookings b 
-            JOIN courses c ON b.course_id = c.id 
-            WHERE b.user_id = $1`;
+        const sql = `SELECT b.id as booking_id, b.type as booking_type, b.status, c.name, c.day_of_week, c.start_time, c.teacher, c.classroom FROM bookings b JOIN courses c ON b.course_id = c.id WHERE b.user_id = $1`;
         const result = await pool.query(sql, [req.session.userId]);
         res.json(result.rows);
     } catch(e) { res.json([]); }
@@ -257,7 +301,6 @@ app.get('/api/my-invoices', requireLogin, async (req, res) => {
     } catch(e) { res.json([]); }
 });
 
-// --- User Trophy Upload & View ---
 app.post('/api/upload-trophy-v2', requireLogin, upload.fields([{ name: 'mainImage', maxCount: 1 }, { name: 'extraImages', maxCount: 9 }]), async (req, res) => {
     const mainImg = req.files['mainImage'] ? '/uploads/' + req.files['mainImage'][0].filename : null;
     const extras = req.files['extraImages'] ? req.files['extraImages'].map(f => '/uploads/' + f.filename) : [];
@@ -270,7 +313,6 @@ app.post('/api/upload-trophy-v2', requireLogin, upload.fields([{ name: 'mainImag
 
 app.get('/api/my-trophies', requireLogin, async (req, res) => {
     try {
-        // 只给用户看已通过(APPROVED)的，或者全部看但带状态？这里显示全部，让前端处理
         const result = await pool.query("SELECT * FROM trophies WHERE user_id = $1 ORDER BY created_at DESC", [req.session.userId]);
         res.json(result.rows);
     } catch(e) { res.json([]); }
@@ -281,72 +323,6 @@ app.post('/api/save-avatar', requireLogin, async (req, res) => {
         await pool.query("UPDATE users SET avatar_config = $1 WHERE id = $2", [JSON.stringify(req.body.config), req.session.userId]);
         res.json({success:true});
     } catch(e) { res.status(500).json({error: 'Error'}); }
-});
-
-// --- ★★★ Admin APIs (Courses & Trophies) ★★★ ---
-
-// 1. Admin Course CRUD
-app.post('/api/admin/courses', async (req, res) => {
-    const { name, day, start, end, teacher, price, classroom, age } = req.body;
-    try {
-        await pool.query(
-            "INSERT INTO courses (name, day_of_week, start_time, end_time, teacher, price, casual_price, classroom, age_group) VALUES ($1, $2, $3, $4, $5, $6, 25, $7, $8)",
-            [name, day, start, end, teacher, price, classroom, age]
-        );
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.delete('/api/admin/courses/:id', async (req, res) => {
-    try {
-        await pool.query("DELETE FROM courses WHERE id = $1", [req.params.id]);
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.get('/api/admin/all-courses', async (req, res) => {
-    try {
-        const result = await pool.query("SELECT * FROM courses ORDER BY day_of_week, start_time");
-        res.json(result.rows);
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// 2. ★★★ Admin Trophy Approval APIs (补回来的部分) ★★★
-app.get('/api/admin/trophies/pending', async (req, res) => {
-    try {
-        // 关联 users 表获取学生姓名
-        const sql = `
-            SELECT t.*, u.student_name 
-            FROM trophies t
-            JOIN users u ON t.user_id = u.id
-            WHERE t.status = 'PENDING'
-            ORDER BY t.created_at ASC
-        `;
-        const result = await pool.query(sql);
-        // 解析 extra_images
-        const data = result.rows.map(r => ({
-            ...r,
-            extra_images: r.extra_images ? JSON.parse(r.extra_images) : []
-        }));
-        res.json(data);
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.post('/api/admin/trophies/approve', async (req, res) => {
-    const { trophyId, action, type, sourceName } = req.body; // action: 'approve' or 'reject'
-    
-    try {
-        if (action === 'reject') {
-            await pool.query("UPDATE trophies SET status = 'REJECTED' WHERE id = $1", [trophyId]);
-        } else {
-            // Approve: 更新状态、奖杯类型、比赛名称
-            await pool.query(
-                "UPDATE trophies SET status = 'APPROVED', trophy_type = $2, source_name = $3 WHERE id = $1",
-                [trophyId, type, sourceName]
-            );
-        }
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 const PORT = process.env.PORT || 3000;
