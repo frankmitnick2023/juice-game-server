@@ -25,7 +25,7 @@ app.use(session({
 async function initDB() {
   const client = await pool.connect();
   try {
-    // 1. 建表结构 (如果不存在)
+    // 1. 建表
     await client.query(`CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       email TEXT UNIQUE,
@@ -72,57 +72,68 @@ async function initDB() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // 2. ★★★ 强制清空旧课程 (保证每次部署都是最新课表) ★★★
-    // 注意：这会删除所有旧的课程数据，重新写入下面的真实数据
+    // 2. ★★★ 强制清空旧课程并重新录入 (包含教室分配) ★★★
     await client.query("TRUNCATE TABLE courses RESTART IDENTITY CASCADE");
-    console.log("Old courses cleared. Seeding 2026 Term 1 Timetable...");
+    console.log("Seeding linked timetable...");
 
-    // 3. ★★★ 录入 2026 Term 1 真实课表 ★★★
     const courses = [
-      // --- MONDAY ---
-      {name: 'RAD Ballet Grade 5', day: 'Monday', start: '16:00', end: '17:00', t: 'Demi', p: 230, c: 'Studio 1', age: '9-11'},
-      {name: 'Flexibility Core & Acro', day: 'Monday', start: '17:00', end: '18:00', t: 'Cindy', p: 230, c: 'Studio 2', age: '9-11'},
-      {name: 'RAD Ballet Grade 3', day: 'Monday', start: '18:00', end: '19:00', t: 'Liu', p: 230, c: 'Studio 1', age: '9'},
+      // === MONDAY ===
+      // Classroom 1: Ballet
+      {name: 'RAD Ballet Grade 5', day: 'Monday', start: '16:00', end: '17:00', t: 'Demi', p: 230, c: 'Classroom 1', age: '9-11'},
+      {name: 'RAD Ballet Grade 3', day: 'Monday', start: '18:00', end: '19:00', t: 'Liu', p: 230, c: 'Classroom 1', age: '9'},
+      // Classroom 2: Flexibility
+      {name: 'Flexibility Core & Acro', day: 'Monday', start: '17:00', end: '18:00', t: 'Cindy', p: 230, c: 'Classroom 2', age: '9-11'},
       
-      // --- TUESDAY ---
-      {name: 'Open Ballet Foundation', day: 'Tuesday', start: '16:00', end: '17:00', t: 'Carrie', p: 230, c: 'Studio 1', age: 'Beginner'},
-      {name: 'Open Acro & Flexibility', day: 'Tuesday', start: '17:00', end: '18:00', t: 'Demi', p: 230, c: 'Studio 2', age: 'Beginner'},
-      {name: 'Open Dance Troupe', day: 'Tuesday', start: '19:00', end: '20:00', t: 'Cindy', p: 230, c: 'Studio 1', age: '12+'},
+      // === TUESDAY ===
+      // Classroom 1
+      {name: 'Open Ballet Foundation', day: 'Tuesday', start: '16:00', end: '17:00', t: 'Carrie', p: 230, c: 'Classroom 1', age: 'Beginner'},
+      {name: 'Open Dance Troupe', day: 'Tuesday', start: '19:00', end: '20:00', t: 'Cindy', p: 230, c: 'Classroom 1', age: '12+'},
+      // Classroom 2
+      {name: 'Open Acro & Flexibility', day: 'Tuesday', start: '17:00', end: '18:00', t: 'Demi', p: 230, c: 'Classroom 2', age: 'Beginner'},
       
-      // --- WEDNESDAY ---
-      {name: 'RAD Ballet Grade 4', day: 'Wednesday', start: '16:00', end: '17:00', t: 'Demi', p: 230, c: 'Studio 1', age: '9-10'},
-      {name: 'Flexibility Core & Acro', day: 'Wednesday', start: '17:00', end: '18:00', t: 'Cindy', p: 230, c: 'Studio 2', age: '9-13'},
-      {name: 'RAD Intermediate Foundation', day: 'Wednesday', start: '18:00', end: '19:00', t: 'Demi', p: 230, c: 'Studio 1', age: '10-13'},
+      // === WEDNESDAY ===
+      // Classroom 1
+      {name: 'RAD Ballet Grade 4', day: 'Wednesday', start: '16:00', end: '17:00', t: 'Demi', p: 230, c: 'Classroom 1', age: '9-10'},
+      {name: 'RAD Inter Foundation', day: 'Wednesday', start: '18:00', end: '19:00', t: 'Demi', p: 230, c: 'Classroom 1', age: '10-13'},
+      // Classroom 2
+      {name: 'Flexibility Core & Acro', day: 'Wednesday', start: '17:00', end: '18:00', t: 'Cindy', p: 230, c: 'Classroom 2', age: '9-13'},
       
-      // --- THURSDAY ---
-      {name: 'Flexibility Core & Acro', day: 'Thursday', start: '16:00', end: '17:00', t: 'Cindy', p: 230, c: 'Studio 2', age: '7-8'},
-      {name: 'RAD Ballet Grade 1', day: 'Thursday', start: '17:00', end: '18:00', t: 'Carrie', p: 230, c: 'Studio 1', age: '7'},
-      {name: 'RAD Intermediate', day: 'Thursday', start: '17:30', end: '19:00', t: 'Tonia', p: 260, c: 'Studio 3', age: '10+'}, // 1.5h
-      {name: 'Open Ballet & Pointe', day: 'Thursday', start: '19:00', end: '20:00', t: 'Tonia', p: 230, c: 'Studio 1', age: '10-15'},
-      {name: 'RAD Advanced 1', day: 'Thursday', start: '20:00', end: '21:30', t: 'Tonia', p: 260, c: 'Studio 1', age: '13-14'},
+      // === THURSDAY ===
+      // Classroom 1
+      {name: 'RAD Ballet Grade 1', day: 'Thursday', start: '17:00', end: '18:00', t: 'Carrie', p: 230, c: 'Classroom 1', age: '7'},
+      {name: 'Open Ballet & Pointe', day: 'Thursday', start: '19:00', end: '20:00', t: 'Tonia', p: 230, c: 'Classroom 1', age: '10-15'},
+      {name: 'RAD Advanced 1', day: 'Thursday', start: '20:00', end: '21:30', t: 'Tonia', p: 260, c: 'Classroom 1', age: '13-14'},
+      // Classroom 2
+      {name: 'Flexibility Core & Acro', day: 'Thursday', start: '16:00', end: '17:00', t: 'Cindy', p: 230, c: 'Classroom 2', age: '7-8'},
+      // Classroom 3
+      {name: 'RAD Intermediate', day: 'Thursday', start: '17:30', end: '19:00', t: 'Tonia', p: 260, c: 'Classroom 3', age: '10+'},
 
-      // --- FRIDAY ---
-      {name: 'RAD Ballet Grade 1', day: 'Friday', start: '16:00', end: '17:00', t: 'Carrie', p: 230, c: 'Studio 1', age: '7'},
-      {name: 'Hiphop Level 1', day: 'Friday', start: '16:00', end: '17:00', t: 'Nana', p: 230, c: 'Studio 2', age: '6-8'},
-      {name: 'Open Ballet Pilates', day: 'Friday', start: '17:00', end: '18:00', t: 'Asa', p: 230, c: 'Studio 1', age: '7-9'},
-      {name: 'Hiphop Level 2', day: 'Friday', start: '17:00', end: '18:00', t: 'Nana', p: 230, c: 'Studio 2', age: '9-15'},
-      {name: 'Open Contemp Foundation', day: 'Friday', start: '18:00', end: '19:00', t: 'Asa', p: 230, c: 'Studio 1', age: '7-9'},
+      // === FRIDAY ===
+      // Classroom 1
+      {name: 'RAD Ballet Grade 1', day: 'Friday', start: '16:00', end: '17:00', t: 'Carrie', p: 230, c: 'Classroom 1', age: '7'},
+      {name: 'Open Ballet Pilates', day: 'Friday', start: '17:00', end: '18:00', t: 'Asa', p: 230, c: 'Classroom 1', age: '7-9'},
+      {name: 'Open Contemp Foundation', day: 'Friday', start: '18:00', end: '19:00', t: 'Asa', p: 230, c: 'Classroom 1', age: '7-9'},
+      // Classroom 2
+      {name: 'Hiphop Level 1', day: 'Friday', start: '16:00', end: '17:00', t: 'Nana', p: 230, c: 'Classroom 2', age: '6-8'},
+      {name: 'Hiphop Level 2', day: 'Friday', start: '17:00', end: '18:00', t: 'Nana', p: 230, c: 'Classroom 2', age: '9-15'},
 
-      // --- SATURDAY (Busy Day!) ---
-      {name: 'RAD Ballet Primary', day: 'Saturday', start: '09:30', end: '11:00', t: 'Carrie', p: 240, c: 'Studio 1', age: '5'},
-      {name: 'RAD Beginner Class', day: 'Saturday', start: '11:00', end: '12:00', t: 'Demi', p: 230, c: 'Studio 2', age: '3-4.5'},
-      {name: 'K-Pop Girl Group', day: 'Saturday', start: '11:00', end: '12:30', t: 'Hazel', p: 240, c: 'Studio 3', age: '11-16'},
-      {name: 'NZAMD Jazz Level 1', day: 'Saturday', start: '12:00', end: '13:00', t: 'Katie', p: 230, c: 'Studio 1', age: '5-6'},
-      {name: 'RAD Ballet Grade 2', day: 'Saturday', start: '12:00', end: '13:00', t: 'Demi', p: 230, c: 'Studio 2', age: '8'},
-      {name: 'Lyrical Dance Troupe', day: 'Saturday', start: '13:00', end: '14:00', t: 'Cindy', p: 230, c: 'Studio 3', age: '8+'},
-      {name: 'PBT Ballet Technique', day: 'Saturday', start: '13:00', end: '14:00', t: 'Carrie', p: 230, c: 'Studio 1', age: '7-8'},
-      {name: 'NZAMD Jazz Level 3', day: 'Saturday', start: '13:00', end: '14:00', t: 'Katie', p: 230, c: 'Studio 2', age: '9-10'},
-      {name: 'RAD Ballet Grade 1', day: 'Saturday', start: '14:00', end: '15:00', t: 'Demi', p: 230, c: 'Studio 2', age: '7'},
-      {name: 'Hiphop Level 1', day: 'Saturday', start: '14:15', end: '15:15', t: 'Gabriel', p: 230, c: 'Studio 3', age: '6-8'},
-      {name: 'RAD Ballet Grade 4', day: 'Saturday', start: '15:00', end: '16:00', t: 'Demi', p: 230, c: 'Studio 1', age: '9-10'},
-      {name: 'Breaking Level 2', day: 'Saturday', start: '15:15', end: '16:15', t: 'Gabriel', p: 230, c: 'Studio 3', age: '8-11'},
-      {name: 'NZAMD Jazz Level 2', day: 'Saturday', start: '15:30', end: '16:30', t: 'Katie', p: 230, c: 'Studio 2', age: '6.5-8'},
-      {name: 'RAD P-Primary', day: 'Saturday', start: '15:30', end: '16:15', t: 'Carrie', p: 230, c: 'Studio 1', age: '4-5'}
+      // === SATURDAY ===
+      // Classroom 1
+      {name: 'RAD Ballet Primary', day: 'Saturday', start: '09:30', end: '11:00', t: 'Carrie', p: 240, c: 'Classroom 1', age: '5'},
+      {name: 'NZAMD Jazz Level 1', day: 'Saturday', start: '12:00', end: '13:00', t: 'Katie', p: 230, c: 'Classroom 1', age: '5-6'},
+      {name: 'PBT Ballet Technique', day: 'Saturday', start: '13:00', end: '14:00', t: 'Carrie', p: 230, c: 'Classroom 1', age: '7-8'},
+      {name: 'RAD Ballet Grade 4', day: 'Saturday', start: '15:00', end: '16:00', t: 'Demi', p: 230, c: 'Classroom 1', age: '9-10'},
+      // Classroom 2
+      {name: 'RAD Beginner Class', day: 'Saturday', start: '11:00', end: '12:00', t: 'Demi', p: 230, c: 'Classroom 2', age: '3-4.5'},
+      {name: 'RAD Ballet Grade 2', day: 'Saturday', start: '12:00', end: '13:00', t: 'Demi', p: 230, c: 'Classroom 2', age: '8'},
+      {name: 'NZAMD Jazz Level 3', day: 'Saturday', start: '13:00', end: '14:00', t: 'Katie', p: 230, c: 'Classroom 2', age: '9-10'},
+      {name: 'RAD Ballet Grade 1', day: 'Saturday', start: '14:00', end: '15:00', t: 'Demi', p: 230, c: 'Classroom 2', age: '7'},
+      {name: 'NZAMD Jazz Level 2', day: 'Saturday', start: '15:30', end: '16:30', t: 'Katie', p: 230, c: 'Classroom 2', age: '6.5-8'},
+      // Classroom 3
+      {name: 'K-Pop Girl Group', day: 'Saturday', start: '11:00', end: '12:30', t: 'Hazel', p: 240, c: 'Classroom 3', age: '11-16'},
+      {name: 'Lyrical Dance Troupe', day: 'Saturday', start: '13:00', end: '14:00', t: 'Cindy', p: 230, c: 'Classroom 3', age: '8+'},
+      {name: 'Hiphop Level 1', day: 'Saturday', start: '14:15', end: '15:15', t: 'Gabriel', p: 230, c: 'Classroom 3', age: '6-8'},
+      {name: 'Breaking Level 2', day: 'Saturday', start: '15:15', end: '16:15', t: 'Gabriel', p: 230, c: 'Classroom 3', age: '8-11'}
     ];
 
     for (const c of courses) {
@@ -131,7 +142,7 @@ async function initDB() {
         [c.name, c.day, c.start, c.end, c.t, c.p, 25, c.c, c.age]
       );
     }
-    console.log("Timetable loaded successfully!");
+    console.log("Timetable linked to Classrooms successfully!");
 
   } catch (err) { console.error(err); } finally { client.release(); }
 }
@@ -191,7 +202,15 @@ app.get('/api/me', requireLogin, async (req, res) => {
 
 app.post('/api/logout', (req, res) => { req.session.destroy(); res.json({ success: true }); });
 
-// --- ★★★ 课程推荐接口 ★★★ ---
+// --- ★★★ 新增公开接口：提供所有课程供教室表使用 ★★★ ---
+app.get('/api/public-schedule', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT name, day_of_week, start_time, end_time, classroom FROM courses");
+        res.json(result.rows);
+    } catch(e) { res.status(500).json([]); }
+});
+
+// --- 课程推荐接口 (带筛选) ---
 app.get('/api/courses/recommended', async (req, res) => {
   try {
     let age = 7; 
@@ -210,22 +229,19 @@ app.get('/api/courses/recommended', async (req, res) => {
 
     if (filterByAge) {
         allCourses = allCourses.filter(c => {
-            if (!c.age_group) return true; // 无限制
-            if (c.age_group === 'Beginner') return true; // 初学者课都显示
+            if (!c.age_group) return true; 
+            if (c.age_group === 'Beginner') return true; 
             
-            // 1. 区间 "9-10"
             if (c.age_group.includes('-')) {
                 const parts = c.age_group.split('-');
                 const min = parseFloat(parts[0]);
                 const max = parseFloat(parts[1]);
                 return age >= min && age <= max;
             }
-            // 2. 最小年龄 "12+"
             if (c.age_group.includes('+')) {
                 const min = parseFloat(c.age_group);
                 return age >= min;
             }
-            // 3. 单一数字 "5"
             return age === parseFloat(c.age_group);
         });
     }
