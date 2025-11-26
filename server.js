@@ -21,10 +21,10 @@ app.use(session({
   cookie: { maxAge: 24 * 60 * 60 * 1000 }
 }));
 
-// --- 1. 数据库初始化 (只建表，不录数据) ---
 async function initDB() {
   const client = await pool.connect();
   try {
+    // 1. Users
     await client.query(`CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       email TEXT UNIQUE,
@@ -36,7 +36,7 @@ async function initDB() {
       avatar_config TEXT
     )`);
 
-    // 课程表
+    // 2. Courses
     await client.query(`CREATE TABLE IF NOT EXISTS courses (
       id SERIAL PRIMARY KEY,
       name TEXT,
@@ -50,6 +50,7 @@ async function initDB() {
       age_group TEXT
     )`);
 
+    // 3. Bookings
     await client.query(`CREATE TABLE IF NOT EXISTS bookings (
       id SERIAL PRIMARY KEY,
       user_id INTEGER,
@@ -61,6 +62,7 @@ async function initDB() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
 
+    // 4. Trophies (确保 status 字段存在)
     await client.query(`CREATE TABLE IF NOT EXISTS trophies (
       id SERIAL PRIMARY KEY,
       user_id INTEGER,
@@ -71,14 +73,44 @@ async function initDB() {
       status TEXT DEFAULT 'PENDING', 
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
+
+    // 5. Games
+    await client.query(`CREATE TABLE IF NOT EXISTS games (
+      id TEXT PRIMARY KEY,
+      title TEXT,
+      thumbnail TEXT,
+      path TEXT
+    )`);
+
+    // 重新录入游戏 (如果为空)
+    const { rows: gameRows } = await client.query("SELECT count(*) as count FROM games");
+    if (parseInt(gameRows[0].count) === 0) {
+        const games = [
+            {id: 'fruit-ninja', title: 'Fruit Ninja (切水果)', thumb: 'thumb.jpg', path: 'fruit-ninja'},
+            {id: 'subway-surfers', title: 'Subway Surfers (跑酷)', thumb: 'thumb.jpg', path: 'subway-surfers'},
+            {id: 'just-dance', title: 'Just Dance (尬舞)', thumb: 'thumb.jpg', path: 'just-dance'},
+            {id: 'temple-run', title: 'Temple Run (神庙)', thumb: 'thumb.jpg', path: 'temple-run'}
+        ];
+        for(const g of games) {
+            await client.query(
+                "INSERT INTO games (id, title, thumbnail, path) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING",
+                [g.id, g.title, g.thumb, g.path]
+            );
+        }
+    }
     
-    console.log("DB initialized. Ready for Admin input.");
+    // 重新录入课表 (如果为空) - 这里保留之前的逻辑，防止你每次重启都清空数据
+    // 如果你想强制重置课表，请手动去数据库执行 TRUNCATE 或取消下面注释
+    // await client.query("TRUNCATE TABLE courses RESTART IDENTITY CASCADE"); 
+    // ... (课表录入代码太长，这里省略，保留你之前已经录入好的数据即可) ...
+
+    console.log("DB initialized.");
 
   } catch (err) { console.error(err); } finally { client.release(); }
 }
 initDB();
 
-// --- 辅助函数 ---
+// --- Helpers ---
 function calculateAge(dob) {
   if (!dob) return 7; 
   const diff = Date.now() - new Date(dob).getTime();
@@ -130,38 +162,13 @@ app.get('/api/me', requireLogin, async (req, res) => {
 
 app.post('/api/logout', (req, res) => { req.session.destroy(); res.json({ success: true }); });
 
-// --- ★★★ Admin Course Management APIs (新加的) ★★★ ---
-
-// 1. 添加课程
-app.post('/api/admin/courses', async (req, res) => {
-    const { name, day, start, end, teacher, price, classroom, age } = req.body;
+// --- Games & Public APIs ---
+app.get('/api/games', async (req, res) => {
     try {
-        await pool.query(
-            "INSERT INTO courses (name, day_of_week, start_time, end_time, teacher, price, casual_price, classroom, age_group) VALUES ($1, $2, $3, $4, $5, $6, 25, $7, $8)",
-            [name, day, start, end, teacher, price, classroom, age]
-        );
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// 2. 删除课程
-app.delete('/api/admin/courses/:id', async (req, res) => {
-    try {
-        await pool.query("DELETE FROM courses WHERE id = $1", [req.params.id]);
-        res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// 3. 获取所有课程 (无筛选，给后台用)
-app.get('/api/admin/all-courses', async (req, res) => {
-    try {
-        const result = await pool.query("SELECT * FROM courses ORDER BY day_of_week, start_time");
+        const result = await pool.query("SELECT * FROM games");
         res.json(result.rows);
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { res.status(500).json([]); }
 });
-
-
-// --- Public & User APIs ---
 
 app.get('/api/public-schedule', async (req, res) => {
     try {
@@ -170,6 +177,7 @@ app.get('/api/public-schedule', async (req, res) => {
     } catch(e) { res.status(500).json([]); }
 });
 
+// --- Course & Booking ---
 app.get('/api/courses/recommended', async (req, res) => {
   try {
     let age = 7; 
@@ -188,22 +196,12 @@ app.get('/api/courses/recommended', async (req, res) => {
         allCourses = allCourses.filter(c => {
             if (!c.age_group) return true; 
             if (c.age_group.toLowerCase().includes('beginner')) return true;
-            
-            // 简单区间判断
             if (c.age_group.includes('-')) {
                 const parts = c.age_group.split('-');
-                const min = parseFloat(parts[0]);
-                const max = parseFloat(parts[1]);
-                return age >= min && age <= max;
+                return age >= parseFloat(parts[0]) && age <= parseFloat(parts[1]);
             }
-            if (c.age_group.includes('+')) {
-                const min = parseFloat(c.age_group);
-                return age >= min;
-            }
-            // 单数字
-            if (!isNaN(parseFloat(c.age_group))) {
-                 return age === parseFloat(c.age_group);
-            }
+            if (c.age_group.includes('+')) return age >= parseFloat(c.age_group);
+            if (!isNaN(parseFloat(c.age_group))) return age === parseFloat(c.age_group);
             return true;
         });
     }
@@ -211,9 +209,145 @@ app.get('/api/courses/recommended', async (req, res) => {
   } catch(e) { res.status(500).json({ error: 'DB Error' }); }
 });
 
-// ... (保留 Booking, Schedule, Trophy, Avatar 接口不变) ...
-// 为节省篇幅，这部分逻辑和之前一样，没有变动。
-// 如果你需要完整文件，我可以再发一次，但核心就是上面增加了 Admin API。
+app.get('/api/my-bookings', requireLogin, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT course_id, type, dates FROM bookings WHERE user_id = $1", [req.session.userId]);
+    const data = result.rows.map(r => ({
+        course_id: r.course_id,
+        type: r.type,
+        dates: r.dates ? JSON.parse(r.dates) : []
+    }));
+    res.json(data);
+  } catch(e) { res.json([]); }
+});
+
+app.post('/api/book-course', requireLogin, async (req, res) => {
+  const { courseId, type, selectedDates, totalPrice } = req.body;
+  const userId = req.session.userId;
+  try {
+    const check = await pool.query("SELECT * FROM bookings WHERE user_id = $1 AND course_id = $2 AND type = 'term'", [userId, courseId]);
+    if (check.rows.length > 0) return res.status(400).json({ success: false, message: '已报名该课程整学期 (Already Joined)' });
+
+    const datesJson = JSON.stringify(selectedDates || []);
+    await pool.query(
+        "INSERT INTO bookings (user_id, course_id, type, dates, total_price) VALUES ($1, $2, $3, $4, $5)",
+        [userId, courseId, type, datesJson, totalPrice]
+    );
+    res.json({ success: true, message: '报名成功 (Booking Confirmed)!' });
+  } catch(e) { res.status(500).json({ success: false, message: 'Database Error' }); }
+});
+
+app.get('/api/my-schedule', requireLogin, async (req, res) => {
+    try {
+        const sql = `
+            SELECT b.id as booking_id, b.type as booking_type, b.status, c.name, c.day_of_week, c.start_time, c.teacher, c.classroom 
+            FROM bookings b 
+            JOIN courses c ON b.course_id = c.id 
+            WHERE b.user_id = $1`;
+        const result = await pool.query(sql, [req.session.userId]);
+        res.json(result.rows);
+    } catch(e) { res.json([]); }
+});
+
+app.get('/api/my-invoices', requireLogin, async (req, res) => {
+    try {
+        const sql = `SELECT b.id, b.total_price as price_snapshot, b.status, b.created_at, c.name as course_name, c.day_of_week, c.start_time FROM bookings b JOIN courses c ON b.course_id = c.id WHERE b.user_id = $1 ORDER BY b.created_at DESC`;
+        const result = await pool.query(sql, [req.session.userId]);
+        res.json(result.rows);
+    } catch(e) { res.json([]); }
+});
+
+// --- User Trophy Upload & View ---
+app.post('/api/upload-trophy-v2', requireLogin, upload.fields([{ name: 'mainImage', maxCount: 1 }, { name: 'extraImages', maxCount: 9 }]), async (req, res) => {
+    const mainImg = req.files['mainImage'] ? '/uploads/' + req.files['mainImage'][0].filename : null;
+    const extras = req.files['extraImages'] ? req.files['extraImages'].map(f => '/uploads/' + f.filename) : [];
+    if(!mainImg) return res.status(400).json({success:false, error:'Main image missing'});
+    try {
+        await pool.query("INSERT INTO trophies (user_id, image_path, extra_images, source_name) VALUES ($1, $2, $3, $4)", [req.session.userId, mainImg, JSON.stringify(extras), 'Pending Review']);
+        res.json({success:true});
+    } catch(e) { res.status(500).json({success:false, error: e.message}); }
+});
+
+app.get('/api/my-trophies', requireLogin, async (req, res) => {
+    try {
+        // 只给用户看已通过(APPROVED)的，或者全部看但带状态？这里显示全部，让前端处理
+        const result = await pool.query("SELECT * FROM trophies WHERE user_id = $1 ORDER BY created_at DESC", [req.session.userId]);
+        res.json(result.rows);
+    } catch(e) { res.json([]); }
+});
+
+app.post('/api/save-avatar', requireLogin, async (req, res) => {
+    try {
+        await pool.query("UPDATE users SET avatar_config = $1 WHERE id = $2", [JSON.stringify(req.body.config), req.session.userId]);
+        res.json({success:true});
+    } catch(e) { res.status(500).json({error: 'Error'}); }
+});
+
+// --- ★★★ Admin APIs (Courses & Trophies) ★★★ ---
+
+// 1. Admin Course CRUD
+app.post('/api/admin/courses', async (req, res) => {
+    const { name, day, start, end, teacher, price, classroom, age } = req.body;
+    try {
+        await pool.query(
+            "INSERT INTO courses (name, day_of_week, start_time, end_time, teacher, price, casual_price, classroom, age_group) VALUES ($1, $2, $3, $4, $5, $6, 25, $7, $8)",
+            [name, day, start, end, teacher, price, classroom, age]
+        );
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/admin/courses/:id', async (req, res) => {
+    try {
+        await pool.query("DELETE FROM courses WHERE id = $1", [req.params.id]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/all-courses', async (req, res) => {
+    try {
+        const result = await pool.query("SELECT * FROM courses ORDER BY day_of_week, start_time");
+        res.json(result.rows);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// 2. ★★★ Admin Trophy Approval APIs (补回来的部分) ★★★
+app.get('/api/admin/trophies/pending', async (req, res) => {
+    try {
+        // 关联 users 表获取学生姓名
+        const sql = `
+            SELECT t.*, u.student_name 
+            FROM trophies t
+            JOIN users u ON t.user_id = u.id
+            WHERE t.status = 'PENDING'
+            ORDER BY t.created_at ASC
+        `;
+        const result = await pool.query(sql);
+        // 解析 extra_images
+        const data = result.rows.map(r => ({
+            ...r,
+            extra_images: r.extra_images ? JSON.parse(r.extra_images) : []
+        }));
+        res.json(data);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/trophies/approve', async (req, res) => {
+    const { trophyId, action, type, sourceName } = req.body; // action: 'approve' or 'reject'
+    
+    try {
+        if (action === 'reject') {
+            await pool.query("UPDATE trophies SET status = 'REJECTED' WHERE id = $1", [trophyId]);
+        } else {
+            // Approve: 更新状态、奖杯类型、比赛名称
+            await pool.query(
+                "UPDATE trophies SET status = 'APPROVED', trophy_type = $2, source_name = $3 WHERE id = $1",
+                [trophyId, type, sourceName]
+            );
+        }
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
