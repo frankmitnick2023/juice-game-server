@@ -1,9 +1,0 @@
-{
-  "id": "rhythm-challenger-trainning",
-  "title": "节奏挑战者(训练版)",
-  "version": "1.0",
-  "platform": "mobile",
-  "orientation": "portrait",
-  "thumbnail": "thumbnail.jpg",
-  "description": "用头部动作跟随音乐节拍，挑战你的节奏感！"
-}
