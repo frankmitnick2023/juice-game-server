@@ -20,6 +20,7 @@
     .edit-btn { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: #e94560; color: white; padding: 8px 20px; border-radius: 20px; font-weight: bold; font-size: 0.9rem; text-decoration: none; box-shadow: 0 5px 15px rgba(233,69,96,0.4); z-index: 50; }
     .trophy-pile { position: absolute; bottom: 20px; right: 10px; display: flex; align-items: flex-end; flex-wrap: wrap-reverse; max-width: 180px; justify-content: flex-end; z-index: 15; pointer-events: none; }
     .trophy-item { font-size: 2.2rem; margin-left: -8px; margin-bottom: -5px; filter: drop-shadow(2px 2px 5px rgba(0,0,0,0.6)); transition: transform 0.2s; cursor: pointer; pointer-events: auto; position: relative; }
+    .trophy-item:hover { transform: scale(1.2) translateY(-10px); z-index: 100; }
     .t-gold { color: #ffd700; filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.5)); }
     .t-silver { color: #c0c0c0; }
     .t-bronze { color: #cd7f32; }
@@ -198,7 +199,9 @@
             grid.innerHTML = '';
             if(games.length === 0) { grid.innerHTML = 'No games found'; return; }
             games.forEach(g => {
-                const thumb = g.thumbnail && !g.thumbnail.startsWith('thumb') ? `/games/${g.path}/${g.thumbnail}` : null;
+                // ★★★ 核心修正：不再过滤 'thumb' 开头的文件名 ★★★
+                const thumb = g.thumbnail ? `/games/${g.path}/${g.thumbnail}` : null;
+                
                 grid.innerHTML += `
                     <div class="game-card">
                         <div class="game-thumb">${thumb ? `<img src="${thumb}">` : '👾'}</div>
@@ -211,14 +214,13 @@
         });
     }
 
-    // ... Trophies & Upload Logic (Standard) ...
     async function loadTrophies() {
         const res = await fetch('/api/my-trophies');
         const list = await res.json();
         const area = document.getElementById('trophyArea');
         area.innerHTML = '';
         list.forEach(t => {
-            if(t.status !== 'APPROVED' && t.status !== 'PENDING') return; // Optional: hide rejected
+            if(t.status !== 'APPROVED' && t.status !== 'PENDING') return;
             let icon = '📜';
             if(t.trophy_type==='gold') icon='🏆';
             if(t.trophy_type==='silver') icon='🥈';
