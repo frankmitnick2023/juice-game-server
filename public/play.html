@@ -2,19 +2,54 @@
 <html lang="zh">
 <head>
   <meta charset="UTF-8" />
-  <title>游戏中...</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Loading Game...</title>
+  <style>
+    body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; display: flex; flex-direction: column; }
+    iframe { flex: 1; border: none; width: 100%; }
+    .top-bar { position: absolute; top: 10px; left: 10px; z-index: 100; }
+    .back-btn { color: white; background: rgba(0,0,0,0.6); padding: 8px 15px; border-radius: 20px; text-decoration: none; font-family: sans-serif; font-weight: bold; border: 1px solid rgba(255,255,255,0.3); cursor: pointer; }
+    #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: white; font-family: sans-serif; }
+  </style>
 </head>
 <body>
-  <h2>加载游戏中...</h2>
-  <iframe id="frame" width="100%" height="600px"></iframe>
+  <div class="top-bar">
+      <a href="/games.html" class="back-btn">◀ Exit Game</a>
+  </div>
+  
+  <div id="loading">Loading...</div>
+  <iframe id="gameFrame" allow="autoplay; fullscreen; camera; microphone; accelerometer; gyroscope"></iframe>
 
   <script>
-    const gameId = location.pathname.split("/").pop();
-    fetch("/api/games").then(r=>r.json()).then(list=>{
-      const game=list.find(g=>g.path===gameId);
-      if(game) document.getElementById("frame").src=`/games/${game.path}/index.html`;
-      else document.body.innerHTML="游戏未找到";
-    });
+    async function loadGame() {
+        // 1. 获取 URL 最后的 ID (例如 /play/ballet-pro -> ballet-pro)
+        const pathParts = location.pathname.split('/');
+        const gameId = pathParts[pathParts.length - 1];
+        
+        try {
+            const res = await fetch('/api/games');
+            const list = await res.json();
+            
+            // ★★★ 修正：用 ID 匹配 ID (比之前更准) ★★★
+            const game = list.find(g => g.id === gameId);
+            
+            if (game) {
+                document.title = game.title;
+                // 拼接真实路径
+                const gameUrl = `/games/${game.path}/index.html`;
+                console.log("Loading:", gameUrl); // 调试用
+                
+                const frame = document.getElementById("gameFrame");
+                frame.src = gameUrl;
+                frame.onload = () => document.getElementById("loading").style.display = 'none';
+            } else {
+                document.body.innerHTML = `<h2 style="color:white;text-align:center;margin-top:20%">Game Not Found (ID: ${gameId})</h2>`;
+            }
+        } catch(e) {
+            document.body.innerHTML = `<h2 style="color:white;text-align:center;margin-top:20%">Network Error</h2>`;
+        }
+    }
+    loadGame();
   </script>
 </body>
 </html>
