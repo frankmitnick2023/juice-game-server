@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Studio Hire</title>
+  <style>
+    body{font-family:'Segoe UI', sans-serif;margin:0;background:#f2f4f8;padding-bottom:5rem}
+    .header{background:#2c3e50;color:white;padding:1rem;text-align:center;position:sticky;top:0;z-index:100;box-shadow:0 2px 10px rgba(0,0,0,0.2)}
+    
+    /* 顶部控制栏 */
+    .controls {background:white;padding:12px;display:flex;overflow-x:auto;gap:10px;box-shadow:0 2px 5px rgba(0,0,0,0.05); white-space:nowrap;}
+    .day-selector {padding:8px 16px;background:#f0f0f0;border-radius:20px;font-size:0.9rem;cursor:pointer;font-weight:bold;color:#666;transition:0.2s}
+    .day-selector.active {background:#2c3e50;color:white;box-shadow:0 2px 5px rgba(0,0,0,0.2)}
+    
+    /* 表格容器 */
+    .table-wrapper {overflow-x:auto; margin-top:15px; background:white; padding-bottom:20px; border-top:1px solid #ddd}
+    .room-table {border-collapse:separate; border-spacing:0; width:100%; min-width:800px}
+    
+    /* 表头固定 */
+    .room-table th {background:#fff; color:#333; font-size:0.85rem; padding:10px; border-bottom:2px solid #e94560; border-right:1px solid #eee; position:sticky; top:0; z-index:10; min-width:90px}
+    .room-table th:first-child {position:sticky; left:0; z-index:20; border-right:2px solid #ddd; background:#fff; color:#e94560}
+    
+    /* 单元格 */
+    .room-table td {border-right:1px solid #eee; border-bottom:1px solid #eee; height:45px; text-align:center; font-size:0.8rem; cursor:pointer; position:relative; transition:0.1s}
+    .room-table td:first-child {background:#f9f9f9; font-weight:bold; position:sticky; left:0; border-right:2px solid #ddd; z-index:5; color:#555}
+    
+    /* 状态颜色 */
+    .cell-free {background:white}
+    .cell-free:hover {background:#e3f2fd}
+    .cell-booked {background:#ffcdd2; color:#b71c1c; cursor:not-allowed; background-image:repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.5) 5px, rgba(255,255,255,0.5) 10px);}
+    
+    /* 价格标签小字 */
+    .price-tag {font-size:0.7rem; color:#888; display:block; font-weight:normal; margin-top:2px}
+    .price-val {color:#e94560; font-weight:bold}
+
+    /* 预约弹窗 */
+    .modal-overlay {display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:999;justify-content:center;align-items:end}
+    .modal {background:white;width:100%;max-width:500px;border-radius:20px 20px 0 0;padding:25px;box-sizing:border-box;animation:slideUp 0.3s; box-shadow:0 -5px 20px rgba(0,0,0,0.2)}
+    @keyframes slideUp {from{transform:translateY(100%)} to{transform:translateY(0)}}
+    
+    .btn-confirm {width:100%;padding:14px;background:#2c3e50;color:white;border:none;border-radius:10px;font-weight:bold;margin-top:15px;font-size:1.1rem}
+    .btn-confirm:active {transform:scale(0.98)}
+
+    .info-row {display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px dashed #eee}
+    .info-label {color:#888}
+    .info-val {font-weight:bold; color:#333}
+
+    .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:white;border-top:1px solid #eee;display:flex;justify-content:space-around;padding:8px 0;z-index:99; padding-bottom: max(8px, env(safe-area-inset-bottom));}
+    .nav-item{text-decoration:none;color:#999;font-size:0.75rem;text-align:center;display:flex;flex-direction:column;align-items:center;flex:1}
+    .nav-icon{font-size:1.5rem;margin-bottom:2px}
+    .nav-item.active{color:#2c3e50}
+  </style>
+</head>
+<body>
+
+<div class="header">
+    <h3 style="margin:0">🔑 Studio Hire (教室预约)</h3>
+</div>
+
+<div class="controls" id="dayControls">
+    </div>
+
+<div class="table-wrapper">
+    <table class="room-table" id="roomTable">
+        </table>
+</div>
+
+<div id="bookingModal" class="modal-overlay">
+    <div class="modal">
+        <h2 id="mRoomName" style="margin-top:0; color:#2c3e50">Studio Name</h2>
+        
+        <div style="margin:20px 0;">
+            <div class="info-row">
+                <span class="info-label">📅 Date (日期)</span>
+                <span class="info-val" id="mDate">--</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">⏰ Time (时间)</span>
+                <span class="info-val" id="mTime">--</span>
+            </div>
+            <div class="info-row" style="border:none">
+                <span class="info-label">💰 Price (+GST)</span>
+                <span class="info-val" style="color:#e94560; font-size:1.2rem" id="mPrice">--</span>
+            </div>
+        </div>
+
+        <div style="background:#f8f9fa;padding:12px;border-radius:8px;font-size:0.85rem;color:#666;line-height:1.4">
+            💡 <strong>Note:</strong> Valid for personal practice or rehearsal only. Please keep the room clean.
+            <br>(仅限个人练习或排练，请保持清洁)
+        </div>
+        
+        <button class="btn-confirm" onclick="confirmHire()">Confirm & Book</button>
+        <button onclick="document.getElementById('bookingModal').style.display='none'" style="width:100%;padding:12px;background:none;border:none;color:#999;margin-top:5px;font-weight:bold">Cancel</button>
+    </div>
+</div>
+
+<div class="nav-bar">
+    <a href="/games.html" class="nav-item"><span class="nav-icon">🎮</span>Home</a>
+    <a href="/my_schedule.html" class="nav-item"><span class="nav-icon">📅</span>Schedule</a>
+    <a href="/timetable.html" class="nav-item"><span class="nav-icon">🛒</span>Book</a>
+    <a href="#" class="nav-item active"><span class="nav-icon">🔑</span>Rooms</a>
+</div>
+
+<script>
+    // === 1. 教室配置 (按你的要求) ===
+    const ROOMS = [
+        {id: 1, name: "Studio 1", price: 35},
+        {id: 2, name: "Studio 2", price: 35},
+        {id: 3, name: "Studio 3", price: 35},
+        {id: 4, name: "Studio 4 (Large)", price: 50}, // 大教室 $50
+        {id: 5, name: "Studio 5", price: 35},
+        {id: 6, name: "Studio 6", price: 35},
+        {id: 7, name: "Studio 7 (Small)", price: 30}, // 小教室 $30
+        {id: 8, name: "Yoga Room", price: 35},
+    ];
+    
+    // 生成时间段 9:00 - 21:00
+    const HOURS = [];
+    for(let i=9; i<=21; i++) HOURS.push(`${i}:00`); 
+
+    const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const SHORT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    
+    let currentDayIndex = 0; // 0 = Monday
+
+    // === 2. 模拟数据 (本地演示用，服务器重启后重置) ===
+    // 真实项目中这里应该从 API 获取
+    const bookedSlots = [
+        {room: 1, day: 0, hour: 10}, // Mon 10:00 Studio 1
+        {room: 4, day: 0, hour: 18}, // Mon 18:00 Studio 4
+        {room: 4, day: 0, hour: 19},
+        {room: 8, day: 1, hour: 9},  // Tue 09:00 Yoga
+    ];
+
+    function init() {
+        // 生成星期选择器
+        const c = document.getElementById('dayControls');
+        SHORT_DAYS.forEach((d, idx) => {
+            const btn = document.createElement('div');
+            btn.className = `day-selector ${idx===0 ? 'active' : ''}`;
+            btn.textContent = d;
+            btn.onclick = () => switchDay(idx, btn);
+            c.appendChild(btn);
+        });
+
+        renderTable();
+    }
+
+    function switchDay(idx, btn) {
+        currentDayIndex = idx;
+        document.querySelectorAll('.day-selector').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderTable();
+    }
+
+    function renderTable() {
+        const table = document.getElementById('roomTable');
+        table.innerHTML = '';
+
+        // 表头
+        const thead = document.createElement('tr');
+        thead.innerHTML = '<th>Time</th>';
+        ROOMS.forEach(r => {
+            // 显示 +G 代表 GST
+            thead.innerHTML += `<th>${r.name}<br><span class="price-tag"><span class="price-val">$${r.price}</span>+GST</span></th>`;
+        });
+        table.appendChild(thead);
+
+        // 表格内容
+        HOURS.forEach(time => {
+            const row = document.createElement('tr');
+            
+            // 第一列：时间
+            const timeCell = document.createElement('td');
+            timeCell.textContent = time;
+            row.appendChild(timeCell);
+
+            const hourInt = parseInt(time.split(':')[0]);
+
+            // 教室列
+            ROOMS.forEach(r => {
+                const cell = document.createElement('td');
+                
+                // 检查占用
+                const isBooked = bookedSlots.some(b => b.room === r.id && b.day === currentDayIndex && b.hour === hourInt);
+                
+                if (isBooked) {
+                    cell.className = 'cell-booked';
+                    cell.textContent = 'Busy';
+                } else {
+                    cell.className = 'cell-free';
+                    cell.innerHTML = '<span style="color:#ddd;font-size:1.2rem">+</span>';
+                    cell.onclick = () => openBooking(r, time, hourInt);
+                }
+                row.appendChild(cell);
+            });
+
+            table.appendChild(row);
+        });
+    }
+
+    let selectedSlot = null;
+
+    function openBooking(room, time, hourInt) {
+        selectedSlot = {room, time, hourInt};
+        
+        // 计算含税价 (15% GST)
+        const gstPrice = (room.price * 1.15).toFixed(2); 
+        
+        document.getElementById('mRoomName').textContent = room.name;
+        document.getElementById('mDate').textContent = `${DAYS[currentDayIndex]}, Nov 2026`; // 仅演示，未动态计算具体日期
+        document.getElementById('mTime').textContent = `${time} - ${hourInt+1}:00`;
+        document.getElementById('mPrice').textContent = `$${gstPrice}`;
+        
+        document.getElementById('bookingModal').style.display = 'flex';
+    }
+
+    function confirmHire() {
+        if(!selectedSlot) return;
+        
+        // 模拟 API 请求
+        // 真实情况：await fetch('/api/book-room', ...)
+        
+        alert(`✅ Booking Success!\nRoom: ${selectedSlot.room.name}\nWe will send you an invoice.`);
+        
+        // 更新本地视图
+        bookedSlots.push({
+            room: selectedSlot.room.id,
+            day: currentDayIndex,
+            hour: selectedSlot.hourInt
+        });
+        
+        document.getElementById('bookingModal').style.display = 'none';
+        renderTable(); 
+    }
+
+    init();
+</script>
+</body>
+</html>
