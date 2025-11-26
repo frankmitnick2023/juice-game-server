@@ -25,6 +25,7 @@ app.use(session({
 async function initDB() {
   const client = await pool.connect();
   try {
+    // 1. 建表结构 (如果不存在)
     await client.query(`CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       email TEXT UNIQUE,
@@ -71,22 +72,66 @@ async function initDB() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
 
-    // 种子数据
-    const { rows } = await client.query("SELECT count(*) as count FROM courses");
-    if (parseInt(rows[0].count) === 0) {
-      const courses = [
-        {name: 'Ballet Grade 1', day: 'Monday', start: '16:00', end: '17:00', t: 'Miss A', p: 230, c: 'Studio 1', age: '6-8'},
-        {name: 'Jazz Junior', day: 'Monday', start: '17:00', end: '18:00', t: 'Miss B', p: 230, c: 'Studio 2', age: '6-8'},
-        {name: 'HipHop Level 1', day: 'Wednesday', start: '16:00', end: '17:00', t: 'Nana', p: 230, c: 'Studio 3', age: '6-10'},
-        {name: 'K-Pop Kids', day: 'Saturday', start: '10:00', end: '11:00', t: 'Mike', p: 240, c: 'Studio 1', age: '8-12'}
-      ];
-      for (const c of courses) {
-        await client.query(
-          "INSERT INTO courses (name, day_of_week, start_time, end_time, teacher, price, casual_price, classroom, age_group) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-          [c.name, c.day, c.start, c.end, c.t, c.p, 25, c.c, c.age]
-        );
-      }
+    // 2. ★★★ 强制清空旧课程 (保证每次部署都是最新课表) ★★★
+    // 注意：这会删除所有旧的课程数据，重新写入下面的真实数据
+    await client.query("TRUNCATE TABLE courses RESTART IDENTITY CASCADE");
+    console.log("Old courses cleared. Seeding 2026 Term 1 Timetable...");
+
+    // 3. ★★★ 录入 2026 Term 1 真实课表 ★★★
+    const courses = [
+      // --- MONDAY ---
+      {name: 'RAD Ballet Grade 5', day: 'Monday', start: '16:00', end: '17:00', t: 'Demi', p: 230, c: 'Studio 1', age: '9-11'},
+      {name: 'Flexibility Core & Acro', day: 'Monday', start: '17:00', end: '18:00', t: 'Cindy', p: 230, c: 'Studio 2', age: '9-11'},
+      {name: 'RAD Ballet Grade 3', day: 'Monday', start: '18:00', end: '19:00', t: 'Liu', p: 230, c: 'Studio 1', age: '9'},
+      
+      // --- TUESDAY ---
+      {name: 'Open Ballet Foundation', day: 'Tuesday', start: '16:00', end: '17:00', t: 'Carrie', p: 230, c: 'Studio 1', age: 'Beginner'},
+      {name: 'Open Acro & Flexibility', day: 'Tuesday', start: '17:00', end: '18:00', t: 'Demi', p: 230, c: 'Studio 2', age: 'Beginner'},
+      {name: 'Open Dance Troupe', day: 'Tuesday', start: '19:00', end: '20:00', t: 'Cindy', p: 230, c: 'Studio 1', age: '12+'},
+      
+      // --- WEDNESDAY ---
+      {name: 'RAD Ballet Grade 4', day: 'Wednesday', start: '16:00', end: '17:00', t: 'Demi', p: 230, c: 'Studio 1', age: '9-10'},
+      {name: 'Flexibility Core & Acro', day: 'Wednesday', start: '17:00', end: '18:00', t: 'Cindy', p: 230, c: 'Studio 2', age: '9-13'},
+      {name: 'RAD Intermediate Foundation', day: 'Wednesday', start: '18:00', end: '19:00', t: 'Demi', p: 230, c: 'Studio 1', age: '10-13'},
+      
+      // --- THURSDAY ---
+      {name: 'Flexibility Core & Acro', day: 'Thursday', start: '16:00', end: '17:00', t: 'Cindy', p: 230, c: 'Studio 2', age: '7-8'},
+      {name: 'RAD Ballet Grade 1', day: 'Thursday', start: '17:00', end: '18:00', t: 'Carrie', p: 230, c: 'Studio 1', age: '7'},
+      {name: 'RAD Intermediate', day: 'Thursday', start: '17:30', end: '19:00', t: 'Tonia', p: 260, c: 'Studio 3', age: '10+'}, // 1.5h
+      {name: 'Open Ballet & Pointe', day: 'Thursday', start: '19:00', end: '20:00', t: 'Tonia', p: 230, c: 'Studio 1', age: '10-15'},
+      {name: 'RAD Advanced 1', day: 'Thursday', start: '20:00', end: '21:30', t: 'Tonia', p: 260, c: 'Studio 1', age: '13-14'},
+
+      // --- FRIDAY ---
+      {name: 'RAD Ballet Grade 1', day: 'Friday', start: '16:00', end: '17:00', t: 'Carrie', p: 230, c: 'Studio 1', age: '7'},
+      {name: 'Hiphop Level 1', day: 'Friday', start: '16:00', end: '17:00', t: 'Nana', p: 230, c: 'Studio 2', age: '6-8'},
+      {name: 'Open Ballet Pilates', day: 'Friday', start: '17:00', end: '18:00', t: 'Asa', p: 230, c: 'Studio 1', age: '7-9'},
+      {name: 'Hiphop Level 2', day: 'Friday', start: '17:00', end: '18:00', t: 'Nana', p: 230, c: 'Studio 2', age: '9-15'},
+      {name: 'Open Contemp Foundation', day: 'Friday', start: '18:00', end: '19:00', t: 'Asa', p: 230, c: 'Studio 1', age: '7-9'},
+
+      // --- SATURDAY (Busy Day!) ---
+      {name: 'RAD Ballet Primary', day: 'Saturday', start: '09:30', end: '11:00', t: 'Carrie', p: 240, c: 'Studio 1', age: '5'},
+      {name: 'RAD Beginner Class', day: 'Saturday', start: '11:00', end: '12:00', t: 'Demi', p: 230, c: 'Studio 2', age: '3-4.5'},
+      {name: 'K-Pop Girl Group', day: 'Saturday', start: '11:00', end: '12:30', t: 'Hazel', p: 240, c: 'Studio 3', age: '11-16'},
+      {name: 'NZAMD Jazz Level 1', day: 'Saturday', start: '12:00', end: '13:00', t: 'Katie', p: 230, c: 'Studio 1', age: '5-6'},
+      {name: 'RAD Ballet Grade 2', day: 'Saturday', start: '12:00', end: '13:00', t: 'Demi', p: 230, c: 'Studio 2', age: '8'},
+      {name: 'Lyrical Dance Troupe', day: 'Saturday', start: '13:00', end: '14:00', t: 'Cindy', p: 230, c: 'Studio 3', age: '8+'},
+      {name: 'PBT Ballet Technique', day: 'Saturday', start: '13:00', end: '14:00', t: 'Carrie', p: 230, c: 'Studio 1', age: '7-8'},
+      {name: 'NZAMD Jazz Level 3', day: 'Saturday', start: '13:00', end: '14:00', t: 'Katie', p: 230, c: 'Studio 2', age: '9-10'},
+      {name: 'RAD Ballet Grade 1', day: 'Saturday', start: '14:00', end: '15:00', t: 'Demi', p: 230, c: 'Studio 2', age: '7'},
+      {name: 'Hiphop Level 1', day: 'Saturday', start: '14:15', end: '15:15', t: 'Gabriel', p: 230, c: 'Studio 3', age: '6-8'},
+      {name: 'RAD Ballet Grade 4', day: 'Saturday', start: '15:00', end: '16:00', t: 'Demi', p: 230, c: 'Studio 1', age: '9-10'},
+      {name: 'Breaking Level 2', day: 'Saturday', start: '15:15', end: '16:15', t: 'Gabriel', p: 230, c: 'Studio 3', age: '8-11'},
+      {name: 'NZAMD Jazz Level 2', day: 'Saturday', start: '15:30', end: '16:30', t: 'Katie', p: 230, c: 'Studio 2', age: '6.5-8'},
+      {name: 'RAD P-Primary', day: 'Saturday', start: '15:30', end: '16:15', t: 'Carrie', p: 230, c: 'Studio 1', age: '4-5'}
+    ];
+
+    for (const c of courses) {
+      await client.query(
+        "INSERT INTO courses (name, day_of_week, start_time, end_time, teacher, price, casual_price, classroom, age_group) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+        [c.name, c.day, c.start, c.end, c.t, c.p, 25, c.c, c.age]
+      );
     }
+    console.log("Timetable loaded successfully!");
 
   } catch (err) { console.error(err); } finally { client.release(); }
 }
@@ -146,13 +191,12 @@ app.get('/api/me', requireLogin, async (req, res) => {
 
 app.post('/api/logout', (req, res) => { req.session.destroy(); res.json({ success: true }); });
 
-// --- ★★★ 重点修改：带年龄筛选的课程推荐接口 ★★★ ---
+// --- ★★★ 课程推荐接口 ★★★ ---
 app.get('/api/courses/recommended', async (req, res) => {
   try {
     let age = 7; 
     let filterByAge = false;
 
-    // 1. 获取用户真实年龄
     if (req.session.userId) {
         const uRes = await pool.query("SELECT dob FROM users WHERE id = $1", [req.session.userId]);
         if (uRes.rows.length > 0) {
@@ -161,24 +205,28 @@ app.get('/api/courses/recommended', async (req, res) => {
         }
     }
     
-    // 2. 获取所有课程
     const result = await pool.query("SELECT * FROM courses");
     let allCourses = result.rows;
 
-    // 3. 执行过滤逻辑
     if (filterByAge) {
         allCourses = allCourses.filter(c => {
-            if (!c.age_group) return true; // 没写年龄限制的课，所有人可见
+            if (!c.age_group) return true; // 无限制
+            if (c.age_group === 'Beginner') return true; // 初学者课都显示
             
-            // 解析 "6-8" 或 "8-12" 这种字符串
-            const parts = c.age_group.split('-');
-            if (parts.length === 2) {
-                const min = parseInt(parts[0]);
-                const max = parseInt(parts[1]);
-                // 判断逻辑：只要年龄在范围内，或者是成年人(假设18+)看稍大的课
+            // 1. 区间 "9-10"
+            if (c.age_group.includes('-')) {
+                const parts = c.age_group.split('-');
+                const min = parseFloat(parts[0]);
+                const max = parseFloat(parts[1]);
                 return age >= min && age <= max;
             }
-            return true; 
+            // 2. 最小年龄 "12+"
+            if (c.age_group.includes('+')) {
+                const min = parseFloat(c.age_group);
+                return age >= min;
+            }
+            // 3. 单一数字 "5"
+            return age === parseFloat(c.age_group);
         });
     }
 
@@ -204,7 +252,7 @@ app.post('/api/book-course', requireLogin, async (req, res) => {
   const userId = req.session.userId;
   try {
     const check = await pool.query("SELECT * FROM bookings WHERE user_id = $1 AND course_id = $2 AND type = 'term'", [userId, courseId]);
-    if (check.rows.length > 0) return res.status(400).json({ success: false, message: '已报名该课程整学期' });
+    if (check.rows.length > 0) return res.status(400).json({ success: false, message: '已报名该课程整学期 (Already Joined)' });
 
     const datesJson = JSON.stringify(selectedDates || []);
     await pool.query(
@@ -239,7 +287,6 @@ app.get('/api/my-invoices', requireLogin, async (req, res) => {
     } catch(e) { res.json([]); }
 });
 
-// --- Uploads ---
 app.post('/api/upload-trophy-v2', requireLogin, upload.fields([{ name: 'mainImage', maxCount: 1 }, { name: 'extraImages', maxCount: 9 }]), async (req, res) => {
     const mainImg = req.files['mainImage'] ? '/uploads/' + req.files['mainImage'][0].filename : null;
     const extras = req.files['extraImages'] ? req.files['extraImages'].map(f => '/uploads/' + f.filename) : [];
