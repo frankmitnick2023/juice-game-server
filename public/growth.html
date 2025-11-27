@@ -11,26 +11,20 @@
     .container { max-width: 800px; margin: 1rem auto; padding: 0 1rem; }
     .card { background: #1a1a2e; border-radius: 15px; padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid rgba(255,255,255,0.1); }
     .c-title { color:#4facfe; font-size:1.2rem; font-weight:bold; margin-bottom:1rem; border-left: 4px solid #e94560; padding-left: 10px; }
-    
-    /* Chart Area */
     .chart-area { background: #2a2a4a; padding: 20px; border-radius: 12px; margin-bottom: 15px; }
     #radarBox { width: 100%; height: 300px; margin: 0 auto; }
-    
-    /* Progress Bars */
     .progress-item { margin-bottom:12px; }
     .p-label { display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:4px; color:#ccc }
     .p-track { background:#0f3460; height:8px; border-radius:4px; overflow:hidden}
     .p-fill { height:100%; background:#2ed573; border-radius:4px}
-    
-    /* Recommendations */
     .rec-card { background:#16213e; padding:15px; border-radius:8px; border-left: 4px solid #ff9966; margin-top:10px; }
     .rec-title { color:#ff9966; font-weight:bold; margin-bottom:5px; }
     .rec-reason { font-size:0.85rem; color:#ccc; }
 
-    /* Nav */
+    /* ★★★ Navigation Bar (Corrected) ★★★ */
     .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #16213e; border-top: 1px solid #333; display: flex; justify-content: space-around; padding: 8px 0; z-index: 99; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
-    .nav-item { text-decoration: none; color: #888; font-size: 0.75rem; text-align: center; flex: 1; }
-    .nav-icon { font-size: 1.4rem; margin-bottom: 2px; display: block; }
+    .nav-item { text-decoration: none; color: #888; font-size: 0.75rem; text-align: center; display: flex; flex-direction: column; align-items: center; flex: 1; }
+    .nav-icon { font-size: 1.4rem; margin-bottom: 2px; }
     .nav-item.active { color: #e94560; }
   </style>
 </head>
@@ -41,9 +35,7 @@
     <div class="card">
         <div class="c-title">六维度能力评估 (Abilities Radar)</div>
         <div class="chart-area">
-            <div id="radarBox">
-                <canvas id="abilitiesChart"></canvas>
-            </div>
+            <div id="radarBox"><canvas id="abilitiesChart"></canvas></div>
         </div>
     </div>
     
@@ -60,34 +52,28 @@
         <div class="c-title">📌 活动任务 (Quests)</div>
         <div style="color:#ccc; font-size:0.9rem">Attend the New Year Show (Experience +10).</div>
     </div>
-
 </div>
 
 <div class="nav-bar">
-    <a href="/games.html" class="nav-item"><span class="nav-icon">🎮</span>Hub</a>
-    <a href="/my_schedule.html" class="nav-item"><span class="nav-icon">📅</span>Schedule</a>
-    <a href="/timetable.html" class="nav-item"><span class="nav-icon">🛒</span>Market</a>
-    <a href="/rooms.html" class="nav-item"><span class="nav-icon">🔑</span>Rooms</a>
+    <a href="/games.html" class="nav-item"><span class="nav-icon">🎮</span>Home<br>(大厅)</a>
+    <a href="/my_schedule.html" class="nav-item"><span class="nav-icon">📅</span>Schedule<br>(课表)</a>
+    <a href="/timetable.html" class="nav-item"><span class="nav-icon">🛒</span>Book<br>(选课)</a>
+    <a href="#" class="nav-item active"><span class="nav-icon">📊</span>Growth<br>(成长)</a>
+    <a href="/rooms.html" class="nav-item"><span class="nav-icon">🔑</span>Rooms<br>(教室)</a>
 </div>
 
 <script>
     async function loadData() {
         try {
-            const res = await fetch('/api/my-progress');
+            const res = await fetch('/api/my-stats');
             const data = await res.json();
             
             if (!data.success) {
                  document.getElementById('progressStats').innerHTML = '<div style="color:red">Failed to load data. Please log in again.</div>';
                  return;
             }
-            
-            // 1. Render Radar Chart
             renderRadar(data.stats);
-
-            // 2. Render Progress Bars
             renderProgress(data.progress);
-            
-            // 3. Render Recommendations (Mock logic)
             renderRecommendations(data.stats);
 
         } catch (e) {
@@ -98,13 +84,8 @@
     function renderRadar(stats) {
         const ctx = document.getElementById('abilitiesChart');
         if (!ctx) return;
-        
         const labels = ['柔韧度 (Flex)', '力量 (Str)', '节奏 (Rhythm)', '记忆 (Mem)', '技巧 (Tech)', '勤奋度 (Ded)'];
-        const dataValues = [
-            stats.flexibility, stats.strength, stats.stats.rhythm, 
-            stats.memory, stats.technique, stats.dedication
-        ];
-
+        const dataValues = [stats.flexibility, stats.strength, stats.rhythm, stats.memory, stats.technique, stats.dedication];
         new Chart(ctx, {
             type: 'radar',
             data: {
@@ -112,8 +93,8 @@
                 datasets: [{
                     label: 'Current Ability',
                     data: dataValues,
-                    backgroundColor: 'rgba(233, 69, 96, 0.4)',
-                    borderColor: '#e94560',
+                    backgroundColor: 'rgba(79, 172, 254, 0.4)',
+                    borderColor: '#4facfe',
                     pointBackgroundColor: '#fff',
                     borderWidth: 2
                 }]
@@ -139,43 +120,30 @@
     function renderProgress(progressData) {
         const statsDiv = document.getElementById('progressStats');
         statsDiv.innerHTML = '';
-        if (progressData.length === 0) {
+        if (!progressData || progressData.length === 0) {
             statsDiv.innerHTML = '<div style="color:#888">No attendance records yet.</div>';
             return;
         }
-
         progressData.forEach(p => {
             const hours = p.cumulative_hours.toFixed(1);
-            const target = p.course_category.includes('RAD') || p.course_category.includes('NZAMD') ? 30 : 20; // 考试课程目标更高
+            const target = p.course_category.includes('RAD') ? 30 : 20;
             const percent = Math.min(100, (hours / target) * 100);
-            
             statsDiv.innerHTML += `
                 <div class="progress-item">
-                    <div class="p-label">
-                        <span>${p.course_category} (Hours for Exam)</span> 
-                        <span>${hours}/${target}h</span>
-                    </div>
-                    <div class="p-track">
-                        <div class="p-fill" style="width:${percent}%"></div>
-                    </div>
+                    <div class="p-label"><span>${p.course_category}</span> <span>${hours}/${target}h</span></div>
+                    <div class="p-track"><div class="p-fill" style="width:${percent}%"></div></div>
                 </div>`;
         });
     }
 
     function renderRecommendations(stats) {
-        // Mock recommendation: If Flexibility is low (<40), recommend a stretch class
         if (stats.flexibility < 40) {
             document.getElementById('recommendations').innerHTML = `
-                <div class="rec-card">
-                    <div class="rec-title">FLEXIBILITY CORE & ACRO (软开核心)</div>
-                    <div class="rec-reason">Your Flexibility score is low (${stats.flexibility}/100). This class is crucial for improving line and amplitude.</div>
-                </div>
-            `;
+                <div class="rec-card"><div class="rec-title">FLEXIBILITY CORE & ACRO</div><div class="rec-reason">Flexibility score low (${stats.flexibility}).</div></div>`;
         } else {
-             document.getElementById('recommendations').innerHTML = '<div style="color:#888">All core stats are good! Keep practicing.</div>';
+             document.getElementById('recommendations').innerHTML = '<div style="color:#888">All stats good!</div>';
         }
     }
-
 
     loadData();
 </script>
