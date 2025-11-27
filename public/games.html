@@ -241,6 +241,7 @@ async function submitAwardUpload() {
         if (mode === 'battle') { 
             lobby.style.display = 'none'; 
             games.style.display = 'block'; 
+			loadGames();
             // 启动虚拟校园
             if (!gameInstance) {
                 // 延迟一点点确保容器已渲染
