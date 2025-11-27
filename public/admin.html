@@ -5,35 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Admin Dashboard</title>
   <style>
+    /* ... Keep existing CSS ... */
     body{font-family:'Segoe UI', sans-serif;margin:0;background:#f2f4f8;padding-bottom:4rem}
-    
-    /* Header & Nav */
     .header{background:#2c3e50;color:white;padding:1rem;position:sticky;top:0;z-index:1000;display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,0.1)}
     .nav-tabs{display:flex;gap:20px}
     .nav-tab{cursor:pointer;opacity:0.6;font-weight:bold;padding-bottom:5px;transition:0.3s;color:white;text-decoration:none}
     .nav-tab.active{opacity:1;border-bottom:3px solid #e94560}
-    
-    .container{padding:15px;max-width:1400px;margin:0 auto} /* Wide for calendar */
-    
-    .tab-content-card {background:white; padding:20px; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.05); margin-bottom:20px; min-height:600px;}
-
-    /* === Standard Forms & Tables (For Courses, Invoices) === */
-    .form-grid {display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:15px; margin-bottom:15px}
-    input, select {width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box}
-    label {font-size:0.8rem; color:#666; font-weight:bold; display:block; margin-bottom:5px}
-    .btn-add {background:#27ae60; color:white; border:none; padding:12px 25px; border-radius:6px; font-weight:bold; cursor:pointer; width:100%}
-    .btn-del {background:#e74c3c; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer}
-    
+    .container{padding:15px;max-width:1400px;margin:0 auto}
+    .tab-content-card {background:white; padding:20px; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,0.05); margin-bottom:20px; min-height:auto;}
     table {width:100%; border-collapse:collapse; margin-top:10px}
     th {text-align:left; padding:10px; border-bottom:2px solid #eee; color:#888; font-size:0.85rem}
     td {padding:12px 10px; border-bottom:1px solid #eee; font-size:0.9rem}
-
-    /* Filters */
     .filter-bar {display:flex; flex-wrap:wrap; gap:10px; margin-bottom:15px; padding:10px 0; border-bottom:1px solid #eee;}
     .filter-control {flex:1; min-width:120px;}
     .filter-control select {padding:8px 10px; font-size:0.9rem; border:1px solid #ccc; width:100%}
+    .status-paid {color:#2ed573; font-weight:bold; display:flex; align-items:center; gap:5px}
+    .status-unpaid {color:#ff4757; font-weight:bold}
+    .btn-mark-paid {background:#2ed573; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer; font-size:0.8rem}
+    .btn-mark-paid:hover {background:#21b860}
 
-    /* === Calendar/CheckIn Styles (The Nice Chart) === */
+    /* Calendar Grid Styles (Enhanced) */
     .cal-toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid #eee; padding-bottom:10px; }
     .cal-date-display { font-size:1.5rem; font-weight:bold; color:#333; }
     .cal-toggles button { padding:8px 16px; border:1px solid #ddd; background:white; cursor:pointer; font-weight:bold; }
@@ -45,40 +36,61 @@
     .event-grid { flex-grow: 1; position: relative; background: white; }
     .grid-lines { position: absolute; top:0; left:0; width:100%; height:100%; pointer-events: none; }
     .grid-line-h { height: 60px; border-bottom: 1px dashed #f0f0f0; box-sizing: border-box; }
+    
+    /* Day Headers (Updated for Dates) */
     .day-headers { display: flex; margin-left: 60px; border-bottom: 1px solid #ddd; background: white; position: sticky; top: 0; z-index: 10; }
-    .day-header-cell { flex: 1; text-align: center; padding: 10px; font-weight: bold; border-right: 1px solid #eee; background:#f8f9fa; }
+    .day-header-cell { flex: 1; text-align: center; padding: 10px; font-weight: bold; border-right: 1px solid #eee; background:#f8f9fa; font-size: 0.9rem; }
 
-    .class-event {
-        position: absolute; width: 13%; border-radius: 4px; padding: 4px 6px; font-size: 0.7rem; color: #fff;
-        overflow: hidden; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.15); border-left: 4px solid rgba(0,0,0,0.2);
-        z-index: 2; transition: 0.1s; line-height: 1.2;
+    /* Class Events (Updated Colors & Spacing) */
+    .class-event { 
+        position: absolute; width: 13%; border-radius: 4px; padding: 4px 6px; font-size: 0.75rem; color: #fff; overflow: hidden; cursor: pointer; 
+        box-shadow: 0 2px 4px rgba(0,0,0,0.15); border-left: 4px solid rgba(0,0,0,0.2); z-index: 2; transition: 0.1s; line-height: 1.3;
+        /* Add tiny margin to prevent overlap look */
+        margin: 1px; 
     }
     .class-event:hover { z-index: 10; transform: scale(1.02); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
-    .evt-rad { background: #64b5f6; border-color: #1976d2; color: #0d47a1; }
-    .evt-jazz { background: #ffb74d; border-color: #f57c00; color: #e65100; }
-    .evt-hiphop { background: #ba68c8; border-color: #7b1fa2; color: #4a148c; }
-    .evt-kpop { background: #f06292; border-color: #c2185b; color: #880e4f; }
-    .evt-other { background: #90a4ae; border-color: #455a64; color: #263238; }
+    
+    /* Color Coding Logic (Based on Content) */
+    .evt-rad { background: #64b5f6; border-color: #1976d2; color: #0d47a1; } /* Light Blue for RAD/Ballet */
+    .evt-jazz { background: #ffb74d; border-color: #f57c00; color: #e65100; } /* Orange for Jazz */
+    .evt-hiphop { background: #ba68c8; border-color: #7b1fa2; color: #4a148c; } /* Purple for Hiphop */
+    .evt-kpop { background: #f06292; border-color: #c2185b; color: #880e4f; } /* Pink for K-Pop */
+    .evt-contemp { background: #4db6ac; border-color: #00796b; color: #004d40; } /* Teal for Contemporary */
+    .evt-other { background: #90a4ae; border-color: #455a64; color: #263238; } /* Grey for others */
 
     .red-line { position: absolute; left: 0; width: 100%; height: 2px; background: red; z-index: 20; pointer-events: none; display:none; }
-    .red-line::before { content: ''; position: absolute; left: -6px; top: -4px; width: 10px; height: 10px; background: red; border-radius: 50%; }
 
-    /* === Invoice/Review Styles === */
-    .status-paid {background:#2ed573; color:white; padding:4px 8px; border-radius:4px; font-weight:bold}
-    .status-unpaid {background:#ff4757; color:white; padding:4px 8px; border-radius:4px; font-weight:bold}
-    .btn-pay, .btn-unpay {background:#4a90e2; color:white; border:none; padding:6px 12px; border-radius:4px; cursor:pointer}
-    .btn-unpay {background:#ff4757}
+    /* Review Styles (Updated Buttons) */
+    .review-card { border-left: 5px solid #e94560; margin-bottom:20px; padding:20px; background:#f9f9f9; border-radius:8px; }
+    .r-header { font-size:1.1rem; margin-bottom:10px; display:flex; justify-content:space-between; border-bottom:1px solid #eee; padding-bottom:10px; }
+    .r-gallery { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; margin: 15px 0; }
+    .r-main-img { height: 200px; border-radius: 8px; cursor: zoom-in; border:2px solid #e94560; transition:transform 0.2s; }
+    .r-main-img:hover { transform:scale(1.02); }
+    .r-extra-img { height: 80px; border-radius: 4px; opacity: 0.8; cursor: zoom-in; border:1px solid #ddd; }
+    .r-extra-img:hover { opacity: 1; }
     
-    .review-card { border-left: 5px solid #e94560; margin-bottom:15px; padding:15px; border-radius:8px; background: #f9f9f9; }
-    .r-gallery { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; margin: 10px 0; }
-    .r-main-img { height: 150px; border-radius: 5px; cursor: zoom-in; }
-    .btn-audit { margin-right:5px; padding:8px 12px; cursor:pointer; border:none; border-radius:4px; font-weight:bold; color:#333; }
-    .btn-gold { background: #ffd700; } .btn-silver { background: #e0e0e0; } .btn-bronze { background: #cd7f32; color:white; }
-    .btn-approve { background:#2ed573; color:white; } .btn-reject { background:#ff4757; color:white; }
+    /* Expanded Approval Buttons */
+    .action-area { background:white; padding:15px; border-radius:8px; border:1px solid #eee; }
+    .btn-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .btn-audit { padding:8px 12px; border:none; border-radius:6px; cursor:pointer; font-weight:bold; color:#333; transition:0.2s; display:flex; align-items:center; gap:5px; font-size:0.85rem; }
+    .btn-audit:hover { transform:translateY(-2px); box-shadow:0 2px 5px rgba(0,0,0,0.1); }
+    
+    .btn-gold { background: #ffd700; } 
+    .btn-silver { background: #e0e0e0; } 
+    .btn-bronze { background: #cd7f32; color:white; }
+    .btn-medal { background: #fff; border:2px solid #ffd700; color:#b8860b; }
+    .btn-cert { background: #fff; border:1px solid #ccc; color:#666; }
+    .btn-badge { background: #e1f5fe; border:1px solid #81d4fa; color:#0277bd; }
+    .btn-reject { background: #ff4757; color: white; margin-left:auto; }
 
-    /* Modal */
     .modal-overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); z-index: 2000; justify-content: center; align-items: center; }
-    .modal-box { background: white; width: 500px; padding: 20px; border-radius: 10px; max-height:80vh; overflow-y:auto; }
+    .modal-box { background: white; width: 500px; padding: 20px; border-radius: 10px; max-height:80vh; overflow-y:auto; position:relative; }
+    .close-modal { position:absolute; top:15px; right:15px; font-size:1.5rem; cursor:pointer; }
+    .modal-img-preview { max-width:100%; max-height:80vh; display:block; margin:0 auto; }
+    .form-grid {display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:15px; margin-bottom:15px}
+    input, select {width:100%; padding:10px; border:1px solid #ddd; border-radius:6px}
+    .btn-add {background:#27ae60; color:white; border:none; padding:12px 25px; border-radius:6px; cursor:pointer; width:100%}
+    .btn-del {background:#e74c3c; color:white; padding:5px 10px; border-radius:4px; cursor:pointer; border:none}
     .student-row { padding:10px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; }
   </style>
 </head>
@@ -108,20 +120,16 @@
         </div>
         <button class="btn-add" onclick="addCourse()">➕ Add Course</button>
     </div>
-
     <div class="tab-content-card">
         <h3>Course List</h3>
         <div class="filter-bar">
-            <div class="filter-control"><select id="filterDay" onchange="filterAndRender()"><option value="">Day</option></select></div>
-            <div class="filter-control"><select id="filterTeacher" onchange="filterAndRender()"><option value="">Teacher</option></select></div>
-            <div class="filter-control"><select id="filterAge" onchange="filterAndRender()"><option value="">Age</option></select></div>
-            <div class="filter-control"><select id="filterRoom" onchange="filterAndRender()"><option value="">Room</option></select></div>
-            <div class="filter-control"><select id="filterTime" onchange="filterAndRender()"><option value="">Time</option></select></div>
+            <div class="filter-control"><select id="filterDay" onchange="filterAndRender()"></select></div>
+            <div class="filter-control"><select id="filterTeacher" onchange="filterAndRender()"></select></div>
+            <div class="filter-control"><select id="filterAge" onchange="filterAndRender()"></select></div>
+            <div class="filter-control"><select id="filterRoom" onchange="filterAndRender()"></select></div>
+            <div class="filter-control"><select id="filterTime" onchange="filterAndRender()"></select></div>
         </div>
-        <table>
-            <thead><tr><th>Day</th><th>Time</th><th>Room</th><th>Name</th><th>Teacher</th><th>Age</th><th>Action</th></tr></thead>
-            <tbody id="courseTable"><tr><td colspan="7">Loading...</td></tr></tbody>
-        </table>
+        <table id="courseTable"><thead><tr><th>Day</th><th>Time</th><th>Room</th><th>Name</th><th>Teacher</th><th>Age</th><th>Action</th></tr></thead><tbody id="courseBody"></tbody></table>
     </div>
 </div>
 
@@ -134,23 +142,23 @@
 
 <div id="tabInvoices" class="container" style="display:none">
     <div class="tab-content-card">
-        <h3>All Bookings & Invoices</h3>
+        <h3>Bookings & Invoices</h3>
         <div class="filter-bar">
-             <div class="filter-control"><select id="filterBookingDay" onchange="filterAndRenderBookings()"><option value="">Day</option></select></div>
-             <div class="filter-control"><select id="filterBookingAge" onchange="filterAndRenderBookings()"><option value="">Age</option></select></div>
+            <div class="filter-control"><select id="filterBookingDay" onchange="filterBookings()"><option value="">All Days</option></select></div>
+            <div class="filter-control"><select id="filterBookingAge" onchange="filterBookings()"><option value="">All Ages</option></select></div>
         </div>
-        <table>
-            <thead><tr><th>Student</th><th>Course</th><th>Amount</th><th>Day/Time</th><th>Status</th><th>Action</th></tr></thead>
-            <tbody id="invoiceTable"><tr><td colspan="6">Loading...</td></tr></tbody>
-        </table>
+        <table id="invoiceTable"><thead><tr><th>Student</th><th>Course</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead><tbody id="invoiceBody"></tbody></table>
     </div>
 </div>
 
 <div id="tabCheckin" class="container" style="display:none">
-    <div class="tab-content-card" style="padding: 0; overflow: hidden;">
+    <div class="tab-content-card" style="padding:0; overflow:hidden">
         <div class="cal-toolbar" style="padding: 15px 20px;">
             <div class="cal-date-display" id="calTitle">Weekly Schedule</div>
-            <div class="cal-toggles"><button onclick="location.reload()">Refresh</button></div>
+            <div class="cal-toggles">
+                <button onclick="changeView('day')" id="btnViewDay">Day</button>
+                <button onclick="changeView('week')" id="btnViewWeek" class="active">Week</button>
+            </div>
         </div>
         <div class="day-headers" id="weekHeaders"></div>
         <div class="calendar-wrapper" id="calWrapper">
@@ -163,18 +171,16 @@
     </div>
 </div>
 
-<div id="checkInModal" class="modal-overlay">
-    <div class="modal-box">
-        <h3 id="modalTitle"></h3>
-        <div id="modalContent"></div>
-        <button onclick="document.getElementById('checkInModal').style.display='none'" style="width:100%;padding:10px;margin-top:10px">Close</button>
-    </div>
-</div>
+<div id="checkInModal" class="modal-overlay"><div class="modal-box"><h3 id="modalTitle"></h3><div id="modalContent"></div><button onclick="document.getElementById('checkInModal').style.display='none'" style="width:100%;padding:10px;margin-top:10px">Close</button></div></div>
+<div id="imgModal" class="modal-overlay" onclick="this.style.display='none'"><div class="modal-box" style="width:auto; max-width:90%; background:transparent; box-shadow:none; padding:0;"><img id="imgPreview" class="modal-img-preview"></div></div>
 
 <script>
     let globalCourses = [], globalBookings = [];
     const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    const START_HOUR = 9, END_HOUR = 21, PIXELS_PER_HOUR = 60; 
+    const ROOM_NAMES = ['Studio 1', 'Studio 2', 'Studio 3', 'Studio 4', 'Studio 5', 'Studio 6', 'Studio 7', 'Yoga Room'];
+    const START_HOUR = 9, END_HOUR = 21, PIXELS_PER_HOUR = 60;
+    let currentView = 'week'; 
+    let scheduleData = {};
 
     function switchTab(t) {
         ['courses','reviews','invoices','checkin'].forEach(tab => document.getElementById('tab'+tab.charAt(0).toUpperCase()+tab.slice(1)).style.display = (tab===t?'block':'none'));
@@ -183,129 +189,148 @@
         if(t==='courses') loadCourses();
         else if(t==='reviews') loadReviews();
         else if(t==='invoices') loadBookings();
-        else if(t==='checkin') setupCalendar();
+        else if(t==='checkin') setupCheckInGrid();
     }
 
-    // --- 1. Course Logic ---
-    async function loadCourses() {
-        try {
-            const res = await fetch('/api/admin/all-courses'); globalCourses = await res.json();
-            populateFilters(globalCourses);
-        } catch(e) { console.error(e); }
-    }
-    function populateFilters(data) {
-        const getOpts = k => [...new Set(data.map(i=>i[k]).filter(v=>v))].sort();
-        ['Day','Teacher','Age','Room','Time'].forEach(k => {
-            const sel = document.getElementById('filter'+k);
-            if(sel) {
-                sel.innerHTML = `<option value="">${k}</option>`;
-                getOpts(k==='Time'?'start_time':(k==='Room'?'classroom':(k==='Day'?'day_of_week':k.toLowerCase()))).forEach(v => sel.innerHTML += `<option value="${v}">${v}</option>`);
-            }
-        });
-        filterAndRender();
-    }
+    // --- 1. Courses ---
+    function getUnique(data, key) { return [...new Set(data.map(i => i[key]).filter(v => v))].sort(); }
+    function populateSelect(id, values, label) { const el = document.getElementById(id); if(el) el.innerHTML = `<option value="">${label}</option>` + values.map(v => `<option value="${v}">${v}</option>`).join(''); }
+    async function loadCourses() { const res = await fetch('/api/admin/all-courses'); globalCourses = await res.json(); populateSelect('filterDay', DAYS, 'All Days'); populateSelect('filterTeacher', getUnique(globalCourses, 'teacher'), 'All Teachers'); populateSelect('filterAge', getUnique(globalCourses, 'age_group'), 'All Ages'); populateSelect('filterRoom', getUnique(globalCourses, 'classroom'), 'All Rooms'); populateSelect('filterTime', getUnique(globalCourses, 'start_time'), 'All Times'); filterAndRender(); }
     function filterAndRender() {
         let list = globalCourses;
-        const d = document.getElementById('filterDay').value; if(d) list = list.filter(i=>i.day_of_week===d);
-        const t = document.getElementById('filterTeacher').value; if(t) list = list.filter(i=>i.teacher===t);
-        const r = document.getElementById('filterRoom').value; if(r) list = list.filter(i=>i.classroom===r);
-        const renderTbody = document.getElementById('courseTable');
-        renderTbody.innerHTML = '';
-        list.forEach(c => {
-            renderTbody.innerHTML += `<tr><td>${c.day_of_week.substr(0,3)}</td><td>${c.start_time}</td><td>${c.classroom}</td><td>${c.name}</td><td>${c.teacher}</td><td>${c.age_group}</td><td><button class="btn-del" onclick="deleteCourse(${c.id})">Del</button></td></tr>`;
-        });
+        const d = document.getElementById('filterDay').value; if(d) list = list.filter(c => c.day_of_week === d);
+        const t = document.getElementById('filterTeacher').value; if(t) list = list.filter(c => c.teacher === t);
+        const r = document.getElementById('filterRoom').value; if(r) list = list.filter(c => c.classroom === r);
+        const a = document.getElementById('filterAge').value; if(a) list = list.filter(c => c.age_group === a);
+        const tm = document.getElementById('filterTime').value; if(tm) list = list.filter(c => c.start_time === tm);
+        const tbody = document.getElementById('courseBody'); tbody.innerHTML = list.length ? list.map(c => `<tr><td>${c.day_of_week.substr(0,3)}</td><td>${c.start_time}</td><td>${c.classroom}</td><td>${c.name}</td><td>${c.teacher}</td><td>${c.age_group}</td><td><button class="btn-del" onclick="deleteCourse(${c.id})">Del</button></td></tr>`).join('') : '<tr><td colspan="7">No data</td></tr>';
     }
-    async function addCourse() { /* Add logic here (standard fetch POST) */ alert('Feature available via API'); }
+    async function addCourse() { const payload = { name: document.getElementById('cName').value, day: document.getElementById('cDay').value, start: document.getElementById('cStart').value, end: document.getElementById('cEnd').value, teacher: document.getElementById('cTeacher').value, price: 230, classroom: document.getElementById('cRoom').value, age: document.getElementById('cAge').value }; await fetch('/api/admin/courses', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)}); loadCourses(); alert('Added!'); }
     async function deleteCourse(id) { if(confirm('Delete?')) { await fetch(`/api/admin/courses/${id}`, {method:'DELETE'}); loadCourses(); } }
 
-    // --- 2. Reviews Logic ---
+    // --- 2. Reviews (Enhanced UI) ---
     async function loadReviews() {
-        const res = await fetch('/api/admin/trophies/pending'); const data = await res.json();
-        const list = document.getElementById('pendingList');
-        list.innerHTML = data.length ? '' : 'No pending reviews.';
-        data.forEach(i => {
-             list.innerHTML += `<div class="review-card"><div><b>${i.student_name}</b></div><img src="${i.image_path}" class="r-main-img"><br><button class="btn-audit btn-gold" onclick="audit(${i.id}, 'gold')">Gold</button><button class="btn-audit btn-reject" onclick="audit(${i.id}, 'reject')">Reject</button></div>`;
-        });
+        const list = document.getElementById('pendingList'); list.innerHTML = 'Loading...';
+        try {
+            const res = await fetch('/api/admin/trophies/pending'); const data = await res.json();
+            if(!data || !data.length) { list.innerHTML = '<div style="text-align:center;color:#999;padding:20px">No pending reviews.</div>'; return; }
+            list.innerHTML = '';
+            data.forEach(item => {
+                let extras = item.extra_images.map(url => `<img src="${url}" class="r-extra-img" onclick="viewImage('${url}')">`).join('');
+                list.innerHTML += `
+                    <div class="review-card">
+                        <div class="r-header"><span>👤 ${item.student_name}</span><span>${new Date(item.created_at).toLocaleDateString()}</span></div>
+                        <div class="r-gallery"><div style="text-align:center;margin-right:15px"><img src="${item.image_path}" class="r-main-img" onclick="viewImage('${item.image_path}')"><div style="font-size:0.7rem;color:#e94560;font-weight:bold;margin-top:5px">MAIN</div></div>${extras}</div>
+                        <div class="action-area">
+                            <label style="font-weight:bold;display:block;margin-bottom:5px">Award Title:</label>
+                            <input type="text" id="awardName-${item.id}" value="${item.source_name||'Award'}" style="margin-bottom:15px;width:100%;padding:10px;border:1px solid #ccc;border-radius:4px;">
+                            <div class="btn-row">
+                                <button class="btn-audit btn-gold" onclick="audit(${item.id}, 'gold')">🏆 Gold</button>
+                                <button class="btn-audit btn-silver" onclick="audit(${item.id}, 'silver')">🥈 Silver</button>
+                                <button class="btn-audit btn-bronze" onclick="audit(${item.id}, 'bronze')">🥉 Bronze</button>
+                                <button class="btn-audit btn-medal" onclick="audit(${item.id}, 'medal_gold')">🥇 Medal</button>
+                                <button class="btn-audit btn-cert" onclick="audit(${item.id}, 'certificate')">📜 Cert</button>
+                                <button class="btn-audit btn-badge" onclick="audit(${item.id}, 'badge')">🏅 Badge</button>
+                                <button class="btn-audit btn-reject" onclick="audit(${item.id}, 'reject')">❌ Reject</button>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+        } catch(e) { list.innerHTML = 'Error loading reviews.'; }
     }
-    async function audit(id, type) { await fetch('/api/admin/trophies/approve', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({trophyId:id, action:type==='reject'?'reject':'approve', type, sourceName:'Award'})}); loadReviews(); }
+    async function audit(id, type) { const name = document.getElementById(`awardName-${id}`).value; await fetch('/api/admin/trophies/approve', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({trophyId:id, action:type==='reject'?'reject':'approve', type, sourceName:name})}); loadReviews(); }
+    function viewImage(url) { document.getElementById('imgPreview').src = url; document.getElementById('imgModal').style.display = 'flex'; }
 
-    // --- 3. Bookings Logic ---
-    async function loadBookings() {
-        const res = await fetch('/api/admin/invoices'); globalBookings = await res.json();
-        const tb = document.getElementById('invoiceTable'); tb.innerHTML = '';
-        globalBookings.forEach(b => {
+    // --- 3. Invoices ---
+    async function loadBookings() { const res = await fetch('/api/admin/invoices'); globalBookings = await res.json(); populateSelect('filterBookingDay', DAYS, 'All Days'); filterBookings(); }
+    function filterBookings() {
+        let list = globalBookings; const d = document.getElementById('filterBookingDay').value; if(d) list = list.filter(b => b.day_of_week === d);
+        const tbody = document.getElementById('invoiceBody');
+        tbody.innerHTML = list.length ? list.map(b => {
             const isPaid = b.status === 'PAID';
-            tb.innerHTML += `<tr><td>${b.student_name}</td><td>${b.course_name}</td><td>$${b.total_price}</td><td>${b.day_of_week} ${b.start_time}</td><td><span class="${isPaid?'status-paid':'status-unpaid'}">${b.status}</span></td><td><button class="btn-pay" onclick="togglePay(${b.id}, '${isPaid?'UNPAID':'PAID'}')">${isPaid?'Unpay':'Pay'}</button></td></tr>`;
-        });
+            return `<tr><td>${b.student_name}</td><td>${b.course_name}</td><td>$${b.total_price}</td><td>${isPaid?'<span class="status-paid">✅ PAID</span>':'<span class="status-unpaid">UNPAID</span>'}</td><td>${!isPaid?`<button class="btn-mark-paid" onclick="markPaid(${b.id})">Mark Paid</button>`:''}</td></tr>`;
+        }).join('') : '<tr><td colspan="5">No bookings.</td></tr>';
     }
-    async function togglePay(id, status) { await fetch('/api/admin/invoices/update-status', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({bookingId:id, newStatus:status})}); loadBookings(); }
+    async function markPaid(id) { if(confirm('Confirm Paid?')) { await fetch('/api/admin/invoices/update-status', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({bookingId:id, newStatus:'PAID'})}); loadBookings(); } }
 
-    // --- 4. Calendar Logic (The Nice Chart) ---
-    async function setupCalendar() {
-        // 1. Grid Setup
-        const axis = document.getElementById('timeAxis'); axis.innerHTML = '';
-        const lines = document.getElementById('gridLines'); lines.innerHTML = '';
-        const headers = document.getElementById('weekHeaders'); headers.innerHTML = '';
-        for(let h=START_HOUR; h<=END_HOUR; h++) {
-            axis.innerHTML += `<div class="time-slot">${h}:00</div>`; lines.innerHTML += `<div class="grid-line-h"></div>`;
-        }
-        DAYS.forEach(d => headers.innerHTML += `<div class="day-header-cell">${d.substr(0,3)}</div>`);
-
-        // 2. Red Line
-        const updateLine = () => {
-            const now = new Date(); const h = now.getHours() + now.getMinutes()/60;
-            if(h>=START_HOUR && h<=END_HOUR) {
-                document.getElementById('redLine').style.top = `${(h-START_HOUR)*PIXELS_PER_HOUR}px`;
-                document.getElementById('redLine').style.display = 'block';
-            }
-        };
-        updateLine(); setInterval(updateLine, 60000);
-
-        // 3. Fetch & Render Events
-        const res = await fetch('/api/admin/check-in/weekly-schedule'); const data = await res.json();
+    // --- 4. Check In (Daily/Weekly) ---
+    function changeView(view) {
+        currentView = view;
+        document.getElementById('btnViewDay').className = view === 'day' ? 'active' : '';
+        document.getElementById('btnViewWeek').className = view === 'week' ? 'active' : '';
+        renderEvents();
+    }
+    async function setupCheckInGrid() {
+        const axis = document.getElementById('timeAxis'); axis.innerHTML = ''; const lines = document.getElementById('gridLines'); lines.innerHTML = ''; const headers = document.getElementById('weekHeaders'); headers.innerHTML = '';
+        for(let h=START_HOUR; h<=END_HOUR; h++) { axis.innerHTML += `<div class="time-slot">${h}:00</div>`; lines.innerHTML += `<div class="grid-line-h"></div>`; }
+        // Load Data
+        const res = await fetch('/api/admin/check-in/weekly-schedule'); scheduleData = await res.json();
+        
+        // Default to Week
+        renderEvents();
+    }
+    
+    function renderEvents() {
         const grid = document.getElementById('eventGrid');
         Array.from(document.querySelectorAll('.class-event')).forEach(e => e.remove());
-        
-        DAYS.forEach((day, idx) => {
-            if(!data[day]) return;
-            const colW = 100/7; const left = idx * colW;
-            data[day].forEach(c => {
-                const [sH, sM] = c.start_time.split(':').map(Number);
-                const [eH, eM] = c.end_time.split(':').map(Number);
-                const top = (sH + sM/60 - START_HOUR) * PIXELS_PER_HOUR;
-                const height = (eH + eM/60 - sH - sM/60) * PIXELS_PER_HOUR;
-                
-                const el = document.createElement('div');
-                let clr = 'evt-other'; if(c.name.includes('Ballet')) clr='evt-rad'; else if(c.name.includes('Jazz')) clr='evt-jazz'; else if(c.name.includes('Hiphop')) clr='evt-hiphop';
-                el.className = `class-event ${clr}`;
-                el.style.top = `${top}px`; el.style.height = `${height-2}px`; el.style.left = `${left}%`; el.style.width = `${colW-0.5}%`;
-                el.innerHTML = `<b>${c.name}</b><br>${c.start_time}<br>👥 ${c.enrolled_count||0}/16`;
-                el.onclick = () => loadCheckInModal(c.id, c.name);
-                grid.appendChild(el);
+        const headers = document.getElementById('weekHeaders');
+        headers.innerHTML = '';
+
+        const todayIndex = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1; 
+        const todayName = DAYS[todayIndex];
+
+        if (currentView === 'week') {
+            DAYS.forEach(d => headers.innerHTML += `<div class="day-header-cell">${d.substr(0,3)}</div>`);
+            
+            DAYS.forEach((day, idx) => {
+                if(!scheduleData[day]) return;
+                scheduleData[day].forEach(c => createEventEl(c, idx * (100/7), 100/7 - 0.5));
             });
-        });
+        } else {
+            // Day View
+            const todayDateStr = new Date().toLocaleDateString('en-NZ', { weekday:'long', month:'short', day:'numeric'});
+            headers.innerHTML = `<div class="day-header-cell" style="width:100%">${todayDateStr}</div>`;
+            
+            if(scheduleData[todayName]) {
+                scheduleData[todayName].forEach(c => createEventEl(c, 0, 98));
+            }
+        }
+        
+        // Red Line
+        const now = new Date(); const h = now.getHours() + now.getMinutes()/60;
+        if(h>=START_HOUR && h<=END_HOUR) { document.getElementById('redLine').style.top = `${(h-START_HOUR)*PIXELS_PER_HOUR}px`; document.getElementById('redLine').style.display = 'block'; }
     }
 
-    async function loadCheckInModal(cid, cname) {
-        document.getElementById('checkInModal').style.display = 'flex';
-        document.getElementById('modalTitle').innerText = cname;
-        const content = document.getElementById('modalContent');
-        content.innerHTML = 'Loading student list...';
+    function createEventEl(c, leftPct, widthPct) {
+        const [sH, sM] = c.start_time.split(':').map(Number);
+        const [eH, eM] = c.end_time.split(':').map(Number);
+        const top = (sH + sM/60 - START_HOUR) * PIXELS_PER_HOUR;
+        const height = (eH + eM/60 - sH - sM/60) * PIXELS_PER_HOUR;
         
-        const res = await fetch(`/api/admin/check-in/class-list/${cid}`);
-        const students = await res.json();
-        
-        if(students.length===0) { content.innerHTML = 'No students enrolled.'; return; }
-        
-        let html = '';
-        students.forEach(s => {
-            const isPaid = s.payment_status === 'PAID';
-            html += `<div class="student-row" style="border-left:5px solid ${isPaid?'#2ed573':'#ff4757'}"><div>${s.student_name}</div><div>${isPaid?'PAID':'UNPAID'} <button onclick="alert('Checked In')">✅</button></div></div>`;
-        });
-        content.innerHTML = html;
+        let clr = 'evt-other'; 
+        const n = c.name.toLowerCase();
+        if(n.includes('ballet')||n.includes('rad')) clr='evt-rad'; 
+        else if(n.includes('jazz')) clr='evt-jazz'; 
+        else if(n.includes('hiphop')) clr='evt-hiphop'; 
+        else if(n.includes('k-pop')) clr='evt-kpop';
+        else if(n.includes('contemp')) clr='evt-contemp';
+
+        const el = document.createElement('div'); 
+        el.className = `class-event ${clr}`;
+        el.style.top = `${top}px`; el.style.height = `${height-2}px`; el.style.left = `${leftPct}%`; el.style.width = `${widthPct}%`;
+        el.innerHTML = `<b>${c.name}</b><br>👨‍🏫 ${c.teacher}<br>📍 ${c.classroom.replace('Classroom','C')}<br>👥 ${c.enrolled_count||0}/16`;
+        el.onclick = () => loadCheckInModal(c.id, c.name);
+        document.getElementById('eventGrid').appendChild(el);
     }
 
-    // Start
+    async function loadCheckInModal(cid, name) {
+        document.getElementById('checkInModal').style.display = 'flex'; document.getElementById('modalTitle').innerText = name;
+        const content = document.getElementById('modalContent'); content.innerHTML = 'Loading...';
+        const res = await fetch(`/api/admin/check-in/class-list/${cid}`); const list = await res.json();
+        content.innerHTML = list.length ? list.map(s => `<div class="student-row" style="border-left:5px solid ${s.payment_status==='PAID'?'#2ed573':'#ff4757'}"><div>${s.student_name}</div><button onclick="alert('Checked')">✅</button></div>`).join('') : 'No students.';
+    }
+
+    // Init
     switchTab('courses');
 </script>
 </body>
