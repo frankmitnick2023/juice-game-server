@@ -5,44 +5,40 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>WE DANCE - Hero Hub</title>
   <style>
-    /* ... (CSS 保持不变，包含 Logo 水印) ... */
+    /* CSS 样式 */
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background: #1a1a2e; color: white; padding-bottom: 5rem; overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
     .header { background: rgba(22, 33, 62, 0.95); padding: 0 1rem; height: 60px; display: flex; justify-content: space-between; align-items: center; position: fixed; top: 0; left: 0; right: 0; z-index: 100; border-bottom: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px); }
     .user-name { font-weight: bold; color: #e94560; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 1px; }
     .logout { font-size: 0.8rem; color: #aaa; text-decoration: none; border: 1px solid #444; padding: 4px 12px; border-radius: 15px; transition: 0.2s; }
-    .stage-container { margin-top: 60px; height: 55vh; min-height: 400px; position: relative; display: flex; justify-content: center; align-items: center; overflow: hidden; background: radial-gradient(circle at center, rgba(42, 42, 74, 0.9) 0%, rgba(26, 26, 46, 0.95) 70%), url('/images/logo_watermark.png') no-repeat center center; background-size: auto 180%; }
+    
+    .stage-container { 
+        margin-top: 60px; height: 55vh; min-height: 400px; position: relative; 
+        display: flex; justify-content: center; align-items: center; overflow: hidden;
+        background: radial-gradient(circle at center, rgba(42, 42, 74, 0.9) 0%, rgba(26, 26, 46, 0.95) 70%), url('/images/logo_watermark.png') no-repeat center center;
+        background-size: auto 180%; 
+    }
+    
     .spotlight { position: absolute; top: -10%; left: 50%; transform: translateX(-50%); width: 80%; height: 120%; background: linear-gradient(to bottom, rgba(255,255,255,0.08), transparent); filter: blur(40px); pointer-events: none; }
     .avatar-wrapper { position: relative; width: 85vw; height: 85vw; max-width: 600px; max-height: 600px; animation: float 3s ease-in-out infinite; z-index: 10; margin-top: 20px; }
     .avatar-img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 15px 30px rgba(0,0,0,0.7)); opacity: 0; transition: opacity 0.5s; }
     .age-tag { position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.6); color: #e94560; border: 1px solid #e94560; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; z-index: 20; }
+    
     .upload-btn { position: absolute; top: 15px; left: 15px; background: rgba(255,255,255,0.1); border: 1px dashed #888; color: #ccc; padding: 6px 12px; border-radius: 8px; font-size: 0.85rem; cursor: pointer; z-index: 50; display: flex; align-items: center; gap: 5px; }
     .edit-btn { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: #e94560; color: white; padding: 8px 20px; border-radius: 20px; font-weight: bold; font-size: 0.9rem; text-decoration: none; box-shadow: 0 5px 15px rgba(233,69,96,0.4); z-index: 50; }
     .trophy-pile { position: absolute; bottom: 20px; right: 10px; display: flex; align-items: flex-end; flex-wrap: wrap-reverse; max-width: 180px; justify-content: flex-end; z-index: 15; pointer-events: none; }
     .trophy-item { font-size: 2.2rem; margin-left: -8px; margin-bottom: -5px; filter: drop-shadow(2px 2px 5px rgba(0,0,0,0.6)); transition: transform 0.2s; cursor: pointer; pointer-events: auto; position: relative; }
     .t-gold { color: #ffd700; filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.5)); }
-    .t-silver { color: #c0c0c0; }
-    .t-bronze { color: #cd7f32; }
-    .t-cert { font-size: 1.8rem; opacity: 0.9; }
+    
     .portal-container { padding: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; max-width: 800px; margin: -40px auto 0; position: relative; z-index: 30; }
     .portal-card { background: #16213e; border-radius: 16px; padding: 1.5rem 1rem; text-align: center; border: 2px solid rgba(255,255,255,0.05); box-shadow: 0 10px 25px rgba(0,0,0,0.4); cursor: pointer; }
     .portal-battle { background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%); }
     .portal-train { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
     .p-icon { font-size: 2.5rem; display: block; margin-bottom: 8px; }
     .p-title { font-size: 1.2rem; font-weight: bold; }
-    .modal-overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); z-index: 200; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; }
-    .modal-box { background: #222; width: 100%; max-width: 400px; border-radius: 16px; padding: 20px; position: relative; border: 1px solid #444; box-shadow: 0 20px 50px rgba(0,0,0,0.5); animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-    .close-modal { position: absolute; top: 15px; right: 15px; font-size: 1.5rem; cursor: pointer; color: #888; }
-    .upload-section { margin-bottom: 15px; border: 1px dashed #555; padding: 15px; border-radius: 8px; text-align: center; background: rgba(255,255,255,0.02); }
-    .file-preview { margin-top: 10px; display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
-    .preview-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #444; }
-    .btn-submit { width: 100%; background: #e94560; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; margin-top: 10px; }
-    .detail-img-box { width: 100%; height: 200px; background: #000; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; margin-bottom: 15px; }
-    .detail-img { max-width: 100%; max-height: 100%; }
-    .detail-title { font-size: 1.2rem; font-weight: bold; color: #ffd700; margin-bottom: 5px; text-align: center; }
-    .detail-meta { text-align: center; color: #888; font-size: 0.9rem; margin-bottom: 15px; }
-    .detail-desc { background: #333; padding: 10px; border-radius: 8px; font-size: 0.9rem; color: #ccc; line-height: 1.4; }
-    .loader-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); z-index: 300; display: none; flex-direction: column; justify-content: center; align-items: center; color: white; }
+
+    /* Game View */
     .content-section { display: none; padding: 1rem; max-width: 1000px; margin: 60px auto 0; animation: fadeIn 0.3s ease-out; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
     .back-bar { display: flex; align-items: center; gap: 5px; color: #ccc; font-size: 1rem; margin-bottom: 1.5rem; cursor: pointer; padding: 10px 0; }
     .game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem; }
     .game-card { background: #222244; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
@@ -51,8 +47,25 @@
     .game-info { padding: 12px; text-align: center; }
     .game-title { font-size: 0.95rem; font-weight: bold; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .btn-start { display: block; width: 100%; box-sizing: border-box; background: #e94560; color: white; padding: 8px; border-radius: 6px; text-decoration: none; font-size: 0.9rem; font-weight: bold; }
+
+    /* Modals */
+    .modal-overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); z-index: 200; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; }
+    .modal-box { background: #222; width: 100%; max-width: 400px; border-radius: 16px; padding: 20px; position: relative; border: 1px solid #444; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+    .close-modal { position: absolute; top: 15px; right: 15px; font-size: 1.5rem; cursor: pointer; color: #888; }
+    .upload-section { margin-bottom: 15px; border: 1px dashed #555; padding: 15px; border-radius: 8px; text-align: center; background: rgba(255,255,255,0.02); }
+    .file-preview { margin-top: 10px; display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
+    .preview-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #444; }
+    .btn-submit { width: 100%; background: #e94560; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; margin-top: 10px; }
     
-    /* ★★★ Navigation Bar - Updated to include Growth ★★★ */
+    /* Trophy Detail */
+    .detail-img-box { width: 100%; height: 200px; background: #000; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; margin-bottom: 15px; }
+    .detail-img { max-width: 100%; max-height: 100%; }
+    .detail-title { font-size: 1.2rem; font-weight: bold; color: #ffd700; margin-bottom: 5px; text-align: center; }
+    .detail-meta { text-align: center; color: #888; font-size: 0.9rem; margin-bottom: 15px; }
+    .detail-desc { background: #333; padding: 10px; border-radius: 8px; font-size: 0.9rem; color: #ccc; line-height: 1.4; }
+    .loader-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); z-index: 300; display: none; flex-direction: column; justify-content: center; align-items: center; color: white; }
+
+    /* Nav */
     .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #16213e; border-top: 1px solid #333; display: flex; justify-content: space-around; padding: 8px 0; z-index: 99; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
     .nav-item { text-decoration: none; color: #888; font-size: 0.75rem; text-align: center; display: flex; flex-direction: column; align-items: center; flex: 1; }
     .nav-icon { font-size: 1.4rem; margin-bottom: 2px; }
@@ -70,56 +83,35 @@
       <div class="stage-container">
         <div class="spotlight"></div>
         <div id="ageTag" class="age-tag">Hero</div>
-
-        <div class="upload-btn" onclick="openUploadModal()">
-            <span>📷 Upload Award (上传荣誉)</span>
-        </div>
-
-        <a href="/avatar_editor.html" class="edit-btn">✏️ Customize (换装)</a>
-
-        <div class="avatar-wrapper">
-            <img id="heroImg" class="avatar-img" src="" alt="Hero">
-        </div>
-
+        <div class="upload-btn" onclick="openUploadModal()"><span>📷 Upload Award</span></div>
+        <a href="/avatar_editor.html" class="edit-btn">✏️ Customize</a>
+        <div class="avatar-wrapper"><img id="heroImg" class="avatar-img" src="" alt="Hero"></div>
         <div id="trophyArea" class="trophy-pile"></div>
       </div>
 
       <div class="portal-container">
         <div class="portal-card portal-battle" onclick="switchMode('battle')">
-          <span class="p-icon">⚔️</span>
-          <div class="p-title">Battle Mode</div>
+          <span class="p-icon">⚔️</span><div class="p-title">Battle Mode</div>
         </div>
         <div class="portal-card portal-train" onclick="location.href='/timetable.html'">
-          <span class="p-icon">🛡️</span>
-          <div class="p-title">Training Mode</div>
+          <span class="p-icon">🛡️</span><div class="p-title">Training Mode</div>
         </div>
       </div>
   </div>
 
   <div id="gameView" class="content-section">
-    <div class="back-bar" onclick="switchMode('home')">
-        <span>◀ Back (返回大厅)</span>
-    </div>
+    <div class="back-bar" onclick="switchMode('home')"><span>◀ Back</span></div>
     <div style="font-size:1.2rem;font-weight:bold;color:#e94560;margin-bottom:15px;border-left:4px solid #e94560;padding-left:10px">Available Games</div>
-    <div id="gameGrid" class="game-grid">
-        </div>
+    <div id="gameGrid" class="game-grid"></div>
   </div>
 
   <div id="uploadModal" class="modal-overlay">
       <div class="modal-box">
           <span class="close-modal" onclick="closeModal('uploadModal')">&times;</span>
           <h3 style="margin-top:0; text-align:center">Upload Achievement</h3>
-          <div class="upload-section">
-              <label class="upload-label">1. Certificate/Award (Main)</label>
-              <input type="file" id="mainCertInput" accept="image/*" onchange="previewFiles(this, 'previewMain')">
-              <div id="previewMain" class="file-preview"></div>
-          </div>
-          <div class="upload-section">
-              <label class="upload-label">2. Photos (Optional)</label>
-              <input type="file" id="extraPhotosInput" accept="image/*" multiple onchange="previewFiles(this, 'previewExtra')">
-              <div id="previewExtra" class="file-preview"></div>
-          </div>
-          <button class="btn-submit" onclick="submitAwardUpload()">Submit for Review</button>
+          <div class="upload-section"><label class="upload-label">1. Certificate (Main)</label><input type="file" id="mainCertInput" accept="image/*" onchange="previewFiles(this, 'previewMain')"><div id="previewMain" class="file-preview"></div></div>
+          <div class="upload-section"><label class="upload-label">2. Photos (Optional)</label><input type="file" id="extraPhotosInput" accept="image/*" multiple onchange="previewFiles(this, 'previewExtra')"><div id="previewExtra" class="file-preview"></div></div>
+          <button class="btn-submit" onclick="submitAwardUpload()">Submit</button>
       </div>
   </div>
 
@@ -136,11 +128,11 @@
   <div class="loader-overlay" id="loader"><div style="font-size:3rem">📤</div></div>
 
   <div class="nav-bar">
-    <a href="#" class="nav-item active"><span class="nav-icon">🎮</span>Home<br>(大厅)</a>
-    <a href="/my_schedule.html" class="nav-item"><span class="nav-icon">📅</span>Schedule<br>(课表)</a>
-    <a href="/timetable.html" class="nav-item"><span class="nav-icon">🛒</span>Book<br>(选课)</a>
-    <a href="/growth.html" class="nav-item"><span class="nav-icon">📊</span>Growth<br>(成长)</a> 
-    <a href="/rooms.html" class="nav-item"><span class="nav-icon">🔑</span>Rooms<br>(教室)</a>
+    <a href="#" class="nav-item active"><span class="nav-icon">🎮</span>Home</a>
+    <a href="/my_schedule.html" class="nav-item"><span class="nav-icon">📅</span>Schedule</a>
+    <a href="/timetable.html" class="nav-item"><span class="nav-icon">🛒</span>Book</a>
+    <a href="/growth.html" class="nav-item"><span class="nav-icon">📊</span>Growth</a>
+    <a href="/rooms.html" class="nav-item"><span class="nav-icon">🔑</span>Rooms</a>
   </div>
 
   <script>
@@ -154,36 +146,49 @@
             loadTrophies();
         } catch (e) {}
     }
-    // ... (All other JS functions remain unchanged) ...
+
     function loadAvatar(user) {
         const imgEl = document.getElementById('heroImg');
-        let age = 7; 
-        if (user.dob) age = Math.abs(new Date(Date.now() - new Date(user.dob).getTime()).getUTCFullYear() - 1970);
-        
-        let ageGroup = 'junior';
-        if (age >= 12) ageGroup = 'senior';
-        else if (age >= 8) ageGroup = 'middle';
-
+        let age = 7; if (user.dob) age = Math.abs(new Date(Date.now() - new Date(user.dob).getTime()).getUTCFullYear() - 1970);
+        let ageGroup = 'junior'; if (age >= 12) ageGroup = 'senior'; else if (age >= 8) ageGroup = 'middle';
         const gender = (/[aeiy]$/.test(user.student_name || "") || ['cindy','yolanda'].includes((user.student_name||"").toLowerCase())) ? 'girl' : 'boy';
         const outfit = user.avatar_config?.outfit || 'uniform';
-        
         document.getElementById('ageTag').textContent = `${ageGroup.toUpperCase()} ${gender==='girl'?'Heroine':'Hero'}`;
-
-        if (user.avatar_config?.useAiAvatar && user.avatar_config?.aiAvatarUrl) {
-            imgEl.src = user.avatar_config.aiAvatarUrl;
-        } else {
-            imgEl.src = `/avatars/${gender}_${ageGroup}_${outfit}.png`;
-            imgEl.onerror = () => imgEl.src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${user.student_name}`;
-        }
+        if (user.avatar_config?.useAiAvatar && user.avatar_config?.aiAvatarUrl) { imgEl.src = user.avatar_config.aiAvatarUrl; } else { imgEl.src = `/avatars/${gender}_${ageGroup}_${outfit}.png`; }
         imgEl.style.opacity = 1;
     }
 
-    function switchMode(mode) { /* ... */ }
-    function loadGames() { /* ... */ }
+    function switchMode(mode) {
+        const lobby = document.getElementById('lobbyView');
+        const games = document.getElementById('gameView');
+        if (mode === 'battle') { lobby.style.display = 'none'; games.style.display = 'block'; loadGames(); } 
+        else { games.style.display = 'none'; lobby.style.display = 'block'; }
+    }
+
+    function loadGames() {
+        const grid = document.getElementById('gameGrid');
+        grid.innerHTML = '<div style="text-align:center;color:#888">Loading...</div>';
+        fetch('/api/games').then(r=>r.json()).then(games => {
+            grid.innerHTML = '';
+            if(games.length === 0) { grid.innerHTML = 'No games found'; return; }
+            games.forEach(g => {
+                const thumb = g.thumbnail ? `/games/${g.path}/${g.thumbnail}` : null;
+                grid.innerHTML += `
+                    <div class="game-card">
+                        <div class="game-thumb">${thumb ? `<img src="${thumb}">` : '👾'}</div>
+                        <div class="game-info">
+                            <div class="game-title">${g.title}</div>
+                            <a href="/play/${g.id}" class="btn-start">START</a>
+                        </div>
+                    </div>`;
+            });
+        });
+    }
+    
     async function loadTrophies() { /* ... */ }
     function showTrophyDetail(t) { /* ... */ }
-    function openUploadModal() { /* ... */ }
-    function closeModal(id) { /* ... */ }
+    function openUploadModal() { document.getElementById('uploadModal').style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
     function previewFiles(input, conId) { /* ... */ }
     async function submitAwardUpload() { /* ... */ }
     document.getElementById('logout').onclick = () => fetch('/api/logout', {method:'POST'}).then(()=>location.href='/');
