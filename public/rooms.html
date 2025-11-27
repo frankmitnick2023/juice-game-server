@@ -39,11 +39,12 @@
     .info-row {display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px dashed #eee}
     .info-label {color:#888}
     .info-val {font-weight:bold; color:#333}
-    .input-row {display:flex; gap:10px; align-items:center; justify-content:flex-end; width:60%} /* Added for date/time input */
+    .input-row {display:flex; gap:10px; align-items:center; justify-content:flex-end; width:60%}
 
+    /* ★★★ Navigation Bar Styles (Standardized) ★★★ */
     .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:white;border-top:1px solid #eee;display:flex;justify-content:space-around;padding:8px 0;z-index:99; padding-bottom: max(8px, env(safe-area-inset-bottom));}
-    .nav-item{text-decoration:none;color:#999;font-size:0.75rem;text-align:center;display:flex;flex-direction:column;align-items:center;flex:1}
-    .nav-icon{font-size:1.5rem;margin-bottom:2px}
+    .nav-item{text-decoration:none;color:#888;font-size:0.75rem;text-align:center;display:flex;flex-direction:column;align-items:center;flex:1}
+    .nav-icon{font-size:1.4rem;margin-bottom:2px}
     .nav-item.active{color:#2c3e50}
   </style>
 </head>
@@ -100,10 +101,11 @@
 </div>
 
 <div class="nav-bar">
-    <a href="/games.html" class="nav-item"><span class="nav-icon">🎮</span>Home</a>
-    <a href="/my_schedule.html" class="nav-item"><span class="nav-icon">📅</span>Schedule</a>
-    <a href="/timetable.html" class="nav-item"><span class="nav-icon">🛒</span>Book</a>
-    <a href="#" class="nav-item active"><span class="nav-icon">🔑</span>Rooms</a>
+    <a href="/games.html" class="nav-item"><span class="nav-icon">🎮</span>Home<br>(大厅)</a>
+    <a href="/my_schedule.html" class="nav-item"><span class="nav-icon">📅</span>Schedule<br>(课表)</a>
+    <a href="/timetable.html" class="nav-item"><span class="nav-icon">🛒</span>Book<br>(选课)</a>
+    <a href="/growth.html" class="nav-item"><span class="nav-icon">📊</span>Growth<br>(成长)</a> 
+    <a href="#" class="nav-item active"><span class="nav-icon">🔑</span>Rooms<br>(教室)</a>
 </div>
 
 <script>
@@ -111,12 +113,12 @@
     const ROOMS = [
         {id: 'Classroom 1', name: "Studio 1", price: 35},
         {id: 'Classroom 2', name: "Studio 2", price: 35},
-        {id: 3, name: "Studio 3", price: 35},
-        {id: 4, name: "Studio 4 (Large)", price: 50},
-        {id: 5, name: "Studio 5", price: 35},
-        {id: 6, name: "Studio 6", price: 35},
-        {id: 7, name: "Studio 7 (Small)", price: 30},
-        {id: 8, name: "Yoga Room", price: 35},
+        {id: 'Classroom 3', name: "Studio 3", price: 35},
+        {id: 'Classroom 4', name: "Studio 4 (Large)", price: 50},
+        {id: 'Classroom 5', name: "Studio 5", price: 35},
+        {id: 'Classroom 6', name: "Studio 6", price: 35},
+        {id: 'Classroom 7', name: "Studio 7 (Small)", price: 30},
+        {id: 'Yoga Room', name: "Yoga Room", price: 35},
     ];
     
     const HOURS = [];
@@ -128,10 +130,9 @@
     let allCourses = []; 
     let selectedSlot = null; 
 
-    // R1 辅助函数：根据星期几的索引，计算出本周具体的日期对象
     function getSpecificDate(dayIndex) {
         const today = new Date();
-        const todayDayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1; // 0=Mon, 6=Sun (JS getDay: 0=Sun, 1=Mon)
+        const todayDayIndex = today.getDay() === 0 ? 6 : today.getDay() - 1; 
         const diff = (dayIndex - todayDayIndex + 7) % 7;
         const targetDate = new Date(today);
         targetDate.setDate(today.getDate() + diff);
@@ -139,7 +140,6 @@
     }
 
     async function init() {
-        // 生成星期导航
         const c = document.getElementById('dayControls');
         SHORT_DAYS.forEach((d, idx) => {
             const btn = document.createElement('div');
@@ -149,7 +149,6 @@
             c.appendChild(btn);
         });
 
-        // 从服务器获取所有课程
         try {
             const res = await fetch('/api/public-schedule');
             allCourses = await res.json();
@@ -169,10 +168,6 @@
         const table = document.getElementById('roomTable');
         table.innerHTML = '';
         
-        // 确保房间 ID 始终是字符串，避免 JS 查找错误
-        const ROOM_IDS = ROOMS.map(r => r.id);
-
-        // 表头
         const thead = document.createElement('tr');
         thead.innerHTML = '<th>Time</th>';
         ROOMS.forEach(r => {
@@ -182,7 +177,6 @@
 
         const todayName = DAYS[currentDayIndex];
 
-        // 表格内容
         HOURS.forEach(time => {
             const row = document.createElement('tr');
             const timeCell = document.createElement('td');
@@ -219,41 +213,30 @@
         });
     }
 
-    // R2 & R3 价格联动函数
     window.updateModalPrice = function() {
         if (!selectedSlot) return;
-        // 读取时长输入框的值
         const duration = parseFloat(document.getElementById('durationInput').value) || 0;
-        
-        // 价格计算 (单价 * 时长 * 1.15 GST)
         const totalPrice = (selectedSlot.room.price * duration * 1.15).toFixed(2);
         document.getElementById('mPrice').textContent = `$${totalPrice}`;
     }
 
-    // R1 更新日期显示
     window.updateBookingDay = function() {
-        // 当用户手动修改日期时，仅更新日期，不影响表格显示
         const dateInput = document.getElementById('dateInput');
-        const specificDate = new Date(dateInput.value);
-        const dayOfWeek = specificDate.toLocaleDateString('en-NZ', { weekday: 'long' });
-        
-        // 可以在这里给用户一个提示：当前显示的表格是 [dayOfWeek] 的占用情况
-        console.log(`User manually selected date: ${dateInput.value} (${dayOfWeek})`);
+        console.log(`User manually selected date: ${dateInput.value}`);
     }
 
     function openBooking(room, time, hourInt) {
         selectedSlot = {room, time, hourInt};
         
-        // R1 修复：设置日期选择器的默认值 (本周的该天)
         const specificDate = getSpecificDate(currentDayIndex);
         const isoDate = specificDate.toISOString().split('T')[0];
         
         document.getElementById('mRoomName').textContent = room.name;
-        document.getElementById('mStartTime').textContent = time; // 明确开始时间
-        document.getElementById('dateInput').value = isoDate; // 设置日期输入框的值
+        document.getElementById('mStartTime').textContent = time;
+        document.getElementById('dateInput').value = isoDate; 
         
-        document.getElementById('durationInput').value = 1; // 默认 1 小时
-        updateModalPrice(); // 计算 1 小时的价格
+        document.getElementById('durationInput').value = 1; 
+        updateModalPrice(); 
         
         document.getElementById('bookingModal').style.display = 'flex';
     }
@@ -272,8 +255,6 @@
         
         alert(`✅ Booking Request Sent!\nRoom: ${selectedSlot.room.name}\nDate: ${bookingDate}\nDuration: ${duration} hrs\nTotal: ${totalPrice}`);
         document.getElementById('bookingModal').style.display = 'none';
-        
-        // NOTE: Real system needs to send API request with bookingDate, startTime, and duration.
     }
 
     init();
