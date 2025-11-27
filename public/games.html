@@ -255,7 +255,72 @@ async function submitAwardUpload() {
     function openUploadModal() { document.getElementById('uploadModal').style.display = 'flex'; }
     function closeModal(id) { document.getElementById(id).style.display = 'none'; }
     function previewFiles(input, conId) { /* ... */ }
-    async function submitAwardUpload() { /* ... */ }
+    async function submitAwardUpload() {
+    const mainInput = document.getElementById('mainCertInput');
+    const extraInput = document.getElementById('extraPhotosInput');
+    
+    // 1. 验证：必须上传主证书
+    if (!mainInput.files || mainInput.files.length === 0) {
+        alert('Please upload the Main Certificate (请上传证书图片)!');
+        return;
+    }
+
+    // 2. 界面反馈：按钮变色，防止重复点
+    const btn = document.querySelector('.btn-submit');
+    const originalText = btn.textContent;
+    btn.textContent = 'Uploading... (Wait)';
+    btn.disabled = true;
+    
+    // 显示加载圈 (如果有这个元素的话)
+    const loader = document.getElementById('loader');
+    if(loader) loader.style.display = 'flex';
+
+    // 3. 打包数据
+    const formData = new FormData();
+    formData.append('mainCert', mainInput.files[0]); 
+    
+    // 把多张额外照片加进去
+    if (extraInput.files) {
+        for (let i = 0; i < extraInput.files.length; i++) {
+            formData.append('extraPhotos', extraInput.files[i]);
+        }
+    }
+
+    try {
+        // 4. 发送给服务器
+        const res = await fetch('/api/upload-trophy', {
+            method: 'POST',
+            body: formData
+        });
+        
+        // 尝试解析返回结果
+        const data = await res.json();
+        
+        if (res.ok && data.success) {
+            alert('✅ Upload Successful! Waiting for teacher approval.');
+            closeModal('uploadModal'); // 关闭弹窗
+            
+            // 清空输入框
+            mainInput.value = '';
+            extraInput.value = '';
+            document.getElementById('previewMain').innerHTML = '';
+            document.getElementById('previewExtra').innerHTML = '';
+            
+            // 刷新列表（如果页面有这个函数）
+            if(typeof loadTrophies === 'function') loadTrophies();
+        } else {
+            throw new Error(data.error || 'Upload failed');
+        }
+    } catch (e) {
+        console.error(e);
+        alert('❌ Error: ' + e.message);
+    } finally {
+        // 5. 恢复按钮状态
+        btn.textContent = originalText;
+        btn.disabled = false;
+        if(loader) loader.style.display = 'none';
+    }
+}
     document.getElementById('logout').onclick = () => fetch('/api/logout', {method:'POST'}).then(()=>location.href='/');
     init();
   </script>
