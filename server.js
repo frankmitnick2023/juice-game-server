@@ -219,21 +219,28 @@ app.post('/api/register', async (req, res) => {
 });
 
 app.post('/api/login', async (req, res) => {
+  const { email, password } = req.body;
   try {
-    const r = await pool.query("SELECT * FROM users WHERE email = $1 AND password = $2", [req.body.email, hashPassword(req.body.password)]); 
-    if (r.rows.length === 0) {
-        // Fallback for plain text legacy passwords
-        const rPlain = await pool.query("SELECT * FROM users WHERE email = $1 AND password = $2", [req.body.email, req.body.password]);
-        if (rPlain.rows.length === 0) return res.status(400).json({ error: 'Invalid credentials' });
-        const user = rPlain.rows[0];
-        req.session.userId = user.id; 
+    // 1. 尝试哈希匹配 (新用户)
+    const r = await pool.query("SELECT * FROM users WHERE email = $1 AND password = $2", [email, hashPassword(password)]); 
+    if (r.rows.length > 0) {
+        const user = r.rows[0];
+        req.session.userId = user.id;
         req.session.user = { isAdmin: user.is_admin };
         return res.json({ success: true, user: user });
     }
-    const user = r.rows[0];
-    req.session.userId = user.id; 
-    req.session.user = { isAdmin: user.is_admin };
-    res.json({ success: true, user: user });
+
+    // 2. 尝试明文匹配 (旧用户 - 兼容补丁)
+    const rPlain = await pool.query("SELECT * FROM users WHERE email = $1 AND password = $2", [email, password]);
+    if (rPlain.rows.length > 0) {
+        const user = rPlain.rows[0];
+        req.session.userId = user.id;
+        req.session.user = { isAdmin: user.is_admin };
+        return res.json({ success: true, user: user });
+    }
+
+    res.status(400).json({ error: 'Invalid credentials' });
+
   } catch (e) { res.status(500).json({ error: 'DB Error' }); }
 });
 
