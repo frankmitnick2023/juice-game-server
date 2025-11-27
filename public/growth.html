@@ -20,8 +20,8 @@
     .rec-card { background:#16213e; padding:15px; border-radius:8px; border-left: 4px solid #ff9966; margin-top:10px; }
     .rec-title { color:#ff9966; font-weight:bold; margin-bottom:5px; }
     .rec-reason { font-size:0.85rem; color:#ccc; }
-
-    /* ★★★ Navigation Bar (Corrected) ★★★ */
+    
+    /* Nav Bar */
     .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #16213e; border-top: 1px solid #333; display: flex; justify-content: space-around; padding: 8px 0; z-index: 99; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
     .nav-item { text-decoration: none; color: #888; font-size: 0.75rem; text-align: center; display: flex; flex-direction: column; align-items: center; flex: 1; }
     .nav-icon { font-size: 1.4rem; margin-bottom: 2px; }
@@ -65,6 +65,7 @@
 <script>
     async function loadData() {
         try {
+            // ★★★ 修复 1：接口名称修正为 /api/my-stats (对应 server.js) ★★★
             const res = await fetch('/api/my-stats');
             const data = await res.json();
             
@@ -77,6 +78,7 @@
             renderRecommendations(data.stats);
 
         } catch (e) {
+            console.error(e);
             document.getElementById('progressStats').innerHTML = '<div style="color:red">Error connecting to server.</div>';
         }
     }
@@ -84,8 +86,19 @@
     function renderRadar(stats) {
         const ctx = document.getElementById('abilitiesChart');
         if (!ctx) return;
+        
         const labels = ['柔韧度 (Flex)', '力量 (Str)', '节奏 (Rhythm)', '记忆 (Mem)', '技巧 (Tech)', '勤奋度 (Ded)'];
-        const dataValues = [stats.flexibility, stats.strength, stats.rhythm, stats.memory, stats.technique, stats.dedication];
+        
+        // ★★★ 修复 2：修正 JS 笔误 (stats.stats.rhythm -> stats.rhythm) ★★★
+        const dataValues = [
+            stats.flexibility, 
+            stats.strength, 
+            stats.rhythm, 
+            stats.memory, 
+            stats.technique, 
+            stats.dedication
+        ];
+
         new Chart(ctx, {
             type: 'radar',
             data: {
