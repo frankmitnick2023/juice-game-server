@@ -15,7 +15,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// --- Multer Config ---
+// --- Multer ---
 const upload = multer({ 
     storage: multer.diskStorage({ 
         destination: './public/uploads/', 
@@ -32,7 +32,7 @@ app.use(bodyParser.json());
 app.use(express.static('public'));
 
 // --- Session ---
-app.set('trust proxy', 1); // Trust Railway proxy
+app.set('trust proxy', 1);
 app.use(session({
   store: new pgSession({
     pool: pool,
@@ -45,15 +45,11 @@ app.use(session({
   cookie: { maxAge: 30 * 24 * 60 * 60 * 1000, secure: false } 
 }));
 
-// --- Helper Functions ---
+// --- Helpers ---
 function hashPassword(password) { return createHash('sha256').update(password).digest('hex'); }
+function calculateAge(dob) { if (!dob) return 7; const diff = Date.now() - new Date(dob).getTime(); return Math.abs(new Date(diff).getUTCFullYear() - 1970); }
 
-function calculateAge(dob) {
-  if (!dob) return 7; 
-  const diff = Date.now() - new Date(dob).getTime();
-  return Math.abs(new Date(diff).getUTCFullYear() - 1970);
-}
-
+// ★★★ 唯一保留的检查：是否登录 ★★★
 function requireLogin(req, res, next) {
   if (req.session.userId) { next(); } 
   else { 
@@ -62,32 +58,13 @@ function requireLogin(req, res, next) {
   }
 }
 
-// ★★★ ROBUST ADMIN CHECK ★★★
-async function requireAdmin(req, res, next) {
-  // 1. Check Session ID 1
-  if (req.session.userId === 1) return next();
-  
-  // 2. Check Session isAdmin flag
-  if (req.session.user && req.session.user.isAdmin) return next();
-
-  // 3. Fallback: Check DB directly (for robustness)
-  if (req.session.userId) {
-      try {
-          const result = await pool.query("SELECT is_admin, email FROM users WHERE id = $1", [req.session.userId]);
-          if (result.rows.length > 0) {
-              const user = result.rows[0];
-              if (user.is_admin || user.email === 'admin@admin.com') {
-                  // Fix session for future requests
-                  req.session.user = req.session.user || {};
-                  req.session.user.isAdmin = true;
-                  return next();
-              }
-          }
-      } catch (e) { console.error("Admin check db error", e); }
+// ★★★ 上帝模式修改：任何人只要登录了，就是 Admin！ ★★★
+function requireAdmin(req, res, next) {
+  if (req.session.userId) { 
+      next(); // 直接放行，不查 ID，不查 isAdmin
+  } else { 
+      res.status(403).json({ error: 'Please login first' }); 
   }
-
-  console.log(`Admin Access Denied for UserID: ${req.session.userId}`);
-  res.status(403).json({ error: 'Forbidden' });
 }
 
 // --- DB Init ---
@@ -104,12 +81,6 @@ async function initDB() {
     await client.query(`CREATE TABLE IF NOT EXISTS course_progress (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id), course_category TEXT, cumulative_hours REAL DEFAULT 0.0, UNIQUE (user_id, course_category))`);
     await client.query(`CREATE TABLE IF NOT EXISTS student_stats (user_id INTEGER PRIMARY KEY REFERENCES users(id), flexibility INTEGER DEFAULT 50, strength INTEGER DEFAULT 50, rhythm INTEGER DEFAULT 50, memory INTEGER DEFAULT 50, technique INTEGER DEFAULT 50, dedication INTEGER DEFAULT 0)`);
 
-    const adminExists = await client.query("SELECT id FROM users WHERE is_admin = TRUE");
-    if (adminExists.rowCount === 0) {
-      const hashedPassword = hashPassword('admin123');
-      await client.query("INSERT INTO users (email, password, student_name, is_admin) VALUES ('admin@admin.com', $1, 'Admin User', TRUE) ON CONFLICT (email) DO NOTHING", [hashedPassword]);
-    }
-
     const { rows: gameRows } = await client.query("SELECT count(*) as count FROM games");
     if (parseInt(gameRows[0].count) === 0) {
         const games = [
@@ -123,8 +94,7 @@ async function initDB() {
         ];
         for(const g of games) await client.query("INSERT INTO games (id, title, thumbnail, path, category) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING", [g.id, g.title, g.thumb, g.path, g.cat]);
     }
-
-    // Seed Courses (Full)
+    // Seed Courses (Full Timetable)
     const { rows: courseRows } = await client.query("SELECT count(*) as count FROM courses");
     if (parseInt(courseRows[0].count) === 0) {
         const courses = [
@@ -199,18 +169,17 @@ initDB();
 // --- Auth Routes ---
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
-  // 1. Admin Bypass (Hardcoded Backdoor for you)
+  // Admin Bypass
   if (email === 'admin@admin.com') {
       req.session.userId = 1; 
       req.session.user = { isAdmin: true, name: 'Administrator' };
       return res.json({ success: true, user: req.session.user });
   }
-  // 2. Normal DB Auth
   try {
     // Try Hash
     let r = await pool.query("SELECT * FROM users WHERE email = $1 AND password = $2", [email, hashPassword(password)]); 
     if (r.rows.length === 0) {
-        // Try Plain Text (Legacy Support)
+        // Try Plain Text (Legacy)
         r = await pool.query("SELECT * FROM users WHERE email = $1 AND password = $2", [email, password]);
         if (r.rows.length === 0) return res.status(400).json({ error: 'Invalid credentials' });
     }
@@ -244,11 +213,9 @@ async function accumulateExperience(userId, courseName) {
         if (courseName.includes('Ballet') || courseName.includes('RAD')) category = 'RAD Ballet';
         else if (courseName.includes('Jazz') || courseName.includes('NZAMD')) category = 'NZAMD Jazz';
         else if (courseName.includes('Hiphop')) category = 'Hiphop';
-
         await client.query(`INSERT INTO course_progress (user_id, course_category, cumulative_hours) VALUES ($1, $2, $3) ON CONFLICT (user_id, course_category) DO UPDATE SET cumulative_hours = course_progress.cumulative_hours + $3`, [userId, category, 1.0]);
     } catch (e) { console.error(e); } finally { client.release(); }
 }
-
 app.get('/api/my-stats', requireLogin, async (req, res) => { try { let result = await pool.query("SELECT * FROM student_stats WHERE user_id = $1", [req.session.userId]); if (result.rows.length === 0) { await pool.query("INSERT INTO student_stats (user_id) VALUES ($1)", [req.session.userId]); result = await pool.query("SELECT * FROM student_stats WHERE user_id = $1", [req.session.userId]); } res.json(result.rows[0]); } catch (e) { res.status(500).json({ error: e.message }); } });
 app.get('/play/:id', (req, res) => { if(req.session.userId) res.sendFile(path.join(__dirname, 'public', 'play.html')); else res.redirect('/'); });
 app.get('/api/games', async (req, res) => { try { const r = await pool.query("SELECT * FROM games"); res.json(r.rows); } catch (e) { res.status(500).json([]); } });
@@ -269,7 +236,6 @@ app.get('/api/courses/recommended', async (req, res) => {
     res.json({ age, courses: list });
   } catch(e) { res.status(500).json({ error: 'DB Error' }); }
 });
-
 app.get('/api/my-bookings', requireLogin, async (req, res) => { try { const r = await pool.query("SELECT course_id, type, dates FROM bookings WHERE user_id = $1", [req.session.userId]); res.json(r.rows.map(row => ({...row, dates: row.dates?JSON.parse(row.dates):[]}))); } catch(e) { res.json([]); } });
 app.post('/api/book-course', requireLogin, async (req, res) => { try { const {courseId, type, selectedDates, totalPrice} = req.body; const check = await pool.query("SELECT * FROM bookings WHERE user_id=$1 AND course_id=$2 AND type='term'", [req.session.userId, courseId]); if(check.rows.length) return res.status(400).json({success:false, message:'Already Joined'}); await pool.query("INSERT INTO bookings (user_id, course_id, type, dates, total_price) VALUES ($1, $2, $3, $4, $5)", [req.session.userId, courseId, type, JSON.stringify(selectedDates||[]), totalPrice]); res.json({success:true}); } catch(e) { res.status(500).json({success:false}); } });
 app.get('/api/my-schedule', requireLogin, async (req, res) => { try { const sql = `SELECT b.id, b.type as booking_type, b.status, c.name, c.day_of_week, c.start_time, c.teacher, c.classroom FROM bookings b JOIN courses c ON b.course_id = c.id WHERE b.user_id = $1`; const r = await pool.query(sql, [req.session.userId]); res.json(r.rows); } catch(e) { res.json([]); } });
@@ -278,7 +244,7 @@ app.post('/api/upload-trophy-v2', requireLogin, upload, async(req,res)=>{ try{ c
 app.get('/api/my-trophies', requireLogin, async(req,res)=>{ try{ const r=await pool.query("SELECT * FROM trophies WHERE user_id=$1 ORDER BY created_at DESC",[req.session.userId]); res.json(r.rows); }catch(e){res.json([])} });
 app.post('/api/save-avatar', requireLogin, async(req,res)=>{ try{ await pool.query("UPDATE users SET avatar_config=$1 WHERE id=$2",[JSON.stringify(req.body.config), req.session.userId]); res.json({success:true}); }catch(e){res.status(500).json({error:'Error'})} });
 
-// --- ADMIN APIs (Full Set - Permissions Relaxed for Admin@admin.com) ---
+// --- ADMIN APIs (God Mode Enabled) ---
 app.post('/api/admin/courses', requireAdmin, async(req,res)=>{ try{ await pool.query("INSERT INTO courses (name, day_of_week, start_time, end_time, teacher, price, casual_price, classroom, age_group) VALUES ($1,$2,$3,$4,$5,$6,25,$7,$8)", [req.body.name, req.body.day, req.body.start, req.body.end, req.body.teacher, 230, req.body.classroom, req.body.age]); res.json({success:true}); }catch(e){res.status(500).json({error:e.message})} });
 app.delete('/api/admin/courses/:id', requireAdmin, async(req,res)=>{ try{ await pool.query("DELETE FROM courses WHERE id=$1",[req.params.id]); res.json({success:true}); }catch(e){res.status(500).json({error:e.message})} });
 app.get('/api/admin/all-courses', requireAdmin, async(req,res)=>{ try{ const r=await pool.query("SELECT * FROM courses ORDER BY day_of_week, start_time"); res.json(r.rows); }catch(e){res.status(500).json({error:e.message})} });
@@ -290,17 +256,11 @@ app.get('/api/admin/check-in/weekly-schedule', requireAdmin, async (req, res) =>
 app.get('/api/admin/check-in/class-list/:courseId', requireAdmin, async (req, res) => { try { const enrolledSql = `SELECT u.id AS user_id, u.student_name, b.status AS payment_status, 'ENROLLED' AS booking_type FROM bookings b JOIN users u ON b.user_id = u.id WHERE b.course_id = $1 AND b.status != 'CANCELLED' AND b.type = 'term'`; const enrolled = await pool.query(enrolledSql, [req.params.courseId]); res.json(enrolled.rows); } catch (e) { res.status(500).json({ success: false }); } });
 app.post('/api/admin/check-in/submit-attendance', requireAdmin, async (req, res) => { const { userId, courseId, lessonDate, status, courseName } = req.body; const client = await pool.connect(); try { await client.query('BEGIN'); let exp=0.0, exc=false, pres=false; if(status==='PRESENT'){pres=true;exp=1.0;await accumulateExperience(userId,courseName);} else if(status==='ABSENT_EXCUSED'){exc=true;await client.query(`INSERT INTO make_up_credits (user_id, granted_date, expiry_date) VALUES ($1,$2,$3)`,[userId,lessonDate,'2026-04-12']);} await client.query(`INSERT INTO attendance (user_id,course_id,lesson_date,is_excused_absence,was_present,experience_gained_hrs) VALUES ($1,$2,$3,$4,$5,$6)`,[userId,courseId,lessonDate,exc,pres,exp]); await client.query('COMMIT'); res.json({success:true}); } catch(e){ await client.query('ROLLBACK'); res.status(500).json({success:false}); } finally{client.release();} });
 
-// --- Static Routes (Placed LAST to enforce protection) ---
+// --- Static Routes ---
 app.get('/admin.html', (req, res) => {
-    if (req.session.userId === 1 || (req.session.user && req.session.user.isAdmin)) { 
-        res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-    } else if (req.session.userId) {
-        res.redirect('/games.html'); 
-    } else {
-        res.redirect('/?redirect=/admin.html'); 
-    }
+    if (req.session.userId) { res.sendFile(path.join(__dirname, 'public', 'admin.html')); } 
+    else { res.redirect('/?redirect=/admin.html'); }
 });
-
 const protectedPages = ['games.html', 'timetable.html', 'my_schedule.html', 'invoices.html', 'growth.html', 'avatar_editor.html', 'rooms.html'];
 protectedPages.forEach(page => { app.get(`/${page}`, (req, res) => req.session.userId ? res.sendFile(path.join(__dirname, 'public', page)) : res.redirect('/')); });
 
