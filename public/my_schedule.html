@@ -6,63 +6,51 @@
   <title>My Schedule</title>
   <style>
     body{font-family:'Segoe UI', sans-serif;margin:0;background:#f9f9f9;padding-bottom:5rem}
-    .header{background:#ff6b35;color:white;padding:1.5rem;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,0.1)}
+    .header{background:#ff6b35;color:white;padding:1.5rem;text-align:center}
     .container{padding:1rem; max-width: 800px; margin: 0 auto;}
     
     .day-group {margin-bottom:1.5rem}
-    .day-title {font-weight:bold;color:#333;margin-bottom:10px;border-left:4px solid #ff6b35;padding-left:10px;font-size:1.1rem}
+    .day-title {font-weight:bold;color:#333;margin-bottom:10px;border-left:4px solid #ff6b35;padding-left:10px}
     
-    .my-class-card {background:white;border-radius:12px;padding:15px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,0.05);border-left:6px solid #ddd; position: relative; display:flex; gap:15px; align-items:center; transition:0.2s}
-    .my-class-card:active {transform:scale(0.98)}
-    
+    .my-class-card {background:white;border-radius:10px;padding:15px;margin-bottom:10px;box-shadow:0 2px 5px rgba(0,0,0,0.05);border-left:5px solid #ddd; position: relative; display:flex; gap:15px; align-items:center}
     .my-class-card.active{border-left-color:#2ed573}
     .my-class-card.unpaid{border-left-color:#ff4757}
     
-    .time-col {display:flex;flex-direction:column;align-items:center;min-width:65px;border-right:1px solid #eee;padding-right:10px}
-    .time-text {font-weight:bold;color:#333;font-size:1.2rem}
-    .ampm {font-size:0.75rem;color:#888;text-transform:uppercase}
+    .time-col {display:flex;flex-direction:column;align-items:center;min-width:60px;}
+    .time-text {font-weight:bold;color:#333;font-size:1.1rem}
+    .ampm {font-size:0.75rem;color:#888}
     
-    .info-col {flex:1; padding-left:5px}
-    .c-name {font-weight:bold;font-size:1.1rem;color:#333;margin-bottom:5px}
+    .info-col {flex:1}
+    .c-name {font-weight:bold;font-size:1.1rem;color:#333}
+    .c-meta {font-size:0.85rem;color:#666;margin:4px 0; display:flex; gap:10px; flex-wrap:wrap;}
+    .c-badge {font-size:0.75rem; padding:2px 6px; border-radius:4px; font-weight:bold}
     
-    /* 标签行 */
-    .c-tags {display:flex; gap:8px; flex-wrap:wrap; margin-bottom:6px}
-    .badge {font-size:0.75rem; padding:3px 8px; border-radius:6px; font-weight:bold; display:inline-block}
-    
-    /* 不同类型的标签颜色 */
-    .badge-term {background:#e3f2fd; color:#1976d2; border:1px solid #bbdefb} /* 蓝色:整学期 */
-    .badge-casual {background:#fff3e0; color:#f57c00; border:1px solid #ffe0b2} /* 橙色:单次 */
-    .badge-room {background:#f3e5f5; color:#7b1fa2; border:1px solid #e1bee7} /* 紫色:教室 */
-    .badge-unpaid {background:#ffebee; color:#c62828; border:1px solid #ffcdd2} /* 红色:未付 */
+    .badge-term {background:#e3f2fd; color:#2196f3; border:1px solid #bbdefb}
+    .badge-casual {background:#fff3e0; color:#ff9800; border:1px solid #ffe0b2}
+    .badge-room {background:#f3e5f5; color:#9c27b0; border:1px solid #e1bee7}
 
-    .teacher-row {font-size:0.9rem; color:#666; display:flex; align-items:center; gap:5px}
-
-    /* 底部导航 */
-    .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:white;border-top:1px solid #eee;display:flex;justify-content:space-around;padding:8px 0;z-index:99; padding-bottom: max(8px, env(safe-area-inset-bottom)); box-shadow:0 -2px 10px rgba(0,0,0,0.05)}
-    .nav-item{text-decoration:none;color:#999;font-size:0.75rem;text-align:center;display:flex;flex-direction:column;align-items:center;flex:1; transition:0.2s}
-    .nav-icon{font-size:1.5rem;margin-bottom:2px}
+    .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:white;border-top:1px solid #eee;display:flex;justify-content:space-around;padding:8px 0;z-index:99; padding-bottom: max(8px, env(safe-area-inset-bottom));}
+    .nav-item{text-decoration:none;color:#888;font-size:0.75rem;text-align:center;display:flex;flex-direction:column;align-items:center;flex:1}
+    .nav-icon{font-size:1.4rem;margin-bottom:2px}
     .nav-item.active-nav{color:#ff6b35}
-    .nav-item:active{transform:scale(0.95)}
   </style>
 </head>
 <body>
 
 <div class="header">
-  <h2 style="margin:0">📅 My Schedule (我的课表)</h2>
+  <h2>📅 My Schedule</h2>
 </div>
 
 <div class="container" id="scheduleList">
-  <div style="text-align:center;margin-top:3rem;color:#999">
-    <div style="font-size:2rem;margin-bottom:10px">⏳</div>
-    Loading your classes...
-  </div>
+  <p style="text-align:center;margin-top:2rem">Loading...</p>
 </div>
 
 <div class="nav-bar">
-    <a href="/games.html" class="nav-item"><span class="nav-icon">🎮</span>Home</a>
-    <a href="#" class="nav-item active-nav"><span class="nav-icon">📅</span>Schedule</a>
-    <a href="/timetable.html" class="nav-item"><span class="nav-icon">🛒</span>Book</a>
-    <a href="/rooms.html" class="nav-item"><span class="nav-icon">🔑</span>Rooms</a>
+    <a href="/games.html" class="nav-item"><span class="nav-icon">🎮</span>Home<br>(大厅)</a>
+    <a href="#" class="nav-item active-nav"><span class="nav-icon">📅</span>Schedule<br>(课表)</a>
+    <a href="/timetable.html" class="nav-item"><span class="nav-icon">🛒</span>Book<br>(选课)</a>
+    <a href="/growth.html" class="nav-item"><span class="nav-icon">📊</span>Growth<br>(成长)</a>
+    <a href="/rooms.html" class="nav-item"><span class="nav-icon">🔑</span>Rooms<br>(教室)</a>
 </div>
 
 <script>
@@ -74,22 +62,13 @@
         list.innerHTML = '';
         
         if(data.length === 0) {
-            list.innerHTML = `
-                <div style="text-align:center;margin-top:4rem;color:#999">
-                    <div style="font-size:3rem;margin-bottom:1rem">📭</div>
-                    <div>No classes booked yet.<br>(暂无课程)</div>
-                    <a href="/timetable.html" style="display:inline-block;margin-top:1rem;color:#ff6b35;text-decoration:none;font-weight:bold;border:1px solid #ff6b35;padding:8px 20px;border-radius:20px">Go to Booking ></a>
-                </div>`;
+            list.innerHTML = '<div style="text-align:center;margin-top:3rem;color:#999">No classes found.<br><a href="/timetable.html" style="color:#ff6b35">Go Book Class ></a></div>';
             return;
         }
 
         let currentDay = '';
         let dayContainer = null;
         
-        // 简单按星期排序: Mon -> Sun (如果后端没排，前端简单排一下)
-        const dayOrder = {'Monday':1, 'Tuesday':2, 'Wednesday':3, 'Thursday':4, 'Friday':5, 'Saturday':6, 'Sunday':7};
-        data.sort((a,b) => (dayOrder[a.day_of_week] || 8) - (dayOrder[b.day_of_week] || 8));
-
         data.forEach(c => {
             if(c.day_of_week !== currentDay) {
                 currentDay = c.day_of_week;
@@ -99,45 +78,34 @@
                 list.appendChild(dayContainer);
             }
 
-            // 状态逻辑
             const isUnpaid = c.status === 'UNPAID';
-            const isTerm = c.booking_type === 'term';
-            
-            // 标签文本
-            const typeLabel = isTerm ? '📅 Full Term' : '🗓 Casual';
-            const typeClass = isTerm ? 'badge-term' : 'badge-casual';
-            
-            // 教室信息 (如果数据库有就显示，没有就显示默认)
-            const roomName = c.classroom || 'Studio 1';
+            const typeText = c.booking_type === 'term' ? 'FULL TERM' : 'CASUAL';
+            const typeClass = c.booking_type === 'term' ? 'badge-term' : 'badge-casual';
+            const classroom = c.classroom || 'Studio';
 
             const card = document.createElement('div');
             card.className = `my-class-card ${isUnpaid ? 'unpaid' : 'active'}`;
             
             card.innerHTML = `
                 <div class="time-col">
-                    <span class="time-text">${c.start_time || '00:00'}</span>
+                    <span class="time-text">${c.start_time.split(':')[0]}:${c.start_time.split(':')[1]}</span>
                     <span class="ampm">Start</span>
                 </div>
                 <div class="info-col">
                     <div class="c-name">${c.name}</div>
-                    
-                    <div class="c-tags">
-                        <span class="badge ${typeClass}">${typeLabel}</span>
-                        <span class="badge badge-room">📍 ${roomName}</span>
-                        ${isUnpaid ? '<span class="badge badge-unpaid">⚠️ Unpaid</span>' : ''}
+                    <div class="c-meta">
+                        <span class="c-badge ${typeClass}">${typeText}</span>
+                        <span class="c-badge badge-room">📍 ${classroom}</span>
                     </div>
-
-                    <div class="teacher-row">
-                        <span>👩‍🏫 Teacher: ${c.teacher || 'Staff'}</span>
+                    <div class="c-meta">
+                        <span>👩‍🏫 ${c.teacher}</span>
+                        ${isUnpaid ? '<span style="color:red;margin-left:auto;font-weight:bold">UNPAID</span>' : ''}
                     </div>
                 </div>
             `;
             dayContainer.appendChild(card);
         });
-    } catch(e) { 
-        console.error(e);
-        list.innerHTML = '<div style="text-align:center;margin-top:2rem;color:red">Failed to load schedule.<br>Please try logging in again.</div>'; 
-    }
+    } catch(e) { list.innerHTML = 'Load Failed'; }
   }
   loadMySchedule();
 </script>
