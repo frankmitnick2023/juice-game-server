@@ -15,6 +15,9 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+const uploadRoutes = require('./routes'); 
+app.use(uploadRoutes);  
+
 // --- Multer Config ---
 const upload = multer({ 
     storage: multer.diskStorage({ 

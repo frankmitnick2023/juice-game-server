@@ -136,6 +136,71 @@
   </div>
 
   <script>
+	  // 在 games.html 的 script 标签内
+
+async function submitAwardUpload() {
+    // 1. 获取 input 里的文件
+    const mainInput = document.getElementById('mainCertInput');
+    const extraInput = document.getElementById('extraPhotosInput');
+    
+    // 验证：必须上传主证书
+    if (!mainInput.files || mainInput.files.length === 0) {
+        alert('Please upload the Main Certificate (请上传证书图片)!');
+        return;
+    }
+
+    // 2. 界面反馈：显示 Loading，防止重复点击
+    const btn = document.querySelector('.btn-submit');
+    const originalText = btn.textContent;
+    btn.textContent = 'Uploading... 0%'; // 可以简单提示正在上传
+    btn.disabled = true;
+    document.getElementById('loader').style.display = 'flex'; // 显示你做好的 loader 遮罩
+
+    // 3. 构建 FormData 数据包
+    const formData = new FormData();
+    // 注意：这里的名字 'mainCert' 必须和后端 upload.fields 里的名字一致
+    formData.append('mainCert', mainInput.files[0]); 
+    
+    // 把多张额外照片加进去
+    for (let i = 0; i < extraInput.files.length; i++) {
+        formData.append('extraPhotos', extraInput.files[i]);
+    }
+
+    try {
+        // 4. 发送请求
+        const res = await fetch('/api/upload-trophy', {
+            method: 'POST',
+            body: formData // 不需要设置 Content-Type，浏览器会自动处理
+        });
+        
+        const data = await res.json();
+        
+        if (res.ok && data.success) {
+            alert('✅ Upload Successful! Waiting for teacher approval.');
+            closeModal('uploadModal'); // 关闭弹窗
+            
+            // 清空输入框，方便下次上传
+            mainInput.value = '';
+            extraInput.value = '';
+            document.getElementById('previewMain').innerHTML = '';
+            document.getElementById('previewExtra').innerHTML = '';
+
+            // 刷新列表（如果你有 loadTrophies 函数的话）
+            if (typeof loadTrophies === 'function') loadTrophies();
+        } else {
+            throw new Error(data.error || 'Unknown error');
+        }
+    } catch (e) {
+        console.error(e);
+        alert('❌ Upload Failed: ' + e.message);
+    } finally {
+        // 5. 恢复界面状态
+        btn.textContent = originalText;
+        btn.disabled = false;
+        document.getElementById('loader').style.display = 'none';
+    }
+}
+	    
     async function init() {
         try {
             const res = await fetch('/api/me');
