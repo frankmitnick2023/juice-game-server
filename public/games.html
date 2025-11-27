@@ -71,6 +71,7 @@
     .nav-icon { font-size: 1.4rem; margin-bottom: 2px; }
     .nav-item.active { color: #e94560; }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
 </head>
 <body>
 
@@ -99,10 +100,18 @@
       </div>
   </div>
 
-  <div id="gameView" class="content-section">
-    <div class="back-bar" onclick="switchMode('home')"><span>◀ Back</span></div>
-    <div style="font-size:1.2rem;font-weight:bold;color:#e94560;margin-bottom:15px;border-left:4px solid #e94560;padding-left:10px">Available Games</div>
-    <div id="gameGrid" class="game-grid"></div>
+  <div id="gameView" class="content-section" style="max-width:100%; padding:0; margin-top:0; height:100vh; background:#000;">
+    <div style="position:absolute; top:10px; left:10px; z-index:100;">
+        <div class="back-bar" onclick="switchMode('home')" style="background:rgba(0,0,0,0.6); padding:8px 15px; border-radius:20px; border:1px solid #444;">
+            <span>◀ Exit World</span>
+        </div>
+    </div>
+    
+    <div id="phaser-game" style="width:100%; height:100%;"></div>
+    
+    <div id="interactionTip" style="display:none; position:absolute; bottom:100px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.8); color:white; padding:10px 20px; border-radius:20px; border:2px solid #e94560; font-weight:bold; font-size:1.2rem; animation: float 2s infinite;">
+        Press SPACE to enter
+    </div>
   </div>
 
   <div id="uploadModal" class="modal-overlay">
@@ -223,13 +232,33 @@ async function submitAwardUpload() {
         imgEl.style.opacity = 1;
     }
 
+    let gameInstance = null; // 全局变量存储游戏实例
+
     function switchMode(mode) {
         const lobby = document.getElementById('lobbyView');
         const games = document.getElementById('gameView');
-        if (mode === 'battle') { lobby.style.display = 'none'; games.style.display = 'block'; loadGames(); } 
-        else { games.style.display = 'none'; lobby.style.display = 'block'; }
+        
+        if (mode === 'battle') { 
+            lobby.style.display = 'none'; 
+            games.style.display = 'block'; 
+            // 启动虚拟校园
+            if (!gameInstance) {
+                // 延迟一点点确保容器已渲染
+                setTimeout(() => {
+                    initVirtualCampus(); 
+                }, 100);
+            }
+        } else { 
+            // 回到大厅
+            games.style.display = 'none'; 
+            lobby.style.display = 'block'; 
+            // 销毁游戏实例，释放内存
+            if (gameInstance) {
+                gameInstance.destroy(true);
+                gameInstance = null;
+            }
+        }
     }
-
     function loadGames() {
         const grid = document.getElementById('gameGrid');
         grid.innerHTML = '<div style="text-align:center;color:#888">Loading...</div>';
@@ -322,6 +351,7 @@ async function submitAwardUpload() {
     }
 }
     document.getElementById('logout').onclick = () => fetch('/api/logout', {method:'POST'}).then(()=>location.href='/');
+	src="/js/virtual_campus.js"> 
     init();
   </script>
 </body>
