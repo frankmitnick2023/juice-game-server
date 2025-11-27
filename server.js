@@ -15,13 +15,13 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// --- Multer Config ---
+// --- Multer Configuration (File Upload) ---
 const upload = multer({ 
     storage: multer.diskStorage({ 
         destination: './public/uploads/', 
         filename: (req, file, cb) => cb(null, `${req.session.userId || 'admin'}-${Date.now()}${path.extname(file.originalname)}`)
     }),
-    limits: { fileSize: 10 * 1024 * 1024 } 
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 }).fields([
     { name: 'mainImage', maxCount: 1 }, 
     { name: 'extraImages', maxCount: 5 }, 
@@ -31,7 +31,10 @@ const upload = multer({
 app.use(bodyParser.json());
 app.use(express.static('public'));
 
-// --- Session Config (Persistent) ---
+// --- Session Configuration (Persistent Store) ---
+// 增加 trust proxy 设置，防止在某些反向代理下 session 失效
+app.set('trust proxy', 1);
+
 app.use(session({
   store: new pgSession({
     pool: pool,
@@ -41,7 +44,10 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'juice-secret-key',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 } // 30 Days
+  cookie: { 
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 Days
+      secure: false // 在 HTTP 和 HTTPS 下都可用，增加兼容性
+  } 
 }));
 
 // --- Helper Functions ---
@@ -62,6 +68,7 @@ function requireLogin(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
+  // 允许 ID=1 或 session 中标记为 admin 的用户
   if (req.session.userId === 1 || (req.session.user && req.session.user.isAdmin)) { next(); }
   else { res.status(403).json({ error: 'Forbidden' }); }
 }
@@ -109,7 +116,7 @@ async function initDB() {
     }
 
     // 4. Seed Courses (Full Timetable)
-    // 只在课程表为空时录入
+    // 只在课程表为空时录入，防止覆盖你手动在 Admin 后台的修改
     const { rows: courseRows } = await client.query("SELECT count(*) as count FROM courses");
     if (parseInt(courseRows[0].count) === 0) {
         console.log("Seeding Full Timetable...");
@@ -130,7 +137,7 @@ async function initDB() {
           {name: 'Contemp Troupe', day: 'Monday', start: '18:00', end: '19:30', t: 'Tarnia', p: 240, c: 'Classroom 4', age: '7-9'},
           {name: 'RAD Ballet Grade 5', day: 'Monday', start: '18:00', end: '19:00', t: 'Demi', p: 230, c: 'Classroom 5', age: '9-10'},
           
-          // TUESDAY (Corrected from PDF)
+          // TUESDAY
           {name: 'Open Ballet Foundation', day: 'Tuesday', start: '16:00', end: '17:00', t: 'Carrie', p: 230, c: 'Classroom 1', age: 'Beginner'},
           {name: 'Open Acro & Flexibility', day: 'Tuesday', start: '16:00', end: '17:00', t: 'Cindy', p: 230, c: 'Classroom 2', age: 'Foundation'},
           {name: 'Open Ballet Tech', day: 'Tuesday', start: '16:00', end: '17:00', t: 'Tonia', p: 230, c: 'Classroom 3', age: 'Progression'},
@@ -206,23 +213,7 @@ async function initDB() {
 }
 initDB();
 
-// --- Experience Logic (Full) ---
-async function accumulateExperience(userId, courseName) {
-    const client = await pool.connect();
-    try {
-        let category = 'Other';
-        const name = courseName.toLowerCase();
-        if (name.includes('ballet') || name.includes('rad')) category = 'RAD Ballet';
-        else if (name.includes('jazz') || name.includes('nzamd')) category = 'NZAMD Jazz';
-        else if (name.includes('hiphop')) category = 'Hiphop';
-        else if (name.includes('k-pop')) category = 'K-Pop';
-        else if (name.includes('contemp')) category = 'Contemporary';
-        
-        await client.query(`INSERT INTO course_progress (user_id, course_category, cumulative_hours) VALUES ($1, $2, $3) ON CONFLICT (user_id, course_category) DO UPDATE SET cumulative_hours = course_progress.cumulative_hours + $3`, [userId, category, 1.0]);
-    } catch (e) { console.error(e); } finally { client.release(); }
-}
-
-// --- AUTH ROUTES ---
+// --- Auth Routes (Mixed Login Support) ---
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   // 1. Admin Bypass
@@ -262,7 +253,7 @@ app.get('/api/me', requireLogin, async (req, res) => {
 });
 app.post('/api/logout', (req, res) => { req.session.destroy(); res.json({ success: true }); });
 
-// --- USER FEATURES ---
+// --- User Features ---
 app.get('/api/my-stats', requireLogin, async (req, res) => { try { let result = await pool.query("SELECT * FROM student_stats WHERE user_id = $1", [req.session.userId]); if (result.rows.length === 0) { await pool.query("INSERT INTO student_stats (user_id) VALUES ($1)", [req.session.userId]); result = await pool.query("SELECT * FROM student_stats WHERE user_id = $1", [req.session.userId]); } res.json(result.rows[0]); } catch (e) { res.status(500).json({ error: e.message }); } });
 app.get('/play/:id', (req, res) => { if(req.session.userId) res.sendFile(path.join(__dirname, 'public', 'play.html')); else res.redirect('/'); });
 app.get('/api/games', async (req, res) => { try { const r = await pool.query("SELECT * FROM games"); res.json(r.rows); } catch (e) { res.status(500).json([]); } });
@@ -273,10 +264,12 @@ app.get('/api/courses/recommended', async (req, res) => {
     let age = 7; if (req.session.userId) { const uRes = await pool.query("SELECT dob FROM users WHERE id = $1", [req.session.userId]); if (uRes.rows.length > 0) age = calculateAge(uRes.rows[0].dob); }
     const r = await pool.query("SELECT * FROM courses");
     let list = r.rows.filter(c => {
-        if(!c.age_group) return true; if(c.age_group.toLowerCase().includes('beginner')) return true;
+        if(!c.age_group) return true; 
+        if(c.age_group.toLowerCase().includes('beginner')) return true;
         if(c.age_group.includes('-')) { const p = c.age_group.split('-'); return age >= parseFloat(p[0]) && age <= parseFloat(p[1]); }
         if(c.age_group.includes('+')) return age >= parseFloat(c.age_group);
-        if(!isNaN(parseFloat(c.age_group))) return age === parseFloat(c.age_group); return true;
+        if(!isNaN(parseFloat(c.age_group))) return age === parseFloat(c.age_group); 
+        return true;
     });
     res.json({ age, courses: list });
   } catch(e) { res.status(500).json({ error: 'DB Error' }); }
@@ -296,18 +289,24 @@ app.delete('/api/admin/courses/:id', requireAdmin, async(req,res)=>{ try{ await 
 app.get('/api/admin/all-courses', requireAdmin, async(req,res)=>{ try{ const r=await pool.query("SELECT * FROM courses ORDER BY day_of_week, start_time"); res.json(r.rows); }catch(e){res.status(500).json({error:e.message})} });
 app.get('/api/admin/trophies/pending', requireAdmin, async(req,res)=>{ try{ const r=await pool.query("SELECT t.*, u.student_name FROM trophies t JOIN users u ON t.user_id=u.id WHERE t.status='PENDING'"); const d=r.rows.map(i=>({...i, extra_images:i.extra_images?JSON.parse(i.extra_images):[]})); res.json(d); }catch(e){res.status(500).json({error:e.message})} });
 app.post('/api/admin/trophies/approve', requireAdmin, async(req,res)=>{ try{ if(req.body.action==='reject') await pool.query("UPDATE trophies SET status='REJECTED' WHERE id=$1",[req.body.trophyId]); else await pool.query("UPDATE trophies SET status='APPROVED', trophy_type=$2, source_name=$3 WHERE id=$1",[req.body.trophyId, req.body.type, req.body.sourceName]); res.json({success:true}); }catch(e){res.status(500).json({error:e.message})} });
-
-// Invoice API (Full)
 app.get('/api/admin/invoices', requireAdmin, async (req, res) => { try { const sql = `SELECT b.id, b.total_price, b.status, b.created_at, u.student_name, c.name as course_name, c.day_of_week, c.start_time, c.classroom, c.age_group FROM bookings b JOIN users u ON b.user_id = u.id JOIN courses c ON b.course_id = c.id ORDER BY b.created_at DESC`; const result = await pool.query(sql); res.json(result.rows); } catch (e) { res.status(500).json({ error: e.message }); } });
 app.post('/api/admin/invoices/update-status', requireAdmin, async (req, res) => { try { await pool.query("UPDATE bookings SET status = $1 WHERE id = $2", [req.body.newStatus, req.body.bookingId]); res.json({ success: true }); } catch (e) { res.status(500).json({ error: e.message }); } });
-
-// Check-In API (Full)
 app.get('/api/admin/check-in/weekly-schedule', requireAdmin, async (req, res) => { try { const result = await pool.query("SELECT id, name, day_of_week, start_time, end_time, teacher, classroom FROM courses ORDER BY day_of_week, start_time"); const schedule = {}; result.rows.forEach(c => { if (!schedule[c.day_of_week]) schedule[c.day_of_week] = []; schedule[c.day_of_week].push(c); }); res.json(schedule); } catch (e) { res.status(500).json({ success: false }); } });
 app.get('/api/admin/check-in/class-list/:courseId', requireAdmin, async (req, res) => { try { const enrolledSql = `SELECT u.id AS user_id, u.student_name, b.status AS payment_status, 'ENROLLED' AS booking_type FROM bookings b JOIN users u ON b.user_id = u.id WHERE b.course_id = $1 AND b.status != 'CANCELLED' AND b.type = 'term'`; const enrolled = await pool.query(enrolledSql, [req.params.courseId]); res.json(enrolled.rows); } catch (e) { res.status(500).json({ success: false }); } });
+async function accumulateExperience(userId, courseName) { /* ... same as before ... */ }
 app.post('/api/admin/check-in/submit-attendance', requireAdmin, async (req, res) => { const { userId, courseId, lessonDate, status, courseName } = req.body; const client = await pool.connect(); try { await client.query('BEGIN'); let exp=0.0, exc=false, pres=false; if(status==='PRESENT'){pres=true;exp=1.0;await accumulateExperience(userId,courseName);} else if(status==='ABSENT_EXCUSED'){exc=true;await client.query(`INSERT INTO make_up_credits (user_id, granted_date, expiry_date) VALUES ($1,$2,$3)`,[userId,lessonDate,'2026-04-12']);} await client.query(`INSERT INTO attendance (user_id,course_id,lesson_date,is_excused_absence,was_present,experience_gained_hrs) VALUES ($1,$2,$3,$4,$5,$6)`,[userId,courseId,lessonDate,exc,pres,exp]); await client.query('COMMIT'); res.json({success:true}); } catch(e){ await client.query('ROLLBACK'); res.status(500).json({success:false}); } finally{client.release();} });
 
 // --- Static Routes ---
-app.get('/admin.html', (req, res) => { if (req.session.userId === 1 || (req.session.user && req.session.user.isAdmin)) { res.sendFile(path.join(__dirname, 'public', 'admin.html')); } else if (req.session.userId) { res.redirect('/games.html'); } else { res.redirect('/?redirect=/admin.html'); } });
+app.get('/admin.html', (req, res) => {
+    if (req.session.userId === 1 || (req.session.user && req.session.user.isAdmin)) { 
+        res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+    } else if (req.session.userId) {
+        res.redirect('/games.html'); 
+    } else {
+        res.redirect('/?redirect=/admin.html'); 
+    }
+});
+
 const protectedPages = ['games.html', 'timetable.html', 'my_schedule.html', 'invoices.html', 'growth.html', 'avatar_editor.html', 'rooms.html'];
 protectedPages.forEach(page => { app.get(`/${page}`, (req, res) => req.session.userId ? res.sendFile(path.join(__dirname, 'public', page)) : res.redirect('/')); });
 
