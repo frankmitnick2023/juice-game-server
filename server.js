@@ -14,30 +14,43 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+// --- Multer ---
 const upload = multer({ 
     storage: multer.diskStorage({ 
         destination: './public/uploads/', 
         filename: (req, file, cb) => cb(null, `${req.session.userId || 'admin'}-${Date.now()}${path.extname(file.originalname)}`)
-    }),
-    limits: { fileSize: 10 * 1024 * 1024 } 
+    })
 }).fields([{ name: 'mainImage', maxCount: 1 }, { name: 'extraImages', maxCount: 5 }, { name: 'trophyImage', maxCount: 1 }]);
 
 app.use(bodyParser.json());
 app.use(express.static('public'));
 
+// --- Session ---
+app.set('trust proxy', 1);
 app.use(session({
   store: new pgSession({ pool: pool, tableName: 'session_store', createTableIfMissing: true }),
   secret: process.env.SESSION_SECRET || 'juice-secret-key',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 } 
+  cookie: { maxAge: 30 * 24 * 60 * 60 * 1000, secure: false } 
 }));
 
+// --- Helpers ---
 function hashPassword(password) { return createHash('sha256').update(password).digest('hex'); }
 function calculateAge(dob) { if (!dob) return 7; const diff = Date.now() - new Date(dob).getTime(); return Math.abs(new Date(diff).getUTCFullYear() - 1970); }
-function requireLogin(req, res, next) { if (req.session.userId) next(); else res.status(401).json({ error: 'Unauthorized' }); }
-function requireAdmin(req, res, next) { if (req.session.userId === 1 || (req.session.user && req.session.user.isAdmin)) { next(); } else { res.status(403).json({ error: 'Forbidden' }); } }
 
+// ★★★ 核心修改：登录就是管理员，没有任何 ID 限制 ★★★
+function requireLogin(req, res, next) {
+  if (req.session.userId) { next(); } 
+  else { 
+      if (req.path.startsWith('/admin')) return res.redirect('/');
+      res.status(401).json({ error: 'Unauthorized' }); 
+  }
+}
+// Admin 检查直接等同于登录检查，不再拦截任何人
+const requireAdmin = requireLogin; 
+
+// --- DB Init (自动录入数据) ---
 async function initDB() {
   const client = await pool.connect();
   try {
@@ -57,6 +70,7 @@ async function initDB() {
       await client.query("INSERT INTO users (email, password, student_name, is_admin) VALUES ('admin@admin.com', $1, 'Admin User', TRUE) ON CONFLICT (email) DO NOTHING", [hashedPassword]);
     }
 
+    // 自动录入游戏
     const { rows: gameRows } = await client.query("SELECT count(*) as count FROM games");
     if (parseInt(gameRows[0].count) === 0) {
         const games = [
@@ -71,6 +85,7 @@ async function initDB() {
         for(const g of games) await client.query("INSERT INTO games (id, title, thumbnail, path, category) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING", [g.id, g.title, g.thumb, g.path, g.cat]);
     }
 
+    // 自动录入课表 (如果为空)
     const { rows: courseRows } = await client.query("SELECT count(*) as count FROM courses");
     if (parseInt(courseRows[0].count) === 0) {
         const courses = [
@@ -142,17 +157,20 @@ async function initDB() {
 }
 initDB();
 
-// --- Auth ---
+// --- Auth Routes ---
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
+  // Admin Bypass
   if (email === 'admin@admin.com') {
       req.session.userId = 1; 
       req.session.user = { isAdmin: true, name: 'Administrator' };
       return res.json({ success: true, user: req.session.user });
   }
   try {
+    // Try Hash
     let r = await pool.query("SELECT * FROM users WHERE email = $1 AND password = $2", [email, hashPassword(password)]); 
     if (r.rows.length === 0) {
+        // Try Plain Text (Legacy)
         r = await pool.query("SELECT * FROM users WHERE email = $1 AND password = $2", [email, password]);
         if (r.rows.length === 0) return res.status(400).json({ error: 'Invalid credentials' });
     }
@@ -219,7 +237,7 @@ app.post('/api/upload-trophy-v2', requireLogin, upload, async(req,res)=>{ try{ c
 app.get('/api/my-trophies', requireLogin, async(req,res)=>{ try{ const r=await pool.query("SELECT * FROM trophies WHERE user_id=$1 ORDER BY created_at DESC",[req.session.userId]); res.json(r.rows); }catch(e){res.json([])} });
 app.post('/api/save-avatar', requireLogin, async(req,res)=>{ try{ await pool.query("UPDATE users SET avatar_config=$1 WHERE id=$2",[JSON.stringify(req.body.config), req.session.userId]); res.json({success:true}); }catch(e){res.status(500).json({error:'Error'})} });
 
-// --- ADMIN APIs (Restored & Protected) ---
+// --- ADMIN APIs ---
 app.post('/api/admin/courses', requireAdmin, async(req,res)=>{ try{ await pool.query("INSERT INTO courses (name, day_of_week, start_time, end_time, teacher, price, casual_price, classroom, age_group) VALUES ($1,$2,$3,$4,$5,$6,25,$7,$8)", [req.body.name, req.body.day, req.body.start, req.body.end, req.body.teacher, 230, req.body.classroom, req.body.age]); res.json({success:true}); }catch(e){res.status(500).json({error:e.message})} });
 app.delete('/api/admin/courses/:id', requireAdmin, async(req,res)=>{ try{ await pool.query("DELETE FROM courses WHERE id=$1",[req.params.id]); res.json({success:true}); }catch(e){res.status(500).json({error:e.message})} });
 app.get('/api/admin/all-courses', requireAdmin, async(req,res)=>{ try{ const r=await pool.query("SELECT * FROM courses ORDER BY day_of_week, start_time"); res.json(r.rows); }catch(e){res.status(500).json({error:e.message})} });
@@ -233,15 +251,9 @@ app.post('/api/admin/check-in/submit-attendance', requireAdmin, async (req, res)
 
 // --- Static Routes (Last) ---
 app.get('/admin.html', (req, res) => {
-    if (req.session.userId === 1 || (req.session.user && req.session.user.isAdmin)) { 
-        res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-    } else if (req.session.userId) {
-        res.redirect('/games.html'); 
-    } else {
-        res.redirect('/?redirect=/admin.html'); 
-    }
+    if (req.session.userId) { res.sendFile(path.join(__dirname, 'public', 'admin.html')); } 
+    else { res.redirect('/?redirect=/admin.html'); }
 });
-
 const protectedPages = ['games.html', 'timetable.html', 'my_schedule.html', 'invoices.html', 'growth.html', 'avatar_editor.html', 'rooms.html'];
 protectedPages.forEach(page => { app.get(`/${page}`, (req, res) => req.session.userId ? res.sendFile(path.join(__dirname, 'public', page)) : res.redirect('/')); });
 
