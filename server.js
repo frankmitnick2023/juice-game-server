@@ -37,6 +37,16 @@ app.use(session({
   cookie: { maxAge: 30 * 24 * 60 * 60 * 1000, secure: false } 
 }));
 
+// --- Session Config (防掉线) ---
+app.set('trust proxy', 1);
+app.use(session({
+  store: new pgSession({ pool: pool, tableName: 'session_store', createTableIfMissing: true }),
+  secret: process.env.SESSION_SECRET || 'juice-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 30 * 24 * 60 * 60 * 1000, secure: false } 
+}));
+
 // --- Helpers ---
 function hashPassword(password) { return createHash('sha256').update(password).digest('hex'); }
 function calculateAge(dob) { if (!dob) return 7; const diff = Date.now() - new Date(dob).getTime(); return Math.abs(new Date(diff).getUTCFullYear() - 1970); }
@@ -44,6 +54,41 @@ function calculateAge(dob) { if (!dob) return 7; const diff = Date.now() - new D
 // ★★★ 上帝模式：直接放行 ★★★
 function requireLogin(req, res, next) { if (req.session.userId) next(); else { if (req.path.startsWith('/admin')) return res.redirect('/'); res.status(401).json({ error: 'Unauthorized' }); } }
 const requireAdmin = requireLogin; // Admin = Login User
+
+// ★★★ 新增：能力值与成长报告 API ★★★
+app.get('/api/my-progress', requireLogin, async (req, res) => {
+    try {
+        const userId = req.session.userId;
+        
+        // 1. 获取六边形能力值
+        let statsRes = await pool.query("SELECT * FROM student_stats WHERE user_id = $1", [userId]);
+        if (statsRes.rows.length === 0) {
+            // 如果 stats 表为空，自动初始化并返回默认值
+            await pool.query("INSERT INTO student_stats (user_id) VALUES ($1)", [userId]);
+            statsRes = await pool.query("SELECT * FROM student_stats WHERE user_id = $1", [userId]);
+        }
+        const stats = statsRes.rows[0];
+
+        // 2. 获取累计学时 (用于 Dedication)
+        const progressRes = await pool.query("SELECT course_category, cumulative_hours FROM course_progress WHERE user_id = $1", [userId]);
+        
+        res.json({
+            success: true,
+            stats: {
+                flexibility: stats.flexibility,
+                strength: stats.strength,
+                rhythm: stats.rhythm,
+                memory: stats.memory,
+                technique: stats.technique,
+                dedication: stats.dedication 
+            },
+            progress: progressRes.rows
+        });
+    } catch (e) {
+        console.error('Progress fetch failed:', e);
+        res.status(500).json({ success: false, error: 'Failed to load progress data.' });
+    }
+});
 
 // --- DB Init & FORCE SEEDING ---
 async function initDB() {
