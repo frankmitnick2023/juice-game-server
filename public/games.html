@@ -232,63 +232,148 @@ async function submitAwardUpload() {
         } catch (e) {}
     }
 
+    // -------------------------------------------------------------
+    // 1. 头像加载逻辑 (保持不变)
+    // -------------------------------------------------------------
     function loadAvatar(user) {
         const imgEl = document.getElementById('heroImg');
-        let age = 7; if (user.dob) age = Math.abs(new Date(Date.now() - new Date(user.dob).getTime()).getUTCFullYear() - 1970);
-        let ageGroup = 'junior'; if (age >= 12) ageGroup = 'senior'; else if (age >= 8) ageGroup = 'middle';
+        let age = 7; 
+        if (user.dob) age = Math.abs(new Date(Date.now() - new Date(user.dob).getTime()).getUTCFullYear() - 1970);
+        
+        let ageGroup = 'junior'; 
+        if (age >= 12) ageGroup = 'senior'; 
+        else if (age >= 8) ageGroup = 'middle';
+        
         const gender = (/[aeiy]$/.test(user.student_name || "") || ['cindy','yolanda'].includes((user.student_name||"").toLowerCase())) ? 'girl' : 'boy';
         const outfit = user.avatar_config?.outfit || 'uniform';
-        document.getElementById('ageTag').textContent = `${ageGroup.toUpperCase()} ${gender==='girl'?'Heroine':'Hero'}`;
-        if (user.avatar_config?.useAiAvatar && user.avatar_config?.aiAvatarUrl) { imgEl.src = user.avatar_config.aiAvatarUrl; } else { imgEl.src = `/avatars/${gender}_${ageGroup}_${outfit}.png`; }
-        imgEl.style.opacity = 1;
+        
+        const ageTag = document.getElementById('ageTag');
+        if(ageTag) ageTag.textContent = `${ageGroup.toUpperCase()} ${gender==='girl'?'Heroine':'Hero'}`;
+        
+        if (imgEl) {
+            if (user.avatar_config?.useAiAvatar && user.avatar_config?.aiAvatarUrl) { 
+                imgEl.src = user.avatar_config.aiAvatarUrl; 
+            } else { 
+                imgEl.src = `/avatars/${gender}_${ageGroup}_${outfit}.png`; 
+            }
+            imgEl.style.opacity = 1;
+        }
     }
 
+    // -------------------------------------------------------------
+    // 2. 模式切换与虚拟校园逻辑 (核心修改)
+    // -------------------------------------------------------------
     let gameInstance = null; // 全局变量存储游戏实例
 
     function switchMode(mode) {
-        const lobby = document.getElementById('lobbyView');
-        const games = document.getElementById('gameView');
-        
+        // 获取三个主要容器
+        const lobby = document.getElementById('lobbyView');      // 个人主页/大厅
+        const gameView = document.getElementById('gameView');    // 普通2D游戏列表
+        const virtualWorld = document.getElementById('virtualWorld'); // 3D虚拟大厅容器
+
         if (mode === 'battle') { 
-            lobby.style.display = 'none'; 
-            games.style.display = 'block'; 
-			loadGames();
-            // 启动虚拟校园
+            // === 进入 Battle Mode (虚拟校园) ===
+            
+            // 1. 隐藏普通界面
+            if(lobby) lobby.style.display = 'none';
+            if(gameView) gameView.style.display = 'none'; // 既然进3D，就先隐藏2D列表
+            
+            // 2. 显示虚拟大厅容器
+            if(virtualWorld) {
+                virtualWorld.style.display = 'block';
+            } else {
+                console.error("Error: 找不到 ID 为 'virtualWorld' 的 div，请检查 HTML");
+                return;
+            }
+
+            // 3. 启动 3D 场景
             if (!gameInstance) {
                 // 延迟一点点确保容器已渲染
                 setTimeout(() => {
                     initVirtualCampus(); 
                 }, 100);
             }
+
         } else { 
-            // 回到大厅
-            games.style.display = 'none'; 
-            lobby.style.display = 'block'; 
-            // 销毁游戏实例，释放内存
+            // === 返回 Home (个人主页) ===
+            
+            // 1. 隐藏虚拟大厅和游戏列表
+            if(virtualWorld) virtualWorld.style.display = 'none';
+            if(gameView) gameView.style.display = 'none';
+            
+            // 2. 显示个人主页
+            if(lobby) lobby.style.display = 'block';
+            
+            // 3. 销毁游戏实例，释放内存 (防止卡顿)
             if (gameInstance) {
-                gameInstance.destroy(true);
+                // 如果是 Phaser 游戏，调用 destroy
+                if(typeof gameInstance.destroy === 'function') {
+                    gameInstance.destroy(true);
+                }
                 gameInstance = null;
+                console.log("虚拟校园已关闭");
             }
         }
     }
+
+    // ★★★ 新增：定义启动虚拟校园的函数 (防止 is not defined 报错) ★★★
+    function initVirtualCampus() {
+        console.log("🚀 启动虚拟校园...");
+        const container = document.getElementById('canvas-container'); // 你的3D容器ID
+        if(!container) return;
+
+        // 在这里初始化你的 3D 引擎 (Phaser 或 Three.js)
+        // 示例：暂时只显示一个文本，代表已启动
+        container.innerHTML = '<h2 style="color:white; margin-top:20%">🌐 Virtual World Loaded</h2><p style="color:#ccc">Game Instance Active</p>';
+        
+        // 模拟创建一个游戏实例对象 (防止 switchMode 里报错)
+        gameInstance = {
+            active: true,
+            destroy: function() {
+                console.log("Cleaning up resources...");
+                container.innerHTML = ''; // 清空画面
+            }
+        };
+        
+        // 如果你以后接入了真实的 Phaser，代码大概是这样：
+        // gameInstance = new Phaser.Game(config);
+    }
+
+    // -------------------------------------------------------------
+    // 3. 加载 2D 游戏列表 (增加空值检查)
+    // -------------------------------------------------------------
     function loadGames() {
         const grid = document.getElementById('gameGrid');
+        
+        // 安全检查：如果当前页面没有 gameGrid (比如在纯3D模式下)，就不执行，防止报错
+        if (!grid) return; 
+
         grid.innerHTML = '<div style="text-align:center;color:#888">Loading...</div>';
-        fetch('/api/games').then(r=>r.json()).then(games => {
-            grid.innerHTML = '';
-            if(games.length === 0) { grid.innerHTML = 'No games found'; return; }
-            games.forEach(g => {
-                const thumb = g.thumbnail ? `/games/${g.path}/${g.thumbnail}` : null;
-                grid.innerHTML += `
-                    <div class="game-card">
-                        <div class="game-thumb">${thumb ? `<img src="${thumb}">` : '👾'}</div>
-                        <div class="game-info">
-                            <div class="game-title">${g.title}</div>
-                            <a href="/play/${g.id}" class="btn-start">START</a>
-                        </div>
-                    </div>`;
+        
+        fetch('/api/games')
+            .then(r => r.json())
+            .then(games => {
+                grid.innerHTML = '';
+                if(games.length === 0) { 
+                    grid.innerHTML = 'No games found'; 
+                    return; 
+                }
+                games.forEach(g => {
+                    const thumb = g.thumbnail ? `/games/${g.path}/${g.thumbnail}` : null;
+                    grid.innerHTML += `
+                        <div class="game-card">
+                            <div class="game-thumb">${thumb ? `<img src="${thumb}">` : '👾'}</div>
+                            <div class="game-info">
+                                <div class="game-title">${g.title}</div>
+                                <a href="/play/${g.id}" class="btn-start">START</a>
+                            </div>
+                        </div>`;
+                });
+            })
+            .catch(e => {
+                console.error(e);
+                grid.innerHTML = 'Error loading games';
             });
-        });
     }
     
    // 1. 加载奖杯数据的函数
