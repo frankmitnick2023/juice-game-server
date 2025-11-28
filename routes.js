@@ -35,6 +35,48 @@ const uploadToCloudinary = (fileBuffer, folder) => {
     });
 };
 
+// --- 获取成长数据 (六维图) ---
+router.get('/api/my-stats', async (req, res) => {
+    try {
+        // 假设当前用户ID是 3 (你可以根据实际登录逻辑改成 req.user.id)
+        const userId = req.user ? req.user.id : 3; 
+        
+        let stats = null;
+        try {
+            // ★★★ 修正：这里表名改成 student_stats ★★★
+            const result = await pool.query('SELECT * FROM student_stats WHERE user_id = $1', [userId]);
+            stats = result.rows[0];
+        } catch (dbError) {
+            console.warn("Query failed:", dbError.message);
+        }
+        
+        // 如果数据库里还没数据，给一个默认值让图表先显示出来
+        if (!stats) {
+            stats = {
+                flexibility: 60, 
+                strength: 60,    
+                rhythm: 60,      
+                memory: 60,      
+                technique: 60,   
+                dedication: 60   
+            };
+        }
+
+        res.json({
+            success: true,
+            stats: stats,
+            progress: [
+                { course_category: 'Ballet', cumulative_hours: 12.5 },
+                { course_category: 'Jazz', cumulative_hours: 5.0 }
+            ]
+        });
+
+    } catch (e) {
+        console.error("Stats Error:", e);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 // --- 路由定义 ---
 router.post('/api/upload-trophy', 
     upload.fields([{ name: 'mainCert', maxCount: 1 }, { name: 'extraPhotos', maxCount: 5 }]), 
