@@ -280,7 +280,69 @@ async function submitAwardUpload() {
         });
     }
     
-    async function loadTrophies() { /* ... */ }
+   // 1. 加载奖杯数据的函数
+    async function loadTrophies() {
+        const container = document.getElementById('trophyArea');
+        container.innerHTML = ''; // 清空现有内容
+
+        try {
+            // 假设后端获取自己奖杯的接口是 /api/my-trophies
+            // (如果您的接口名不一样，请这里修改)
+            const res = await fetch('/api/my-trophies'); 
+            const trophies = await res.json();
+
+            if (!trophies || trophies.length === 0) return;
+
+            trophies.forEach(t => {
+                const div = document.createElement('div');
+                div.className = 'trophy-item';
+                
+                // 根据类型显示不同的 Emoji 或图标
+                // 这些类型对应 admin.html 里的按钮 (gold, silver, badge 等)
+                let icon = '🎖️';
+                if (t.type === 'gold') { icon = '🏆'; div.classList.add('t-gold'); }
+                else if (t.type === 'silver') icon = '🥈';
+                else if (t.type === 'bronze') icon = '🥉';
+                else if (t.type === 'medal_gold') icon = '🥇';
+                else if (t.type === 'certificate') icon = '📜';
+                else if (t.type === 'badge') icon = '🏅';
+                
+                div.textContent = icon;
+                
+                // 绑定点击事件，点击显示详情
+                div.onclick = () => showTrophyDetail(t);
+                
+                container.appendChild(div);
+            });
+        } catch (e) {
+            console.error("加载奖杯失败:", e);
+        }
+    }
+
+    // 2. 显示奖杯详情弹窗的函数
+    function showTrophyDetail(t) {
+        const modal = document.getElementById('trophyDetailModal');
+        const img = document.getElementById('dImg');
+        const title = document.getElementById('dTitle');
+        const meta = document.getElementById('dMeta');
+        const desc = document.getElementById('dDesc');
+
+        // 填充数据
+        // 注意：这里字段名 (image_path, source_name) 需对应您数据库返回的字段
+        img.src = t.image_path || ''; 
+        title.textContent = t.source_name || 'Award';
+        
+        const dateStr = t.created_at ? new Date(t.created_at).toLocaleDateString() : '';
+        meta.textContent = `${dateStr} • ${t.type ? t.type.toUpperCase() : 'AWARD'}`;
+        
+        // 如果有老师评语或描述，显示在这里
+        desc.textContent = t.description || 'Great job! Keep dancing!'; 
+        if (!t.description) desc.style.display = 'none';
+        else desc.style.display = 'block';
+
+        // 显示弹窗
+        modal.style.display = 'flex';
+    }
     function showTrophyDetail(t) { /* ... */ }
     function openUploadModal() { document.getElementById('uploadModal').style.display = 'flex'; }
     function closeModal(id) { document.getElementById(id).style.display = 'none'; }
