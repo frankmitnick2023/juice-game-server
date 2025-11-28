@@ -199,6 +199,7 @@
           <span class="close-modal" onclick="closeModal('uploadModal')">&times;</span>
           <h3 style="margin-top:0; text-align:center">Upload Achievement</h3>
           <div class="upload-section"><label class="upload-label">1. Certificate (Main)</label><input type="file" id="mainCertInput" accept="image/*" onchange="previewFiles(this, 'previewMain')"><div id="previewMain" class="file-preview"></div></div>
+		  <div id="uploadUserHint" style="text-align:center; color:#e94560; font-weight:bold; margin-bottom:15px; background:rgba(233,69,96,0.1); padding:5px; border-radius:5px;"></div>
           <div class="upload-section"><label class="upload-label">2. Photos (Optional)</label><input type="file" id="extraPhotosInput" accept="image/*" multiple onchange="previewFiles(this, 'previewExtra')"><div id="previewExtra" class="file-preview"></div></div>
           <button class="btn-submit" onclick="submitAwardUpload()">Submit</button>
       </div>
@@ -410,7 +411,17 @@
         }
     }
     // 上传弹窗逻辑
-    function openUploadModal() { document.getElementById('uploadModal').style.display = 'flex'; }
+    function openUploadModal() { 
+        // 1. 获取当前登录的学生名字 (从页面顶部的 userInfo 获取)
+        const currentName = document.getElementById('userInfo').textContent;
+        
+        // 2. 把名字填进刚才加的提示框里
+        const hintEl = document.getElementById('uploadUserHint');
+        hintEl.textContent = `当前身份: ${currentName} (请确认)`;
+        
+        // 3. 显示弹窗
+        document.getElementById('uploadModal').style.display = 'flex'; 
+    }
     function closeModal(id) { document.getElementById(id).style.display = 'none'; }
     
     // 文件预览
