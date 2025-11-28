@@ -323,47 +323,92 @@ async function submitAwardUpload() {
     let renderer, scene, camera, cube, animationId;
 
     // 1. 启动虚拟校园 (带 3D 效果)
-    function initVirtualCampus() {
-        console.log("🚀 启动 3D 引擎...");
+   function initVirtualCampus() {
+        console.log("🚀 启动 3D 引擎 (2.5D 模式)...");
         const container = document.getElementById('canvas-container');
         
-        // 防止重复初始化 (如果有内容了就不再创建)
+        // 防止重复初始化
         if (!container || container.childNodes.length > 0) return;
 
         // --- Three.js 初始化流程 ---
         
         // A. 创建场景
         scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x000000); // 纯黑背景
+        scene.background = new THREE.Color(0x1a1a2e); // 改回深蓝色背景，好看点
 
         // B. 创建相机
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 5;
+        camera.position.set(0, 2, 5); // 相机位置稍微抬高一点 (x:0, y:2, z:5)
+        camera.lookAt(0, 0, 0); // 看向中心
 
         // C. 创建渲染器
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        container.appendChild(renderer.domElement); // 把画板加入页面
+        container.appendChild(renderer.domElement);
 
-        // D. 创建一个立方体 (测试用)
-        const geometry = new THREE.BoxGeometry();
-        const material = new THREE.MeshBasicMaterial({ color: 0xe94560, wireframe: true });
-        cube = new THREE.Mesh(geometry, material);
+        // --- D. 核心修改：创建 2.5D 纸片人角色 ---
+
+        // 1. 加载纹理 (Texture) 
+        // 这里我写死了一个路径用于测试，你可以换成你服务器上真实存在的图片路径
+        // 比如: '/avatars/girl_junior_uniform.png' 或者用 user.avatar_config.aiAvatarUrl
+        const textureLoader = new THREE.TextureLoader();
+        const avatarUrl = '/avatars/girl_junior_uniform.png'; // ⚠️ 请确保这个图片存在！
+        
+        const map = textureLoader.load(avatarUrl, function(texture) {
+             // 图片加载成功后的回调 (可选)
+             console.log("图片加载成功");
+        }, undefined, function(err) {
+             console.error("图片加载失败，请检查路径:", avatarUrl);
+        });
+
+        // 2. 创建材质 (Material)
+        const material = new THREE.SpriteMaterial({ 
+            map: map, 
+            transparent: true // 必须开启透明，否则背景是白的
+        });
+
+        // 3. 创建精灵 (Sprite) - 这就是你的角色
+        const playerSprite = new THREE.Sprite(material);
+        
+        // 4. 设置大小 (宽, 高, 深) - 假设人高 2 米
+        playerSprite.scale.set(2, 2, 1); 
+        playerSprite.position.set(0, 1, 0); // 站在地面上 (y=1 因为高度是2，中心点在1)
+
+        // 5. 将角色加入场景
+        // 我们把它赋值给全局变量 cube (为了偷懒复用之前的变量名，你也可以改叫 player)
+        cube = playerSprite; 
         scene.add(cube);
 
-        // E. 开始动画循环
+        // --- E. 增加一点环境装饰 ---
+        
+        // 加一个网格地面，让你看出立体感
+        const gridHelper = new THREE.GridHelper(20, 20, 0xe94560, 0x444444);
+        scene.add(gridHelper);
+
+        // --- F. 动画循环 ---
         function animate() {
             animationId = requestAnimationFrame(animate);
             
-            // 让立方体转起来
+            // 让角色像呼吸一样轻微上下浮动 (2.5D 常用效果)
             if(cube) {
-                cube.rotation.x += 0.01;
-                cube.rotation.y += 0.01;
+                const time = Date.now() * 0.002;
+                cube.position.y = 1 + Math.sin(time) * 0.05; 
             }
 
             renderer.render(scene, camera);
         }
         animate();
+        
+        // 监听窗口大小变化，自适应屏幕
+        window.addEventListener('resize', onWindowResize, false);
+    }
+
+    function onWindowResize() {
+        if(camera && renderer) {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
     }
 
     // 2. 退出虚拟大厅 (修复按钮没反应的问题)
