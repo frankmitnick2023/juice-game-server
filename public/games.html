@@ -315,27 +315,86 @@ async function submitAwardUpload() {
         }
     }
 
-    // ★★★ 新增：定义启动虚拟校园的函数 (防止 is not defined 报错) ★★★
-    function initVirtualCampus() {
-        console.log("🚀 启动虚拟校园...");
-        const container = document.getElementById('canvas-container'); // 你的3D容器ID
-        if(!container) return;
+   // =============================================================
+    // ★★★ 请完整复制并替换掉原来的 3D 相关代码 ★★★
+    // =============================================================
+    
+    // 全局变量，用于 3D 场景和动画控制
+    let renderer, scene, camera, cube, animationId;
 
-        // 在这里初始化你的 3D 引擎 (Phaser 或 Three.js)
-        // 示例：暂时只显示一个文本，代表已启动
-        container.innerHTML = '<h2 style="color:white; margin-top:20%">🌐 Virtual World Loaded</h2><p style="color:#ccc">Game Instance Active</p>';
+    // 1. 启动虚拟校园 (带 3D 效果)
+    function initVirtualCampus() {
+        console.log("🚀 启动 3D 引擎...");
+        const container = document.getElementById('canvas-container');
         
-        // 模拟创建一个游戏实例对象 (防止 switchMode 里报错)
-        gameInstance = {
-            active: true,
-            destroy: function() {
-                console.log("Cleaning up resources...");
-                container.innerHTML = ''; // 清空画面
+        // 防止重复初始化 (如果有内容了就不再创建)
+        if (!container || container.childNodes.length > 0) return;
+
+        // --- Three.js 初始化流程 ---
+        
+        // A. 创建场景
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x000000); // 纯黑背景
+
+        // B. 创建相机
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 5;
+
+        // C. 创建渲染器
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement); // 把画板加入页面
+
+        // D. 创建一个立方体 (测试用)
+        const geometry = new THREE.BoxGeometry();
+        const material = new THREE.MeshBasicMaterial({ color: 0xe94560, wireframe: true });
+        cube = new THREE.Mesh(geometry, material);
+        scene.add(cube);
+
+        // E. 开始动画循环
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+            
+            // 让立方体转起来
+            if(cube) {
+                cube.rotation.x += 0.01;
+                cube.rotation.y += 0.01;
             }
-        };
+
+            renderer.render(scene, camera);
+        }
+        animate();
+    }
+
+    // 2. 退出虚拟大厅 (修复按钮没反应的问题)
+    function exitVirtualWorld() {
+        console.log("正在退出虚拟世界...");
+
+        // A. 停止动画循环，省电
+        if (animationId) cancelAnimationFrame(animationId);
         
-        // 如果你以后接入了真实的 Phaser，代码大概是这样：
-        // gameInstance = new Phaser.Game(config);
+        // B. 清理 3D 场景 (防止内存泄漏)
+        const container = document.getElementById('canvas-container');
+        if (container) container.innerHTML = ''; 
+        
+        // C. 隐藏虚拟层，显示回原来的界面
+        document.getElementById('virtualWorld').style.display = 'none';
+        
+        // 尝试显示大厅，如果没找到大厅就显示游戏列表
+        const lobby = document.getElementById('lobbyView');
+        const gameView = document.getElementById('gameView');
+        
+        if (lobby) lobby.style.display = 'block';
+        // 如果你想回游戏列表而不是个人主页，把上面这行注释掉，解开下面这行：
+        // if (gameView) gameView.style.display = 'block';
+        
+        // 恢复底部导航栏 (防止被遮挡)
+        const nav = document.querySelector('.nav-bar');
+        if(nav) nav.style.display = 'flex';
+        
+        // 重置变量
+        gameInstance = null;
+        renderer = null;
     }
 
     // -------------------------------------------------------------
@@ -381,7 +440,7 @@ async function loadTrophies() {
         container.innerHTML = ''; 
 
         try {
-            // 添加一个随机数防止接口缓存 (?t=...)
+            // 保留防止缓存的小技巧
             const res = await fetch('/api/my-trophies?t=' + new Date().getTime()); 
             const trophies = await res.json();
 
@@ -391,19 +450,15 @@ async function loadTrophies() {
                 const status = (t.status || '').toUpperCase();
                 if (status !== 'APPROVED') return; 
 
-                // ★★★ 核心修复：精准匹配数据库截图中的字段名 ★★★
-                // 优先读取 trophy_type (数据库原名)，其次尝试 camelCase，最后尝试 type
-                const dbType = t.trophy_type; 
-                const rawType = dbType || t.trophyType || t.type || ''; 
-                
-                // 转小写处理
+                // 优先读取 trophy_type，兼容其他写法
+                const rawType = t.trophy_type || t.trophyType || t.type || ''; 
                 const safeType = String(rawType).toLowerCase().trim();
 
                 const div = document.createElement('div');
                 div.className = 'trophy-item';
                 
-                // --- 图标匹配 ---
-                let icon = '🎖️'; // 默认：Badge
+                // --- 图标匹配逻辑 ---
+                let icon = '🎖️'; 
 
                 if (safeType.includes('gold') && !safeType.includes('medal')) { 
                     icon = '🏆'; div.classList.add('t-gold'); 
@@ -411,26 +466,14 @@ async function loadTrophies() {
                 else if (safeType.includes('silver')) icon = '🥈';
                 else if (safeType.includes('bronze')) icon = '🥉';
                 else if (safeType.includes('medal')) icon = '🥇';
-                
-                // 只要包含 'cert' (对应 certificate) 就显示卷轴
-                else if (safeType.includes('cert')) icon = '📜';
-                
-                else if (safeType.includes('badge')) icon = '🏅';
+                else if (safeType.includes('cert')) icon = '📜'; // 证书
+                else if (safeType.includes('badge')) icon = '🏅'; // 徽章
 
                 div.textContent = icon;
                 div.onclick = () => showTrophyDetail(t);
                 
-                // ★★★ 临时诊断代码 (调试完可删除) ★★★
-                // 这行代码会在图标旁边直接显示它读到的类型，例如 "Type: certificate"
-                // 如果显示 "Type: undefined"，说明后端压根没把这个字段发过来！
-                const debugLabel = document.createElement('span');
-                debugLabel.style.fontSize = '10px';
-                debugLabel.style.color = 'white';
-                debugLabel.style.background = 'rgba(0,0,0,0.5)';
-                debugLabel.textContent = ` ${safeType || 'NULL'} `; 
-                div.appendChild(debugLabel); 
-                // ★★★ 诊断代码结束 ★★★
-
+                // ★★★ 已删除所有调试用的文字代码 ★★★
+                
                 container.appendChild(div);
             });
         } catch (e) {
