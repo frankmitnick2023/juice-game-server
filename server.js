@@ -62,7 +62,6 @@ io.on('connection', (socket) => {
 
 // 1. 全局变量：存储所有在线玩家
 // 格式: { "socket_id": { x, y, name, avatar } }
-const players = {}; 
 
 io.on('connection', (socket) => {
     console.log('🔗 新连接接入:', socket.id);
