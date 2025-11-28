@@ -330,7 +330,29 @@ app.post('/api/login', async (req, res) => {
   try {
     let r = await pool.query("SELECT * FROM users WHERE email = $1 AND password = $2", [email, hashPassword(password)]); 
     if (r.rows.length === 0) { r = await pool.query("SELECT * FROM users WHERE email = $1 AND password = $2", [email, password]); if (r.rows.length === 0) return res.status(400).json({ error: 'Invalid credentials' }); }
-    const user = r.rows[0]; req.session.userId = user.id; req.session.user = { isAdmin: user.is_admin || false, name: user.student_name }; res.json({ success: true, user: req.session.user });
+   // ... 验证密码成功后 ...
+const user = r.rows[0];
+
+// ★★★ 新增：踢人逻辑 (单点登录限制) ★★★
+try {
+    // 1. 在数据库的 session_store 表中，查找并删除该用户的所有旧 Session
+    // 注意：sess 是 JSON 字段，我们需要匹配里面的 userId
+    await pool.query(
+        `DELETE FROM session_store WHERE sess ->> 'userId' = $1`, 
+        [String(user.id)]
+    );
+    console.log(`🔒 用户 ${user.student_name} (ID:${user.id}) 登录，已清除其所有旧设备登录状态。`);
+} catch (err) {
+    console.error("踢人失败:", err);
+    // 即使踢人出错，也不要阻挡当前用户登录，继续往下走
+}
+
+// 2. 只有清理完旧的，才设置当前这个新的 Session
+// 这样当响应结束时，系统会把这个全新的 Session 写入数据库，成为唯一的有效登录
+req.session.userId = user.id;
+req.session.user = { isAdmin: user.is_admin || false, name: user.student_name }; 
+res.json({ success: true, user: req.session.user });
+
   } catch (e) { res.status(500).json({ error: 'DB Error' }); }
 });
 app.post('/api/register', async (req, res) => {
