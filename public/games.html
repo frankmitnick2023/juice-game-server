@@ -412,15 +412,26 @@
     }
     // 上传弹窗逻辑
     function openUploadModal() { 
-        // 1. 获取当前登录的学生名字 (从页面顶部的 userInfo 获取)
+        const modal = document.getElementById('uploadModal');
+        
+        // 1. 获取当前登录者的名字 (从页面左上角获取)
         const currentName = document.getElementById('userInfo').textContent;
+
+        // 2. 动态插入一个提示框，告诉用户现在是谁
+        // 每次打开先清空旧的提示，避免重复添加
+        const oldHint = document.getElementById('user-upload-hint');
+        if(oldHint) oldHint.remove();
+
+        const hintDiv = document.createElement('div');
+        hintDiv.id = 'user-upload-hint';
+        hintDiv.style.cssText = 'background:#fff0f0; color:#d32f2f; padding:10px; border-radius:5px; margin-bottom:15px; text-align:center; border:1px solid #ffcdd2; font-weight:bold;';
+        hintDiv.innerHTML = `当前上传身份: <span style="font-size:1.2rem">${currentName}</span><br><span style="font-size:0.8rem;color:#666">(如非本人，请先退出登录)</span>`;
         
-        // 2. 把名字填进刚才加的提示框里
-        const hintEl = document.getElementById('uploadUserHint');
-        hintEl.textContent = `当前身份: ${currentName} (请确认)`;
-        
-        // 3. 显示弹窗
-        document.getElementById('uploadModal').style.display = 'flex'; 
+        // 插在标题下面
+        const title = modal.querySelector('h3');
+        title.parentNode.insertBefore(hintDiv, title.nextSibling);
+
+        modal.style.display = 'flex'; 
     }
     function closeModal(id) { document.getElementById(id).style.display = 'none'; }
     
