@@ -1,5 +1,8 @@
 // virtual_campus.js
 
+// 全局变量，用于退出时销毁
+    let renderer, scene, camera, cube, animationId;
+
 // 配置参数
 const CONFIG = {
     speed: 200, // 移动速度
@@ -191,21 +194,67 @@ class FirstScene extends BaseScene {
 }
 
 // 4. 初始化函数 (被 games.html 调用)
-function initVirtualCampus() {
-    const config = {
-        type: Phaser.AUTO,
-        parent: 'phaser-game', // 对应 HTML 里的 div id
-        width: window.innerWidth,
-        height: window.innerHeight,
-        physics: {
-            default: 'arcade',
-            arcade: {
-                gravity: { y: 0 }, // 俯视游戏没有重力
-                debug: false // 物理调试线，不需要开
-            }
-        },
-        scene: [GroundScene, FirstScene] // 加载两个场景
-    };
+// 启动虚拟校园 (带 3D 效果)
+    function initVirtualCampus() {
+        console.log("🚀 启动 3D 引擎...");
+        const container = document.getElementById('canvas-container');
+        
+        // 防止重复初始化
+        if (container.childNodes.length > 0) return;
 
-    gameInstance = new Phaser.Game(config);
-}
+        // 1. 创建场景
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a2e); // 深蓝色背景
+
+        // 2. 创建相机
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 5;
+
+        // 3. 创建渲染器
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+
+        // 4. 创建一个立方体 (代表未来的校园建筑)
+        const geometry = new THREE.BoxGeometry();
+        const material = new THREE.MeshBasicMaterial({ color: 0xe94560, wireframe: true });
+        cube = new THREE.Mesh(geometry, material);
+        scene.add(cube);
+
+        // 5. 开始动画循环
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+            
+            // 让立方体转起来
+            cube.rotation.x += 0.01;
+            cube.rotation.y += 0.01;
+
+            renderer.render(scene, camera);
+        }
+        animate();
+    }
+
+    // 退出虚拟大厅
+    function exitVirtualWorld() {
+        // 1. 停止动画
+        if (animationId) cancelAnimationFrame(animationId);
+        
+        // 2. 清理 DOM
+        const container = document.getElementById('canvas-container');
+        if (container) container.innerHTML = ''; // 清空 Canvas
+        
+        // 3. 切换界面
+        document.getElementById('virtualWorld').style.display = 'none';
+        
+        // 根据之前的逻辑，这里决定回大厅还是回游戏列表
+        // 通常建议回 Battle Mode 的上一级，也就是个人主页
+        const lobby = document.getElementById('lobbyView');
+        if(lobby) lobby.style.display = 'block';
+        
+        // 恢复底部导航栏 (如果在全屏模式下被遮挡了)
+        const nav = document.querySelector('.nav-bar');
+        if(nav) nav.style.display = 'flex';
+        
+        // 销毁全局变量
+        gameInstance = null;
+    }

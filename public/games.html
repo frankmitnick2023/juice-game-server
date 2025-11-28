@@ -74,7 +74,7 @@
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
 </head>
 <body>
-
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <div class="header">
     <div id="userInfo" class="user-name">LOADING...</div>
     <a href="#" id="logout" class="logout">退出</a>
@@ -107,15 +107,14 @@
     <div id="gameGrid" class="game-grid"></div>
   </div>
 	
-  <div id="virtualWorld" style="display:none; width:100%; height:100vh; background: #000; position:relative;">
-      <div style="position:absolute; top:20px; left:20px; z-index:100;">
-          <button onclick="exitVirtualWorld()" style="background:rgba(255,255,255,0.2); color:white; border:1px solid white; padding:8px 15px; border-radius:20px; cursor:pointer;">◀ Exit World</button>
+  <div id="virtualWorld" style="display:none; width:100%; height:100vh; background: #000; position:fixed; top:0; left:0; z-index:200;">
+      <div style="position:absolute; top:80px; left:20px; z-index:300;">
+          <button onclick="exitVirtualWorld()" style="background:rgba(255,69,96, 0.8); color:white; border:none; padding:10px 20px; border-radius:30px; font-weight:bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
+              ◀ Exit World
+          </button>
       </div>
       
-      <div id="canvas-container" style="width:100%; height:100%; display:flex; justify-content:center; align-items:center; color:white; flex-direction:column;">
-          <h1 style="font-size:3rem; color:#e94560;">Virtual Campus</h1>
-          <p>3D Scene Loading...</p>
-          </div>
+      <div id="canvas-container" style="width:100%; height:100%;"></div>
   </div>
 	
     <div id="phaser-game" style="width:100%; height:100%;"></div>
@@ -377,42 +376,61 @@ async function submitAwardUpload() {
     }
     
    // 1. 加载奖杯数据的函数
-    async function loadTrophies() {
+async function loadTrophies() {
         const container = document.getElementById('trophyArea');
         container.innerHTML = ''; 
 
         try {
-            const res = await fetch('/api/my-trophies'); 
+            // 添加一个随机数防止接口缓存 (?t=...)
+            const res = await fetch('/api/my-trophies?t=' + new Date().getTime()); 
             const trophies = await res.json();
 
             if (!trophies || trophies.length === 0) return;
 
             trophies.forEach(t => {
-                // 1. 状态拦截：只显示已通过 (APPROVED) 的
                 const status = (t.status || '').toUpperCase();
                 if (status !== 'APPROVED') return; 
 
-                // 2. 数据清洗：转成小写，去掉空格，防止匹配失败
-                const safeType = (t.type || '').toLowerCase().trim();
+                // ★★★ 核心修复：精准匹配数据库截图中的字段名 ★★★
+                // 优先读取 trophy_type (数据库原名)，其次尝试 camelCase，最后尝试 type
+                const dbType = t.trophy_type; 
+                const rawType = dbType || t.trophyType || t.type || ''; 
+                
+                // 转小写处理
+                const safeType = String(rawType).toLowerCase().trim();
 
                 const div = document.createElement('div');
                 div.className = 'trophy-item';
                 
-                // 3. 图标匹配逻辑 (加强版)
-                let icon = '🎖️'; // 这是默认图标 (Badge)，匹配失败就会显示这个
+                // --- 图标匹配 ---
+                let icon = '🎖️'; // 默认：Badge
 
-                if (safeType === 'gold') { 
-                    icon = '🏆'; 
-                    div.classList.add('t-gold'); // 加金色光泽特效
+                if (safeType.includes('gold') && !safeType.includes('medal')) { 
+                    icon = '🏆'; div.classList.add('t-gold'); 
                 }
-                else if (safeType === 'silver') icon = '🥈';
-                else if (safeType === 'bronze') icon = '🥉';
-                else if (safeType === 'medal_gold' || safeType === 'medal') icon = '🥇';
-                else if (safeType === 'certificate' || safeType === 'cert') icon = '📜';
-                else if (safeType === 'badge') icon = '🏅';
+                else if (safeType.includes('silver')) icon = '🥈';
+                else if (safeType.includes('bronze')) icon = '🥉';
+                else if (safeType.includes('medal')) icon = '🥇';
                 
+                // 只要包含 'cert' (对应 certificate) 就显示卷轴
+                else if (safeType.includes('cert')) icon = '📜';
+                
+                else if (safeType.includes('badge')) icon = '🏅';
+
                 div.textContent = icon;
                 div.onclick = () => showTrophyDetail(t);
+                
+                // ★★★ 临时诊断代码 (调试完可删除) ★★★
+                // 这行代码会在图标旁边直接显示它读到的类型，例如 "Type: certificate"
+                // 如果显示 "Type: undefined"，说明后端压根没把这个字段发过来！
+                const debugLabel = document.createElement('span');
+                debugLabel.style.fontSize = '10px';
+                debugLabel.style.color = 'white';
+                debugLabel.style.background = 'rgba(0,0,0,0.5)';
+                debugLabel.textContent = ` ${safeType || 'NULL'} `; 
+                div.appendChild(debugLabel); 
+                // ★★★ 诊断代码结束 ★★★
+
                 container.appendChild(div);
             });
         } catch (e) {
