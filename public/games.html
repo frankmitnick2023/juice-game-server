@@ -106,7 +106,18 @@
     
     <div id="gameGrid" class="game-grid"></div>
   </div>
-    
+	
+  <div id="virtualWorld" style="display:none; width:100%; height:100vh; background: #000; position:relative;">
+      <div style="position:absolute; top:20px; left:20px; z-index:100;">
+          <button onclick="exitVirtualWorld()" style="background:rgba(255,255,255,0.2); color:white; border:1px solid white; padding:8px 15px; border-radius:20px; cursor:pointer;">◀ Exit World</button>
+      </div>
+      
+      <div id="canvas-container" style="width:100%; height:100%; display:flex; justify-content:center; align-items:center; color:white; flex-direction:column;">
+          <h1 style="font-size:3rem; color:#e94560;">Virtual Campus</h1>
+          <p>3D Scene Loading...</p>
+          </div>
+  </div>
+	
     <div id="phaser-game" style="width:100%; height:100%;"></div>
     
     <div id="interactionTip" style="display:none; position:absolute; bottom:100px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.8); color:white; padding:10px 20px; border-radius:20px; border:2px solid #e94560; font-weight:bold; font-size:1.2rem; animation: float 2s infinite;">
@@ -292,25 +303,28 @@ async function submitAwardUpload() {
             if (!trophies || trophies.length === 0) return;
 
             trophies.forEach(t => {
-                // ★★★ 核心修复：添加状态拦截 ★★★
-                // 检查 t.status 是否为 'APPROVED' (大小写可能需根据数据库调整，这里做了兼容)
-                // 如果状态不是“已通过”，直接 return 跳过，不渲染这个图标
+                // 1. 状态拦截：只显示已通过 (APPROVED) 的
                 const status = (t.status || '').toUpperCase();
-                if (status !== 'APPROVED') {
-                    return; 
-                }
+                if (status !== 'APPROVED') return; 
 
-                // --- 下面是正常的渲染逻辑 ---
+                // 2. 数据清洗：转成小写，去掉空格，防止匹配失败
+                const safeType = (t.type || '').toLowerCase().trim();
+
                 const div = document.createElement('div');
                 div.className = 'trophy-item';
                 
-                let icon = '🎖️';
-                if (t.type === 'gold') { icon = '🏆'; div.classList.add('t-gold'); }
-                else if (t.type === 'silver') icon = '🥈';
-                else if (t.type === 'bronze') icon = '🥉';
-                else if (t.type === 'medal_gold') icon = '🥇';
-                else if (t.type === 'certificate') icon = '📜';
-                else if (t.type === 'badge') icon = '🏅';
+                // 3. 图标匹配逻辑 (加强版)
+                let icon = '🎖️'; // 这是默认图标 (Badge)，匹配失败就会显示这个
+
+                if (safeType === 'gold') { 
+                    icon = '🏆'; 
+                    div.classList.add('t-gold'); // 加金色光泽特效
+                }
+                else if (safeType === 'silver') icon = '🥈';
+                else if (safeType === 'bronze') icon = '🥉';
+                else if (safeType === 'medal_gold' || safeType === 'medal') icon = '🥇';
+                else if (safeType === 'certificate' || safeType === 'cert') icon = '📜';
+                else if (safeType === 'badge') icon = '🏅';
                 
                 div.textContent = icon;
                 div.onclick = () => showTrophyDetail(t);
