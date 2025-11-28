@@ -1,94 +1,104 @@
-// virtual_campus.js - 2D 虚拟大厅核心逻辑
+// virtual_campus.js - 全功能整合版 (地图+缩放+防穿墙+多人联机)
 
 // ================= 全局变量 =================
-let isMapMode = false;      // 是否处于地图概览模式
-let collisionCtx = null;    // 碰撞检测画布上下文
-const MAP_WIDTH = 2500;     // 地图原始宽度 (需与 HTML img width 一致)
-let walkTimer = null;       // 走路动画定时器
-let socket; // 全局 socket 对象
-let otherPlayers = {}; // 存储其他玩家的 DOM 元素 { socketId: element }
+window.isMapMode = false;      
+window.collisionCtx = null;    
+const MAP_WIDTH = 2500;     
+window.walkTimer = null;       
 
-// ================= 核心功能函数 =================
+// ★ 联机相关变量
+let socket; 
+let otherPlayers = {}; 
 
-/**
- * 启动虚拟校园
- * 绑定在 window 对象上，供 HTML 直接调用
- */
+// ================= 核心入口函数 =================
+
 window.initVirtualCampus = function() {
-    console.log("🚀 启动虚拟校园 (2D 大地图模式)...");
+    console.log("🚀 启动虚拟校园 (联机版)...");
 
-    // 1. 同步头像：把大厅的头像复制进来
-    const heroImgSrc = document.getElementById('heroImg') ? 			document.getElementById('heroImg').src : '';
+    // 1. 同步头像
+    const heroImgSrc = document.getElementById('heroImg') ? document.getElementById('heroImg').src : '';
     const playerImg = document.getElementById('player-img');
-    if(playerImg && heroImgSrc) {
-        playerImg.src = heroImgSrc;
-    }
+    if(playerImg && heroImgSrc) playerImg.src = heroImgSrc;
+    
+    // 获取名字
+    const myName = document.getElementById('userInfo') ? document.getElementById('userInfo').textContent : 'Hero';
+    const myPlayer = document.getElementById('my-player');
+    const nameLabel = myPlayer.querySelector('div'); // 名字标签
+    if(nameLabel) nameLabel.textContent = myName;
 
-    // 2. 初始位置：设置在地图中间 (你可以根据需要修改 x, y)
-    movePlayerTo(1250, 1200, true); 
+    // 2. 初始位置
+    window.movePlayerTo(1250, 1200, true); 
 
-    // 3. 绑定点击移动事件
+    // 3. ★★★ 启动联机连接 ★★★
+    initSocketConnection(myName, heroImgSrc);
+
+    // 4. 绑定点击移动
     const viewport = document.getElementById('virtualWorld');
     const mapLayer = document.getElementById('world-map');
     
-    // 清除旧的事件绑定，防止重复
     viewport.onclick = null; 
 
     viewport.onclick = function(e) {
-        // 如果点到了按钮 (Exit 或 Map View)，不执行移动
         if (e.target.closest('button')) return;
 
-        // 如果在地图概览模式下点击，则切换回正常视角
-        if(isMapMode) {
+        if(window.isMapMode) {
             window.toggleMapMode(); 
             return;
         }
 
-        // 计算点击点在“地图图层”上的坐标
         const rect = mapLayer.getBoundingClientRect();
         const clickX = e.clientX - rect.left;
         const clickY = e.clientY - rect.top;
 
-        // --- 碰撞检测 ---
-        // 获取当前人物位置作为起点
+        // 碰撞检测
         const player = document.getElementById('my-player');
-        const startX = parseFloat(player.style.left) + 25; // +25 是因为人物宽50，中心点在25
-        const startY = parseFloat(player.style.top) + 70;  // +70 是脚底位置
+        const startX = parseFloat(player.style.left) + 25; 
+        const startY = parseFloat(player.style.top) + 70;  
 
-        const check = checkPathBlocked(startX, startY, clickX, clickY);
+        const check = window.checkPathBlocked(startX, startY, clickX, clickY);
 
         if (check.blocked) {
-            // 撞墙了
-            showBlockMarker(check.x, check.y);
-            console.log("🚫 前方有墙壁 (颜色检测)");
+            window.showBlockMarker(check.x, check.y);
+            console.log("🚫 撞墙了");
         } else {
-            // 路通畅，移动！
-            movePlayerTo(clickX, clickY);
-            showClickMarker(clickX, clickY);
+            // 移动自己
+            window.movePlayerTo(clickX, clickY);
+            window.showClickMarker(clickX, clickY);
+            
+            // ★★★ 告诉服务器：我移动了 ★★★
+            if (socket) {
+                socket.emit('playerMovement', { x: clickX, y: clickY });
+            }
         }
     };
 };
 
+// ================= 联机逻辑 (Socket.io) =================
 
-// 1. 初始化联机 (在 initVirtualCampus 里调用)
-function initSocketConnection() {
-    socket = io(); // 连接服务器
+function initSocketConnection(name, avatar) {
+    // 检查是否引入了库
+    if (typeof io === 'undefined') {
+        console.error("❌ Socket.io 库未加载，无法联机！请检查 games.html");
+        return;
+    }
 
-    // A. 连接成功后，发送我的信息
+    // 连接服务器
+    socket = io(); 
+
+    // A. 连接成功，发送身份信息
     socket.on('connect', () => {
+        console.log("✅ 已连入校园网络 ID:", socket.id);
         const myPlayer = document.getElementById('my-player');
-        const heroImg = document.getElementById('player-img');
         
-        // 发送我的初始数据
         socket.emit('joinGame', {
             x: parseFloat(myPlayer.style.left) || 1250,
             y: parseFloat(myPlayer.style.top) || 1200,
-            name: document.getElementById('userInfo') ? document.getElementById('userInfo').textContent : 'Hero',
-            avatar: heroImg.src
+            name: name,
+            avatar: avatar
         });
     });
 
-    // B. 收到：当前已有的其他玩家 (我刚上线时)
+    // B. 显示已存在的其他玩家
     socket.on('currentPlayers', (players) => {
         Object.keys(players).forEach((id) => {
             if (id !== socket.id) {
@@ -97,57 +107,75 @@ function initSocketConnection() {
         });
     });
 
-    // C. 收到：有新玩家加入 (我在线时)
+    // C. 有新玩家加入
     socket.on('newPlayer', (playerInfo) => {
+        console.log("👋 新同学来了:", playerInfo.name);
         addOtherPlayer(playerInfo);
-        console.log("新同学加入！");
     });
 
-    // D. 收到：某人移动了
+    // D. 别人移动了
     socket.on('playerMoved', (data) => {
         const el = otherPlayers[data.id];
         if (el) {
-            // 设置 CSS 移动 (利用 transition 自动平滑)
+            // 平滑移动
             el.style.left = (data.x - 25) + 'px';
             el.style.top = (data.y - 70) + 'px';
             
-            // 简单的面向判断 (和自己移动一样)
+            // 面向判断
             const oldX = parseFloat(el.getAttribute('data-x') || data.x);
             const img = el.querySelector('img');
-            if (data.x < oldX) img.style.transform = "scaleX(-1)";
-            else img.style.transform = "scaleX(1)";
+            if(img) {
+                if (data.x < oldX) img.style.transform = "scaleX(-1)";
+                else img.style.transform = "scaleX(1)";
+            }
             el.setAttribute('data-x', data.x);
             
-            // 加上走路动画
+            // 走路动画
             el.classList.add('is-walking');
-            // 简单的防抖，0.6秒后停止动画
             if (el.walkTimeout) clearTimeout(el.walkTimeout);
             el.walkTimeout = setTimeout(() => el.classList.remove('is-walking'), 600);
         }
     });
 
-    // E. 收到：某人离开了
-    socket.on('disconnect', (id) => {
+    // E. 别人离开了
+    socket.on('disconnect', (id) => { // 注意：这里的事件名可能需要后端配合改为 'playerDisconnected'，如果后端发的是默认的 disconnect 可能会混淆
+        // 修正：后端通常发的是自定义事件，例如 'userLeft'，或者前端监听 socket 默认事件
+        // 假设后端写的是 io.emit('disconnect', socket.id); 
+        // 但 socket.io 客户端保留字也是 disconnect。
+        // 建议后端改成 io.emit('userLeft', socket.id);
+        // 这里暂时兼容处理：
         if (otherPlayers[id]) {
-            otherPlayers[id].remove(); // 从 DOM 移除
+            otherPlayers[id].remove();
             delete otherPlayers[id];
         }
     });
+    
+    // 监听后端发来的 userLeft (推荐)
+    socket.on('disconnect', (id) => removePlayer(id)); // 如果后端发的是 id
 }
 
-// 辅助函数：在地图上生成“别人”
+function removePlayer(id) {
+    if (otherPlayers[id]) {
+        otherPlayers[id].remove();
+        delete otherPlayers[id];
+    }
+}
+
 function addOtherPlayer(playerInfo) {
+    // 如果已经存在，就不重复加
+    if (otherPlayers[playerInfo.id]) return;
+
     const mapLayer = document.getElementById('world-map');
     
-    // 克隆一个玩家 DOM (样式和自己一样，但没有光圈)
     const el = document.createElement('div');
     el.style.position = 'absolute';
-    el.style.zIndex = '240'; // 比自己稍微低一点，或者一样
+    el.style.zIndex = '240'; 
     el.style.textAlign = 'center';
-    el.style.transition = 'top 0.6s linear, left 0.6s linear'; // 必须有 transition 才能平滑
+    el.style.transition = 'top 0.6s linear, left 0.6s linear'; 
     el.style.left = (playerInfo.x - 25) + 'px';
     el.style.top = (playerInfo.y - 70) + 'px';
     
+    // 生成别人的 HTML
     el.innerHTML = `
         <div style="background:rgba(0,0,0,0.4); color:#eee; padding:2px 6px; border-radius:4px; font-size:10px; white-space:nowrap; position:absolute; top:-20px; left:50%; transform:translateX(-50%);">
             ${playerInfo.name}
@@ -159,235 +187,120 @@ function addOtherPlayer(playerInfo) {
     otherPlayers[playerInfo.id] = el;
 }
 
-// ★★★ 修改原有的 movePlayerTo ★★★
-// 每次我自己移动，都要告诉服务器
-const originalMovePlayerTo = window.movePlayerTo; // 保存原来的函数引用 (如果有的话)
+
+// ================= 通用辅助函数 (保持不变) =================
+
+window.toggleMapMode = function() {
+    window.isMapMode = !window.isMapMode;
+    const mapLayer = document.getElementById('world-map');
+    const btn = document.getElementById('btn-map-mode');
+    const radar = document.getElementById('player-radar');
+    
+    if (window.isMapMode) {
+        if(btn) { btn.textContent = "🔍 Close Map"; btn.style.background = "#e94560"; }
+        if(radar) radar.classList.add('active');
+        const scale = window.innerWidth / MAP_WIDTH;
+        const topOffset = (window.innerHeight - (mapLayer.clientHeight || 2000) * scale) / 2;
+        mapLayer.style.transform = `translate(0px, ${topOffset}px) scale(${scale})`;
+    } else {
+        if(btn) { btn.textContent = "🗺️ Map View"; btn.style.background = "rgba(0,0,0, 0.7)"; }
+        if(radar) radar.classList.remove('active');
+        const player = document.getElementById('my-player');
+        const currentX = parseFloat(player.style.left) + 25;
+        const currentY = parseFloat(player.style.top) + 70;
+        window.updateCamera(currentX, currentY);
+    }
+};
+
+window.exitVirtualWorld = function() {
+    document.getElementById('virtualWorld').style.display = 'none';
+    const lobby = document.getElementById('lobbyView');
+    if(lobby) lobby.style.display = 'block';
+    const nav = document.querySelector('.nav-bar');
+    if(nav) nav.style.display = 'flex';
+    
+    // 退出时断开连接，节省资源
+    if(socket) socket.disconnect();
+};
+
+window.initCollisionMap = function(imgElement) {
+    const canvas = document.getElementById('collision-canvas');
+    if(!canvas) return;
+    window.collisionCtx = canvas.getContext('2d');
+    canvas.width = MAP_WIDTH;
+    canvas.height = imgElement.naturalHeight * (MAP_WIDTH / imgElement.naturalWidth);
+    window.collisionCtx.drawImage(imgElement, 0, 0, canvas.width, canvas.height);
+};
 
 window.movePlayerTo = function(x, y, instant=false) {
-    // 1. 先在本地移动自己 (保持流畅的单机体验)
-    // 这里把之前 movePlayerTo 的逻辑复制过来，或者直接执行下面的逻辑
     const player = document.getElementById('my-player');
     const currentLeft = parseFloat(player.style.left || 0);
-    const dist = Math.sqrt(Math.pow(x - currentLeft, 2) + Math.pow(y - parseFloat(player.style.top || 0), 2));
-    const duration = instant ? 0 : (dist / 600);
+    const currentTop = parseFloat(player.style.top || 0);
+    const dist = Math.sqrt(Math.pow(x - currentLeft, 2) + Math.pow(y - currentTop, 2));
+    const duration = instant ? 0 : (dist / 600); 
     
     player.style.transition = `top ${duration}s linear, left ${duration}s linear`;
     player.style.left = (x - 25) + 'px';
     player.style.top = (y - 70) + 'px';
-    
+
     if(!instant) {
         player.classList.add('is-walking');
         if(window.walkTimer) clearTimeout(window.walkTimer);
         window.walkTimer = setTimeout(() => player.classList.remove('is-walking'), duration * 1000);
     }
-    
-    // 面向
+
     const img = player.querySelector('img');
     if (x < currentLeft) img.style.transform = "scaleX(-1)";
     else img.style.transform = "scaleX(1)";
-    
+
     window.updateCamera(x, y, duration);
-
-    // 2. ★★★ 发送给服务器 ★★★
-    if (socket && !instant) {
-        socket.emit('playerMovement', { x: x, y: y });
-    }
 };
 
-// 最后：记得在 initVirtualCampus 里调用 initSocketConnection()
-const originalInit = window.initVirtualCampus;
-window.initVirtualCampus = function() {
-    originalInit(); // 执行原来的初始化
-    initSocketConnection(); // 启动联机
-};
-
-/**
- * 切换地图概览模式 (放大/缩小)
- */
-window.toggleMapMode = function() {
-    isMapMode = !isMapMode;
-    const mapLayer = document.getElementById('world-map');
-    const btn = document.getElementById('btn-map-mode');
-    const player = document.getElementById('my-player');
-    const radar = document.getElementById('player-radar'); // 光圈
-    
-    if (isMapMode) {
-        // === 进入地图概览模式 (Zoom Out) ===
-        if(btn) {
-            btn.textContent = "🔍 Close Map";
-            btn.style.background = "#e94560";
-        }
-        
-        // 开启闪烁光圈
-        if(radar) radar.classList.add('active');
-
-        // 计算缩放比例：让地图宽度适应屏幕宽度
-        const scale = window.innerWidth / MAP_WIDTH;
-        // 垂直居中计算
-        const screenHeight = window.innerHeight;
-        const visualHeight = (mapLayer.clientHeight || 2000) * scale;
-        const topOffset = (screenHeight - visualHeight) / 2;
-        
-        mapLayer.style.transform = `translate(0px, ${topOffset}px) scale(${scale})`;
-        
-        // 更新提示语
-        const tip = document.querySelector('#game-tip span');
-        if(tip) tip.textContent = "Map Mode: You are here (Flashing)";
-        
-    } else {
-        // === 恢复正常视角 (Normal View) ===
-        if(btn) {
-            btn.textContent = "🗺️ Map View";
-            btn.style.background = "rgba(0,0,0, 0.7)";
-        }
-        
-        // 关闭光圈
-        if(radar) radar.classList.remove('active');
-
-        // 立即把镜头切回人物位置
-        const currentX = parseFloat(player.style.left) + 25;
-        const currentY = parseFloat(player.style.top) + 70;
-        updateCamera(currentX, currentY);
-        
-        const tip = document.querySelector('#game-tip span');
-        if(tip) tip.textContent = "Tap to walk";
-    }
-};
-
-/**
- * 退出虚拟大厅
- */
-window.exitVirtualWorld = function() {
-    document.getElementById('virtualWorld').style.display = 'none';
-    const lobby = document.getElementById('lobbyView');
-    if(lobby) lobby.style.display = 'block';
-    
-    // 恢复底部导航栏
-    const nav = document.querySelector('.nav-bar');
-    if(nav) nav.style.display = 'flex';
-};
-
-/**
- * 初始化碰撞检测地图 (在 HTML img onload 中调用)
- */
-window.initCollisionMap = function(imgElement) {
-    const canvas = document.getElementById('collision-canvas');
-    if(!canvas) return;
-    
-    collisionCtx = canvas.getContext('2d');
-    canvas.width = MAP_WIDTH;
-    // 保持长宽比
-    canvas.height = imgElement.naturalHeight * (MAP_WIDTH / imgElement.naturalWidth);
-    
-    // 把地图画到隐藏的 Canvas 上
-    collisionCtx.drawImage(imgElement, 0, 0, canvas.width, canvas.height);
-    console.log("🧱 墙壁检测系统已就绪");
-};
-
-// ================= 辅助逻辑函数 =================
-
-function movePlayerTo(x, y, instant=false) {
-    const player = document.getElementById('my-player');
-    
-    // 1. 计算距离和时间
-    const currentLeft = parseFloat(player.style.left || 0);
-    const currentTop = parseFloat(player.style.top || 0);
-    const dist = Math.sqrt(Math.pow(x - currentLeft, 2) + Math.pow(y - currentTop, 2));
-    
-    // 速度：每 600px 走 1 秒
-    const duration = instant ? 0 : (dist / 600); 
-    
-    // 2. 设置 CSS 移动
-    player.style.transition = `top ${duration}s linear, left ${duration}s linear`;
-    // 修正中心点：人物宽50(一半25)，高约80(脚底偏移70)
-    player.style.left = (x - 25) + 'px';
-    player.style.top = (y - 70) + 'px';
-
-    // 3. 走路颠簸动画
-    if(!instant) {
-        player.classList.add('is-walking');
-        if(walkTimer) clearTimeout(walkTimer);
-        walkTimer = setTimeout(() => player.classList.remove('is-walking'), duration * 1000);
-    }
-
-    // 4. 面向调整 (向左走还是向右走)
-    const img = player.querySelector('img');
-    if (x < currentLeft) img.style.transform = "scaleX(-1)";
-    else img.style.transform = "scaleX(1)";
-
-    // 5. 摄像机跟随 (移动地图背景)
-    updateCamera(x, y, duration);
-}
-
-function updateCamera(targetX, targetY, duration=0) {
+window.updateCamera = function(targetX, targetY, duration=0) {
     const mapLayer = document.getElementById('world-map');
     const screenCenterX = window.innerWidth / 2;
     const screenCenterY = window.innerHeight / 2;
-    
-    // 地图偏移 = 屏幕中心 - 目标坐标
     const mapX = screenCenterX - targetX;
     const mapY = screenCenterY - targetY;
-    
     mapLayer.style.transition = `transform ${duration}s linear`;
     mapLayer.style.transform = `translate(${mapX}px, ${mapY}px) scale(1)`;
-}
+};
 
-// 检测单点是否为墙
-function isWall(x, y) {
-    if (!collisionCtx) return false;
+window.isWall = function(x, y) {
+    if (!window.collisionCtx) return false;
     try {
-        // 获取像素数据
-        const p = collisionCtx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
-        // 判断黑色/深灰色线条：RGB 都 < 60 且 Alpha > 200
-        if (p[0] < 60 && p[1] < 60 && p[2] < 60 && p[3] > 200) {
-            return true; 
-        }
+        const p = window.collisionCtx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
+        if (p[0] < 60 && p[1] < 60 && p[2] < 60 && p[3] > 200) return true; 
         return false;
     } catch (e) { return false; }
-}
+};
 
-// 检测路径是否被阻挡
-function checkPathBlocked(startX, startY, endX, endY) {
-    const steps = 20; // 采样点数量
+window.checkPathBlocked = function(startX, startY, endX, endY) {
+    const steps = 20; 
     const dx = (endX - startX) / steps;
     const dy = (endY - startY) / steps;
-    
     for (let i = 1; i <= steps; i++) {
         const checkX = startX + dx * i;
         const checkY = startY + dy * i;
-        if (isWall(checkX, checkY)) {
-            return { blocked: true, x: checkX, y: checkY };
-        }
+        if (window.isWall(checkX, checkY)) return { blocked: true, x: checkX, y: checkY };
     }
     return { blocked: false };
-}
+};
 
-// UI 效果：显示红色阻挡标记
-function showBlockMarker(x, y) {
+window.showBlockMarker = function(x, y) {
     const marker = document.getElementById('block-marker');
     if(!marker) return;
     marker.style.left = x + 'px';
     marker.style.top = y + 'px';
     marker.style.display = 'block';
-    
-    marker.animate([
-        { transform: 'translate(-50%, -50%) scale(1)' },
-        { transform: 'translate(-60%, -50%) scale(1.2)' },
-        { transform: 'translate(-40%, -50%) scale(1.2)' },
-        { transform: 'translate(-50%, -50%) scale(1)', opacity: 0 }
-    ], { duration: 500, fill: 'forwards' });
-}
+    marker.animate([{ transform: 'translate(-50%, -50%) scale(1)' }, { transform: 'translate(-50%, -50%) scale(1)', opacity: 0 }], { duration: 500, fill: 'forwards' });
+};
 
-// UI 效果：显示绿色点击涟漪
-function showClickMarker(x, y) {
+window.showClickMarker = function(x, y) {
     const marker = document.getElementById('click-marker');
     if(!marker) return;
     marker.style.left = x + 'px';
     marker.style.top = y + 'px';
     marker.style.display = 'block';
-    
-    marker.animate([
-        { transform: 'translate(-50%, -50%) scale(0.5)', opacity: 1 },
-        { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 0 }
-    ], { duration: 400, fill: 'forwards' });
-}
+    marker.animate([{ transform: 'translate(-50%, -50%) scale(0.5)', opacity: 1 }, { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 0 }], { duration: 400, fill: 'forwards' });
+};

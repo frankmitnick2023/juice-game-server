@@ -329,4 +329,4 @@ const protectedPages = ['games.html', 'timetable.html', 'my_schedule.html', 'inv
 protectedPages.forEach(page => { app.get(`/${page}`, (req, res) => req.session.userId ? res.sendFile(path.join(__dirname, 'public', page)) : res.redirect('/')); });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
