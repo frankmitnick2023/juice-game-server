@@ -107,14 +107,33 @@
     <div id="gameGrid" class="game-grid"></div>
   </div>
 	
-  <div id="virtualWorld" style="display:none; width:100%; height:100vh; background: #000; position:fixed; top:0; left:0; z-index:200;">
-      <div style="position:absolute; top:80px; left:20px; z-index:300;">
-          <button onclick="exitVirtualWorld()" style="background:rgba(255,69,96, 0.8); color:white; border:none; padding:10px 20px; border-radius:30px; font-weight:bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
-              ◀ Exit World
+  <div id="virtualWorld" style="display:none; width:100%; height:100vh; position:fixed; top:0; left:0; z-index:200; overflow:hidden; background:#222;">
+      
+      <div style="position:fixed; top:80px; left:20px; z-index:500;">
+          <button onclick="exitVirtualWorld()" style="background:rgba(0,0,0, 0.7); color:white; border:2px solid #e94560; padding:8px 20px; border-radius:30px; font-weight:bold; cursor:pointer;">
+              ◀ Exit Studio
           </button>
       </div>
-      
-      <div id="canvas-container" style="width:100%; height:100%;"></div>
+
+      <div id="world-map" style="position:absolute; top:0; left:0; transform-origin: 0 0; transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);">
+          
+          <img id="scene-bg" src="/images/studio_map.jpg" style="width:2500px; height:auto; display:block;">
+
+          <div id="my-player" style="position:absolute; top:1200px; left:1200px; z-index:250; text-align:center; transition: top 0.6s linear, left 0.6s linear;">
+              <div style="background:rgba(0,0,0,0.6); color:#fff; padding:2px 6px; border-radius:4px; font-size:10px; white-space:nowrap; position:absolute; top:-20px; left:50%; transform:translateX(-50%);">
+                  My Hero
+              </div>
+              <img id="player-img" src="" style="width:50px; height:auto; filter: drop-shadow(0 5px 5px rgba(0,0,0,0.5));">
+          </div>
+          
+          <div id="click-marker" style="position:absolute; width:20px; height:20px; border:2px solid #e94560; border-radius:50%; display:none; transform:translate(-50%, -50%); pointer-events:none;"></div>
+      </div>
+
+      <div style="position:fixed; bottom:100px; width:100%; text-align:center; z-index:500; pointer-events:none;">
+          <span style="background:rgba(0,0,0,0.5); padding:5px 10px; border-radius:15px; color:white; font-size:0.9rem;">
+              Tap anywhere to walk
+          </span>
+      </div>
   </div>
 	
     <div id="phaser-game" style="width:100%; height:100%;"></div>
@@ -316,130 +335,108 @@ async function submitAwardUpload() {
     }
 
    // =============================================================
-    // ★★★ 请完整复制并替换掉原来的 3D 相关代码 ★★★
+    // ★★★ 2D 大地图漫游逻辑 (摄像机跟随) ★★★
     // =============================================================
-    
-    // 全局变量，用于 3D 场景和动画控制
-    let renderer, scene, camera, cube, animationId;
 
-    // 1. 启动虚拟校园 (带 3D 效果)
-   function initVirtualCampus() {
-        console.log("🚀 启动 3D 引擎 (2.5D 模式)...");
-        const container = document.getElementById('canvas-container');
+    let currentMapX = 0;
+    let currentMapY = 0;
+    const MAP_WIDTH = 2500; // 必须和 HTML 里的 img width 一致
+
+    function initVirtualCampus() {
+        console.log("🚀 进入大地图模式...");
         
-        // 防止重复初始化
-        if (!container || container.childNodes.length > 0) return;
+        // 1. 设置头像
+        const heroImgSrc = document.getElementById('heroImg').src;
+        const playerImg = document.getElementById('player-img');
+        if(playerImg && heroImgSrc) playerImg.src = heroImgSrc;
 
-        // --- Three.js 初始化流程 ---
+        // 2. 初始化位置 (假设出生在地图中间的走廊)
+        // 你可以根据地图微调这个坐标，比如 1250, 1000
+        movePlayerTo(1250, 1200); 
+
+        // 3. 绑定点击事件 (点击屏幕任意位置)
+        const viewport = document.getElementById('virtualWorld');
+        const mapLayer = document.getElementById('world-map');
         
-        // A. 创建场景
-        scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x1a1a2e); // 改回深蓝色背景，好看点
+        viewport.onclick = function(e) {
+            // 如果点到按钮，不移动
+            if(e.target.tagName === 'BUTTON') return;
 
-        // B. 创建相机
-        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 2, 5); // 相机位置稍微抬高一点 (x:0, y:2, z:5)
-        camera.lookAt(0, 0, 0); // 看向中心
+            // ★★★ 核心算法：屏幕坐标 -> 地图坐标 ★★★
+            // e.clientX 是屏幕点击点
+            // mapLayer.getBoundingClientRect().left 是地图当前偏移量
+            // 地图坐标 = 屏幕点击点 - 地图偏移量
+            const rect = mapLayer.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
 
-        // C. 创建渲染器
-        renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        container.appendChild(renderer.domElement);
-
-        // --- D. 核心修改：创建 2.5D 纸片人角色 ---
-
-        // 1. 加载纹理 (Texture) 
-        // 这里我写死了一个路径用于测试，你可以换成你服务器上真实存在的图片路径
-        // 比如: '/avatars/girl_junior_uniform.png' 或者用 user.avatar_config.aiAvatarUrl
-        const textureLoader = new THREE.TextureLoader();
-        const avatarUrl = '/avatars/girl_junior_uniform.png'; // ⚠️ 请确保这个图片存在！
-        
-        const map = textureLoader.load(avatarUrl, function(texture) {
-             // 图片加载成功后的回调 (可选)
-             console.log("图片加载成功");
-        }, undefined, function(err) {
-             console.error("图片加载失败，请检查路径:", avatarUrl);
-        });
-
-        // 2. 创建材质 (Material)
-        const material = new THREE.SpriteMaterial({ 
-            map: map, 
-            transparent: true // 必须开启透明，否则背景是白的
-        });
-
-        // 3. 创建精灵 (Sprite) - 这就是你的角色
-        const playerSprite = new THREE.Sprite(material);
-        
-        // 4. 设置大小 (宽, 高, 深) - 假设人高 2 米
-        playerSprite.scale.set(2, 2, 1); 
-        playerSprite.position.set(0, 1, 0); // 站在地面上 (y=1 因为高度是2，中心点在1)
-
-        // 5. 将角色加入场景
-        // 我们把它赋值给全局变量 cube (为了偷懒复用之前的变量名，你也可以改叫 player)
-        cube = playerSprite; 
-        scene.add(cube);
-
-        // --- E. 增加一点环境装饰 ---
-        
-        // 加一个网格地面，让你看出立体感
-        const gridHelper = new THREE.GridHelper(20, 20, 0xe94560, 0x444444);
-        scene.add(gridHelper);
-
-        // --- F. 动画循环 ---
-        function animate() {
-            animationId = requestAnimationFrame(animate);
+            // 移动小人
+            movePlayerTo(clickX, clickY);
             
-            // 让角色像呼吸一样轻微上下浮动 (2.5D 常用效果)
-            if(cube) {
-                const time = Date.now() * 0.002;
-                cube.position.y = 1 + Math.sin(time) * 0.05; 
-            }
+            // 显示点击涟漪效果
+            showClickMarker(clickX, clickY);
+        };
+    }
 
-            renderer.render(scene, camera);
-        }
-        animate();
+    function movePlayerTo(x, y) {
+        const player = document.getElementById('my-player');
+        const mapLayer = document.getElementById('world-map');
+        const viewport = document.getElementById('virtualWorld');
         
-        // 监听窗口大小变化，自适应屏幕
-        window.addEventListener('resize', onWindowResize, false);
-    }
+        // 1. 移动小人 (注意减去小人宽度的一半，让脚底对准点击点)
+        // 假设小人宽50px，高约80px，我们偏移 left: -25, top: -70
+        player.style.left = (x - 25) + 'px';
+        player.style.top = (y - 70) + 'px';
 
-    function onWindowResize() {
-        if(camera && renderer) {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+        // 2. 简单的朝向判断 (脸朝左还是朝右)
+        const oldX = parseFloat(player.getAttribute('data-x') || x);
+        const img = player.querySelector('img');
+        if (x < oldX) {
+            img.style.transform = "scaleX(-1)"; // 面向左
+        } else {
+            img.style.transform = "scaleX(1)";  // 面向右
         }
+        player.setAttribute('data-x', x);
+
+        // 3. ★★★ 摄像机跟随逻辑 ★★★
+        // 目标：让小人处于屏幕正中心
+        // 地图偏移X = 屏幕中心X - 小人地图X
+        const screenCenterX = window.innerWidth / 2;
+        const screenCenterY = window.innerHeight / 2;
+        
+        let targetMapX = screenCenterX - x;
+        let targetMapY = screenCenterY - y;
+
+        // (可选) 边界限制：不要让地图移动出黑边
+        // 如果你希望小人走到边缘时地图不动，可以用 clamp 函数限制 targetMapX
+        
+        mapLayer.style.transform = `translate(${targetMapX}px, ${targetMapY}px)`;
     }
 
-    // 2. 退出虚拟大厅 (修复按钮没反应的问题)
+    function showClickMarker(x, y) {
+        const marker = document.getElementById('click-marker');
+        marker.style.left = x + 'px';
+        marker.style.top = y + 'px';
+        marker.style.display = 'block';
+        marker.style.opacity = '1';
+        marker.style.transform = 'translate(-50%, -50%) scale(0)';
+        
+        // 简单的 CSS 动画
+        marker.animate([
+            { transform: 'translate(-50%, -50%) scale(0.5)', opacity: 1 },
+            { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 0 }
+        ], {
+            duration: 400,
+            fill: 'forwards'
+        });
+    }
+
     function exitVirtualWorld() {
-        console.log("正在退出虚拟世界...");
-
-        // A. 停止动画循环，省电
-        if (animationId) cancelAnimationFrame(animationId);
-        
-        // B. 清理 3D 场景 (防止内存泄漏)
-        const container = document.getElementById('canvas-container');
-        if (container) container.innerHTML = ''; 
-        
-        // C. 隐藏虚拟层，显示回原来的界面
         document.getElementById('virtualWorld').style.display = 'none';
-        
-        // 尝试显示大厅，如果没找到大厅就显示游戏列表
         const lobby = document.getElementById('lobbyView');
-        const gameView = document.getElementById('gameView');
-        
-        if (lobby) lobby.style.display = 'block';
-        // 如果你想回游戏列表而不是个人主页，把上面这行注释掉，解开下面这行：
-        // if (gameView) gameView.style.display = 'block';
-        
-        // 恢复底部导航栏 (防止被遮挡)
+        if(lobby) lobby.style.display = 'block';
         const nav = document.querySelector('.nav-bar');
         if(nav) nav.style.display = 'flex';
-        
-        // 重置变量
-        gameInstance = null;
-        renderer = null;
     }
 
     // -------------------------------------------------------------
