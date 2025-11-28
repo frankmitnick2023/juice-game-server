@@ -326,26 +326,89 @@
     }
     
     // 奖杯逻辑
+    // 获取并展示奖杯列表
+	
+	// 显示奖杯/证书详情弹窗
+    function showTrophyDetail(t) {
+        const modal = document.getElementById('trophyDetailModal');
+        if(!modal) return;
+        
+        // 1. 设置大图
+        const img = document.getElementById('dImg');
+        if(img) img.src = t.image_path || '';
+
+        // 2. 设置标题
+        const title = document.getElementById('dTitle');
+        if(title) title.textContent = t.source_name || 'Achievement';
+
+        // 3. 设置时间/元数据
+        const meta = document.getElementById('dMeta');
+        if(meta) {
+            const dateStr = t.created_at ? new Date(t.created_at).toLocaleDateString() : '';
+            const status = t.status === 'PENDING' ? '(Audit Pending)' : '';
+            meta.textContent = `${dateStr} ${status}`;
+        }
+
+        // 4. 设置描述 (老师评语等)
+        const desc = document.getElementById('dDesc');
+        if(desc) {
+            desc.textContent = t.description || 'Keep dancing! (No comments yet)';
+        }
+
+        // 5. 显示弹窗
+        modal.style.display = 'flex';
+    }
+	
     async function loadTrophies() {
-        // ... (保持你原有的 loadTrophies 逻辑，如果没变动可以省略不写，或者你需要我补全？)
-        // 简单版：
         const area = document.getElementById('trophyArea');
         if(!area) return;
+        
         try {
-            const res = await fetch('/api/my-trophies');
+            const res = await fetch('/api/my-trophies'); // 确保后端有这个 GET 接口
             const data = await res.json();
-            area.innerHTML = '';
+            
+            area.innerHTML = ''; // 清空现有列表
+            
+            if (!data || data.length === 0) return;
+
             data.forEach(t => {
-                // 简单的奖杯渲染
                 const el = document.createElement('div');
-                el.className = 'trophy-item t-gold';
-                el.textContent = '🏆';
-                el.onclick = () => alert(t.source_name || 'Award');
+                el.className = 'trophy-item';
+                
+                // ★★★ 核心修复：根据类型显示不同图标 ★★★
+                let icon = '🏆'; // 默认
+                let colorClass = 't-gold'; // 默认样式类
+
+                // 数据库里的 type 可能是: gold, silver, bronze, certificate, medal_gold...
+                const type = (t.trophy_type || '').toLowerCase();
+
+                if (type.includes('certificate')) {
+                    icon = '📜'; // 证书卷轴
+                    colorClass = ''; // 证书不需要金光特效
+                } else if (type.includes('silver')) {
+                    icon = '🥈';
+                    colorClass = ''; 
+                } else if (type.includes('bronze')) {
+                    icon = '🥉';
+                    colorClass = '';
+                } else if (type.includes('medal')) {
+                    icon = '🥇';
+                }
+
+                el.textContent = icon;
+                
+                // 如果需要加特效类 (CSS里定义的 t-gold 等)
+                if(colorClass) el.classList.add(colorClass);
+
+                // 点击查看详情大图
+                el.onclick = () => showTrophyDetail(t);
+                
                 area.appendChild(el);
             });
-        } catch(e) {}
+        } catch(e) { 
+            console.error("加载奖杯失败:", e); 
+        }
     }
-
     // 上传弹窗逻辑
     function openUploadModal() { document.getElementById('uploadModal').style.display = 'flex'; }
     function closeModal(id) { document.getElementById(id).style.display = 'none'; }
