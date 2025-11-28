@@ -1,4 +1,6 @@
 const express = require('express');
+const http = require('http'); // 引入 http 模块
+const { Server } = require("socket.io"); // 引入 Socket.io
 const { Pool } = require('pg');
 const bodyParser = require('body-parser');
 const path = require('path');
@@ -8,6 +10,55 @@ const multer = require('multer');
 const { createHash } = require('crypto');
 
 const app = express();
+const server = http.createServer(app); // 1. 创建 HTTP server 包装 app
+const io = new Server(server); // 2. 创建 Socket.io 实例
+
+// --- ★★★ 多人联机逻辑 ★★★ ---
+const players = {}; // 内存里存储所有在线玩家的状态 { socketId: { x, y, name, avatar } }
+
+io.on('connection', (socket) => {
+    console.log('一位新同学连入了校园: ' + socket.id);
+
+    // 1. 当有新玩家加入时，把当前所有已在线的玩家发给他
+    socket.emit('currentPlayers', players);
+
+    // 2. 监听：新玩家报告自己的信息 (名字, 头像, 初始位置)
+    socket.on('joinGame', (userData) => {
+        // 记录到服务器内存
+        players[socket.id] = {
+            id: socket.id,
+            x: userData.x || 1250,
+            y: userData.y || 1200,
+            name: userData.name || 'Student',
+            avatar: userData.avatar || '/avatars/boy_junior_uniform.png'
+        };
+        
+        // 广播给所有人：有个新玩家来了！
+        socket.broadcast.emit('newPlayer', players[socket.id]);
+    });
+
+    // 3. 监听：玩家移动
+    socket.on('playerMovement', (movementData) => {
+        if (players[socket.id]) {
+            players[socket.id].x = movementData.x;
+            players[socket.id].y = movementData.y;
+            
+            // 广播给其他人：这哥们动了，你们也更新一下他的位置
+            socket.broadcast.emit('playerMoved', {
+                id: socket.id,
+                x: players[socket.id].x,
+                y: players[socket.id].y
+            });
+        }
+    });
+
+    // 4. 监听：断开连接
+    socket.on('disconnect', () => {
+        console.log('同学离开了: ' + socket.id);
+        delete players[socket.id]; // 从内存删除
+        io.emit('disconnect', socket.id); // 告诉所有人删除这个人的画面
+    });
+});
 
 // --- Postgres Connection ---
 const pool = new Pool({
@@ -278,4 +329,4 @@ const protectedPages = ['games.html', 'timetable.html', 'my_schedule.html', 'inv
 protectedPages.forEach(page => { app.get(`/${page}`, (req, res) => req.session.userId ? res.sendFile(path.join(__dirname, 'public', page)) : res.redirect('/')); });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

@@ -5,6 +5,8 @@ let isMapMode = false;      // 是否处于地图概览模式
 let collisionCtx = null;    // 碰撞检测画布上下文
 const MAP_WIDTH = 2500;     // 地图原始宽度 (需与 HTML img width 一致)
 let walkTimer = null;       // 走路动画定时器
+let socket; // 全局 socket 对象
+let otherPlayers = {}; // 存储其他玩家的 DOM 元素 { socketId: element }
 
 // ================= 核心功能函数 =================
 
@@ -16,7 +18,7 @@ window.initVirtualCampus = function() {
     console.log("🚀 启动虚拟校园 (2D 大地图模式)...");
 
     // 1. 同步头像：把大厅的头像复制进来
-    const heroImgSrc = document.getElementById('heroImg') ? document.getElementById('heroImg').src : '';
+    const heroImgSrc = document.getElementById('heroImg') ? 			document.getElementById('heroImg').src : '';
     const playerImg = document.getElementById('player-img');
     if(playerImg && heroImgSrc) {
         playerImg.src = heroImgSrc;
@@ -65,6 +67,138 @@ window.initVirtualCampus = function() {
             showClickMarker(clickX, clickY);
         }
     };
+};
+
+
+// 1. 初始化联机 (在 initVirtualCampus 里调用)
+function initSocketConnection() {
+    socket = io(); // 连接服务器
+
+    // A. 连接成功后，发送我的信息
+    socket.on('connect', () => {
+        const myPlayer = document.getElementById('my-player');
+        const heroImg = document.getElementById('player-img');
+        
+        // 发送我的初始数据
+        socket.emit('joinGame', {
+            x: parseFloat(myPlayer.style.left) || 1250,
+            y: parseFloat(myPlayer.style.top) || 1200,
+            name: document.getElementById('userInfo') ? document.getElementById('userInfo').textContent : 'Hero',
+            avatar: heroImg.src
+        });
+    });
+
+    // B. 收到：当前已有的其他玩家 (我刚上线时)
+    socket.on('currentPlayers', (players) => {
+        Object.keys(players).forEach((id) => {
+            if (id !== socket.id) {
+                addOtherPlayer(players[id]);
+            }
+        });
+    });
+
+    // C. 收到：有新玩家加入 (我在线时)
+    socket.on('newPlayer', (playerInfo) => {
+        addOtherPlayer(playerInfo);
+        console.log("新同学加入！");
+    });
+
+    // D. 收到：某人移动了
+    socket.on('playerMoved', (data) => {
+        const el = otherPlayers[data.id];
+        if (el) {
+            // 设置 CSS 移动 (利用 transition 自动平滑)
+            el.style.left = (data.x - 25) + 'px';
+            el.style.top = (data.y - 70) + 'px';
+            
+            // 简单的面向判断 (和自己移动一样)
+            const oldX = parseFloat(el.getAttribute('data-x') || data.x);
+            const img = el.querySelector('img');
+            if (data.x < oldX) img.style.transform = "scaleX(-1)";
+            else img.style.transform = "scaleX(1)";
+            el.setAttribute('data-x', data.x);
+            
+            // 加上走路动画
+            el.classList.add('is-walking');
+            // 简单的防抖，0.6秒后停止动画
+            if (el.walkTimeout) clearTimeout(el.walkTimeout);
+            el.walkTimeout = setTimeout(() => el.classList.remove('is-walking'), 600);
+        }
+    });
+
+    // E. 收到：某人离开了
+    socket.on('disconnect', (id) => {
+        if (otherPlayers[id]) {
+            otherPlayers[id].remove(); // 从 DOM 移除
+            delete otherPlayers[id];
+        }
+    });
+}
+
+// 辅助函数：在地图上生成“别人”
+function addOtherPlayer(playerInfo) {
+    const mapLayer = document.getElementById('world-map');
+    
+    // 克隆一个玩家 DOM (样式和自己一样，但没有光圈)
+    const el = document.createElement('div');
+    el.style.position = 'absolute';
+    el.style.zIndex = '240'; // 比自己稍微低一点，或者一样
+    el.style.textAlign = 'center';
+    el.style.transition = 'top 0.6s linear, left 0.6s linear'; // 必须有 transition 才能平滑
+    el.style.left = (playerInfo.x - 25) + 'px';
+    el.style.top = (playerInfo.y - 70) + 'px';
+    
+    el.innerHTML = `
+        <div style="background:rgba(0,0,0,0.4); color:#eee; padding:2px 6px; border-radius:4px; font-size:10px; white-space:nowrap; position:absolute; top:-20px; left:50%; transform:translateX(-50%);">
+            ${playerInfo.name}
+        </div>
+        <img src="${playerInfo.avatar}" style="width:50px; height:auto; filter: drop-shadow(0 5px 5px rgba(0,0,0,0.5));">
+    `;
+    
+    mapLayer.appendChild(el);
+    otherPlayers[playerInfo.id] = el;
+}
+
+// ★★★ 修改原有的 movePlayerTo ★★★
+// 每次我自己移动，都要告诉服务器
+const originalMovePlayerTo = window.movePlayerTo; // 保存原来的函数引用 (如果有的话)
+
+window.movePlayerTo = function(x, y, instant=false) {
+    // 1. 先在本地移动自己 (保持流畅的单机体验)
+    // 这里把之前 movePlayerTo 的逻辑复制过来，或者直接执行下面的逻辑
+    const player = document.getElementById('my-player');
+    const currentLeft = parseFloat(player.style.left || 0);
+    const dist = Math.sqrt(Math.pow(x - currentLeft, 2) + Math.pow(y - parseFloat(player.style.top || 0), 2));
+    const duration = instant ? 0 : (dist / 600);
+    
+    player.style.transition = `top ${duration}s linear, left ${duration}s linear`;
+    player.style.left = (x - 25) + 'px';
+    player.style.top = (y - 70) + 'px';
+    
+    if(!instant) {
+        player.classList.add('is-walking');
+        if(window.walkTimer) clearTimeout(window.walkTimer);
+        window.walkTimer = setTimeout(() => player.classList.remove('is-walking'), duration * 1000);
+    }
+    
+    // 面向
+    const img = player.querySelector('img');
+    if (x < currentLeft) img.style.transform = "scaleX(-1)";
+    else img.style.transform = "scaleX(1)";
+    
+    window.updateCamera(x, y, duration);
+
+    // 2. ★★★ 发送给服务器 ★★★
+    if (socket && !instant) {
+        socket.emit('playerMovement', { x: x, y: y });
+    }
+};
+
+// 最后：记得在 initVirtualCampus 里调用 initSocketConnection()
+const originalInit = window.initVirtualCampus;
+window.initVirtualCampus = function() {
+    originalInit(); // 执行原来的初始化
+    initSocketConnection(); // 启动联机
 };
 
 /**
