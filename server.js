@@ -60,6 +60,61 @@ io.on('connection', (socket) => {
     });
 });
 
+// 1. 全局变量：存储所有在线玩家
+// 格式: { "socket_id": { x, y, name, avatar } }
+const players = {}; 
+
+io.on('connection', (socket) => {
+    console.log('🔗 新连接接入:', socket.id);
+
+    // 2. 刚连上时：把当前已经在房间里的人发给新玩家
+    // 这样新玩家就能看到早已在场的人
+    socket.emit('currentPlayers', players);
+
+    // 3. 监听：玩家进入游戏 (joinGame)
+    socket.on('joinGame', (data) => {
+        console.log(`👤 玩家加入: ${data.name} (${socket.id})`);
+        
+        // 记录到服务器内存
+        players[socket.id] = {
+            id: socket.id,
+            x: data.x,
+            y: data.y,
+            name: data.name,
+            avatar: data.avatar
+        };
+
+        // 广播给所有人(除了自己)：有新人来了，快显示他！
+        socket.broadcast.emit('newPlayer', players[socket.id]);
+    });
+
+    // 4. 监听：玩家移动 (playerMovement)
+    socket.on('playerMovement', (data) => {
+        if (players[socket.id]) {
+            players[socket.id].x = data.x;
+            players[socket.id].y = data.y;
+
+            // 广播给所有人(除了自己)：这人动了，快更新他的位置！
+            socket.broadcast.emit('playerMoved', {
+                id: socket.id,
+                x: data.x,
+                y: data.y
+            });
+        }
+    });
+
+    // 5. 监听：断开连接
+    socket.on('disconnect', () => {
+        console.log('❌ 连接断开:', socket.id);
+        // 从内存移除
+        delete players[socket.id];
+        // 告诉所有人：删掉这个人的画面
+        io.emit('disconnect', socket.id); 
+    });
+});
+
+// ★★★★★ 结束复制 ★★★★★
+
 // --- Postgres Connection ---
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,

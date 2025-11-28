@@ -76,6 +76,26 @@ window.initVirtualCampus = function() {
 // ================= 联机逻辑 (Socket.io) =================
 
 function initSocketConnection(name, avatar) {
+
+    if (typeof io === 'undefined') return;
+    socket = io(); 
+
+    // ★ 监听连接成功
+    socket.on('connect', () => {
+        console.log("✅ 连上了！");
+        // 变绿灯
+        const led = document.getElementById('net-status');
+        if(led) led.classList.add('online');
+        
+        // ... 原有的 emit joinGame 代码 ...
+    });
+    
+    // ★ 监听断开
+    socket.on('disconnect', () => {
+        const led = document.getElementById('net-status');
+        if(led) led.classList.remove('online');
+    });
+
     // 检查是否引入了库
     if (typeof io === 'undefined') {
         console.error("❌ Socket.io 库未加载，无法联机！请检查 games.html");
