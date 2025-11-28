@@ -337,15 +337,15 @@ async function submitAwardUpload() {
         const dateStr = t.created_at ? new Date(t.created_at).toLocaleDateString() : '';
         meta.textContent = `${dateStr} • ${t.type ? t.type.toUpperCase() : 'AWARD'}`;
         
-        // 如果有老师评语或描述，显示在这里
-        desc.textContent = t.description || 'Great job! Keep dancing!'; 
-        if (!t.description) desc.style.display = 'none';
-        else desc.style.display = 'block';
+       // 修复后的逻辑：总是显示
+		// 如果有数据库里的评语，就用数据库的；如果没有，就用默认的鼓励语
+		desc.textContent = t.description || 'Great job! Keep dancing! (此荣誉暂无详细评语)';
+		desc.style.display = 'block'; // 强制显示
 
         // 显示弹窗
         modal.style.display = 'flex';
     }
-    function showTrophyDetail(t) { /* ... */ }
+    
     function openUploadModal() { document.getElementById('uploadModal').style.display = 'flex'; }
     function closeModal(id) { document.getElementById(id).style.display = 'none'; }
     function previewFiles(input, conId) { /* ... */ }
