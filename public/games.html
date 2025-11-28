@@ -107,17 +107,21 @@
     <div id="gameGrid" class="game-grid"></div>
   </div>
 	
-  <div id="virtualWorld" style="display:none; width:100%; height:100vh; position:fixed; top:0; left:0; z-index:200; overflow:hidden; background:#222;">
+  <div id="virtualWorld" style="display:none; width:100%; height:100vh; position:fixed; top:0; left:0; z-index:200; overflow:hidden; background:#111;">
       
-      <div style="position:fixed; top:80px; left:20px; z-index:500;">
-          <button onclick="exitVirtualWorld()" style="background:rgba(0,0,0, 0.7); color:white; border:2px solid #e94560; padding:8px 20px; border-radius:30px; font-weight:bold; cursor:pointer;">
-              ◀ Exit Studio
+      <div style="position:fixed; top:80px; left:20px; z-index:500; display:flex; gap:10px;">
+          <button onclick="exitVirtualWorld()" style="background:rgba(0,0,0, 0.7); color:white; border:2px solid #e94560; padding:8px 15px; border-radius:30px; font-weight:bold;">
+              ◀ Exit
+          </button>
+          
+          <button onclick="toggleMapMode()" id="btn-map-mode" style="background:rgba(0,0,0, 0.7); color:#4facfe; border:2px solid #4facfe; padding:8px 15px; border-radius:30px; font-weight:bold;">
+              🗺️ Map View
           </button>
       </div>
 
       <div id="world-map" style="position:absolute; top:0; left:0; transform-origin: 0 0; transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);">
           
-          <img id="scene-bg" src="/images/studio_map.png" style="width:2500px; height:auto; display:block;">
+          <img id="scene-bg" src="/images/studio_map.png" style="width:2500px; height:auto; display:block;" onload="initCollisionMap(this)">
 
           <div id="my-player" style="position:absolute; top:1200px; left:1200px; z-index:250; text-align:center; transition: top 0.6s linear, left 0.6s linear;">
               <div style="background:rgba(0,0,0,0.6); color:#fff; padding:2px 6px; border-radius:4px; font-size:10px; white-space:nowrap; position:absolute; top:-20px; left:50%; transform:translateX(-50%);">
@@ -126,12 +130,16 @@
               <img id="player-img" src="" style="width:50px; height:auto; filter: drop-shadow(0 5px 5px rgba(0,0,0,0.5));">
           </div>
           
+          <div id="block-marker" style="position:absolute; color:red; font-weight:bold; font-size:24px; display:none; transform:translate(-50%, -50%); z-index:600; text-shadow:2px 2px 0 #fff;">🚫</div>
+          
           <div id="click-marker" style="position:absolute; width:20px; height:20px; border:2px solid #e94560; border-radius:50%; display:none; transform:translate(-50%, -50%); pointer-events:none;"></div>
       </div>
 
-      <div style="position:fixed; bottom:100px; width:100%; text-align:center; z-index:500; pointer-events:none;">
-          <span style="background:rgba(0,0,0,0.5); padding:5px 10px; border-radius:15px; color:white; font-size:0.9rem;">
-              Tap anywhere to walk
+      <canvas id="collision-canvas" style="display:none;"></canvas>
+
+      <div id="game-tip" style="position:fixed; bottom:100px; width:100%; text-align:center; z-index:500; pointer-events:none;">
+          <span style="background:rgba(0,0,0,0.5); padding:5px 10px; border-radius:15px; color:white;">
+              Tap to walk (Walls block you!)
           </span>
       </div>
   </div>
@@ -334,83 +342,204 @@ async function submitAwardUpload() {
         }
     }
 
-   // =============================================================
-    // ★★★ 2D 大地图漫游逻辑 (摄像机跟随) ★★★
+  // =============================================================
+    // ★★★ 2D 大地图逻辑 (含缩放 & 墙壁碰撞) ★★★
     // =============================================================
 
-    let currentMapX = 0;
-    let currentMapY = 0;
-    const MAP_WIDTH = 2500; // 必须和 HTML 里的 img width 一致
+    let isMapMode = false; // 是否处于概览模式
+    let collisionCtx = null; // 碰撞检测画布
+    const MAP_WIDTH = 2500;  // 你的地图原始宽度
+    
+    // 初始化碰撞检测地图
+    function initCollisionMap(imgElement) {
+        // 创建一个看不见的 Canvas，把地图画上去，方便我们读取像素颜色
+        const canvas = document.getElementById('collision-canvas');
+        collisionCtx = canvas.getContext('2d');
+        canvas.width = MAP_WIDTH;
+        canvas.height = imgElement.naturalHeight * (MAP_WIDTH / imgElement.naturalWidth);
+        collisionCtx.drawImage(imgElement, 0, 0, canvas.width, canvas.height);
+        console.log("🧱 墙壁检测系统已就绪");
+    }
+
+    // 检查某一点是不是墙 (黑色/深色像素)
+    function isWall(x, y) {
+        if (!collisionCtx) return false;
+        try {
+            // 获取该坐标的像素颜色
+            const p = collisionCtx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
+            // 你的地图里，墙是黑色的 (RGB < 50)，地板是浅色的
+            // 如果 R, G, B 都小于 60，我们就认为是墙
+            // 此外，Alpha (p[3]) 必须是不透明的
+            if (p[0] < 60 && p[1] < 60 && p[2] < 60 && p[3] > 200) {
+                return true; 
+            }
+            return false;
+        } catch (e) { return false; }
+    }
+
+    // 检查路径上有没有墙 (防穿墙核心)
+    function checkPathBlocked(startX, startY, endX, endY) {
+        const steps = 15; // 把路径分成15份来检查
+        const dx = (endX - startX) / steps;
+        const dy = (endY - startY) / steps;
+        
+        for (let i = 1; i <= steps; i++) {
+            const checkX = startX + dx * i;
+            const checkY = startY + dy * i;
+            if (isWall(checkX, checkY)) {
+                return { blocked: true, x: checkX, y: checkY }; // 返回撞墙的位置
+            }
+        }
+        return { blocked: false };
+    }
 
     function initVirtualCampus() {
-        console.log("🚀 进入大地图模式...");
-        
-        // 1. 设置头像
+        console.log("🚀 启动虚拟校园...");
         const heroImgSrc = document.getElementById('heroImg').src;
         const playerImg = document.getElementById('player-img');
         if(playerImg && heroImgSrc) playerImg.src = heroImgSrc;
 
-        // 2. 初始化位置 (假设出生在地图中间的走廊)
-        // 你可以根据地图微调这个坐标，比如 1250, 1000
-        movePlayerTo(1250, 1200); 
+        // 初始位置
+        movePlayerTo(1250, 1200, true); 
 
-        // 3. 绑定点击事件 (点击屏幕任意位置)
+        // 点击移动逻辑
         const viewport = document.getElementById('virtualWorld');
         const mapLayer = document.getElementById('world-map');
         
         viewport.onclick = function(e) {
-            // 如果点到按钮，不移动
             if(e.target.tagName === 'BUTTON') return;
+            if(isMapMode) {
+                // 如果在地图模式下点击，自动恢复正常视角并移动
+                toggleMapMode(); 
+                // 这里暂时不移动，防止误触，只切换视角
+                return;
+            }
 
-            // ★★★ 核心算法：屏幕坐标 -> 地图坐标 ★★★
-            // e.clientX 是屏幕点击点
-            // mapLayer.getBoundingClientRect().left 是地图当前偏移量
-            // 地图坐标 = 屏幕点击点 - 地图偏移量
+            // 计算地图坐标
+            // 注意：这里需要除以当前的 scale (如果有缩放的话)
+            // 但我们在正常模式下 scale 是 1，所以直接减去偏移量
             const rect = mapLayer.getBoundingClientRect();
             const clickX = e.clientX - rect.left;
             const clickY = e.clientY - rect.top;
 
-            // 移动小人
-            movePlayerTo(clickX, clickY);
-            
-            // 显示点击涟漪效果
-            showClickMarker(clickX, clickY);
+            // --- 碰撞检测逻辑 ---
+            const player = document.getElementById('my-player');
+            const startX = parseFloat(player.style.left) + 25; // 中心点X
+            const startY = parseFloat(player.style.top) + 70;  // 脚底Y
+
+            const check = checkPathBlocked(startX, startY, clickX, clickY);
+
+            if (check.blocked) {
+                // 撞墙了！
+                showBlockMarker(check.x, check.y);
+                console.log("🚫 撞墙了，过不去！");
+                // 可选：你可以让它走到撞墙前的位置，或者直接不动
+                // 这里我们选择直接不动，提示玩家
+            } else {
+                // 路是通的，走！
+                movePlayerTo(clickX, clickY);
+                showClickMarker(clickX, clickY);
+            }
         };
     }
 
-    function movePlayerTo(x, y) {
-        const player = document.getElementById('my-player');
+    // 切换地图概览模式
+    function toggleMapMode() {
+        isMapMode = !isMapMode;
         const mapLayer = document.getElementById('world-map');
-        const viewport = document.getElementById('virtualWorld');
+        const btn = document.getElementById('btn-map-mode');
+        const player = document.getElementById('my-player');
         
-        // 1. 移动小人 (注意减去小人宽度的一半，让脚底对准点击点)
-        // 假设小人宽50px，高约80px，我们偏移 left: -25, top: -70
-        player.style.left = (x - 25) + 'px';
-        player.style.top = (y - 70) + 'px';
-
-        // 2. 简单的朝向判断 (脸朝左还是朝右)
-        const oldX = parseFloat(player.getAttribute('data-x') || x);
-        const img = player.querySelector('img');
-        if (x < oldX) {
-            img.style.transform = "scaleX(-1)"; // 面向左
+        if (isMapMode) {
+            // === 缩小模式 ===
+            btn.textContent = "🔍 Normal View";
+            btn.style.background = "#e94560";
+            
+            // 计算缩放比例：让 2500px 宽的地图适应屏幕宽度
+            const scale = window.innerWidth / MAP_WIDTH;
+            const screenHeight = window.innerHeight;
+            
+            // 居中显示
+            // 这里的 translate 是为了让缩放后的地图在屏幕垂直居中
+            const visualHeight = (mapLayer.clientHeight || 2000) * scale;
+            const topOffset = (screenHeight - visualHeight) / 2;
+            
+            mapLayer.style.transform = `translate(0px, ${topOffset}px) scale(${scale})`;
+            
+            // 提示语修改
+            document.querySelector('#game-tip span').textContent = "Map Mode: Click to Zoom In";
+            
         } else {
-            img.style.transform = "scaleX(1)";  // 面向右
+            // === 恢复正常模式 ===
+            btn.textContent = "🗺️ Map View";
+            btn.style.background = "rgba(0,0,0, 0.7)";
+            
+            // 立即让摄像机对准当前人物位置
+            const currentX = parseFloat(player.style.left) + 25;
+            const currentY = parseFloat(player.style.top) + 70;
+            updateCamera(currentX, currentY);
+            
+            document.querySelector('#game-tip span').textContent = "Tap to walk (Walls block you!)";
         }
-        player.setAttribute('data-x', x);
+    }
 
-        // 3. ★★★ 摄像机跟随逻辑 ★★★
-        // 目标：让小人处于屏幕正中心
-        // 地图偏移X = 屏幕中心X - 小人地图X
+    function movePlayerTo(x, y, instant=false) {
+        const player = document.getElementById('my-player');
+        
+        // 计算距离
+        const currentLeft = parseFloat(player.style.left || 0);
+        const currentTop = parseFloat(player.style.top || 0);
+        const dist = Math.sqrt(Math.pow(x - currentLeft, 2) + Math.pow(y - currentTop, 2));
+        const duration = instant ? 0 : (dist / 600); // 速度调整
+        
+        // 移动人物
+        player.style.transition = `top ${duration}s linear, left ${duration}s linear`;
+        player.style.left = (x - 25) + 'px';
+        player.style.top = (y - 70) + 'px'; // 70是脚底偏移
+
+        // 走路摇摆动画
+        if(!instant) {
+            player.classList.add('is-walking');
+            setTimeout(() => player.classList.remove('is-walking'), duration * 1000);
+        }
+
+        // 面向
+        const img = player.querySelector('img');
+        if (x < currentLeft) img.style.transform = "scaleX(-1)";
+        else img.style.transform = "scaleX(1)";
+
+        // 更新摄像机
+        // 我们需要在 CSS transition 每一帧都更新摄像机吗？
+        // 简单的做法是：让地图也用 CSS transition 跟随
+        updateCamera(x, y, duration);
+    }
+
+    function updateCamera(targetX, targetY, duration=0) {
+        const mapLayer = document.getElementById('world-map');
         const screenCenterX = window.innerWidth / 2;
         const screenCenterY = window.innerHeight / 2;
         
-        let targetMapX = screenCenterX - x;
-        let targetMapY = screenCenterY - y;
-
-        // (可选) 边界限制：不要让地图移动出黑边
-        // 如果你希望小人走到边缘时地图不动，可以用 clamp 函数限制 targetMapX
+        const mapX = screenCenterX - targetX;
+        const mapY = screenCenterY - targetY;
         
-        mapLayer.style.transform = `translate(${targetMapX}px, ${targetMapY}px)`;
+        mapLayer.style.transition = `transform ${duration}s linear`;
+        mapLayer.style.transform = `translate(${mapX}px, ${mapY}px) scale(1)`;
+    }
+
+    // 显示撞墙标记
+    function showBlockMarker(x, y) {
+        const marker = document.getElementById('block-marker');
+        marker.style.left = x + 'px';
+        marker.style.top = y + 'px';
+        marker.style.display = 'block';
+        
+        // 抖动动画
+        marker.animate([
+            { transform: 'translate(-50%, -50%) scale(1)' },
+            { transform: 'translate(-60%, -50%) scale(1.2)' },
+            { transform: 'translate(-40%, -50%) scale(1.2)' },
+            { transform: 'translate(-50%, -50%) scale(1)', opacity: 0 }
+        ], { duration: 500, fill: 'forwards' });
     }
 
     function showClickMarker(x, y) {
@@ -418,27 +547,11 @@ async function submitAwardUpload() {
         marker.style.left = x + 'px';
         marker.style.top = y + 'px';
         marker.style.display = 'block';
-        marker.style.opacity = '1';
-        marker.style.transform = 'translate(-50%, -50%) scale(0)';
-        
-        // 简单的 CSS 动画
         marker.animate([
             { transform: 'translate(-50%, -50%) scale(0.5)', opacity: 1 },
             { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 0 }
-        ], {
-            duration: 400,
-            fill: 'forwards'
-        });
+        ], { duration: 400, fill: 'forwards' });
     }
-
-    function exitVirtualWorld() {
-        document.getElementById('virtualWorld').style.display = 'none';
-        const lobby = document.getElementById('lobbyView');
-        if(lobby) lobby.style.display = 'block';
-        const nav = document.querySelector('.nav-bar');
-        if(nav) nav.style.display = 'flex';
-    }
-
     // -------------------------------------------------------------
     // 3. 加载 2D 游戏列表 (增加空值检查)
     // -------------------------------------------------------------
