@@ -83,33 +83,50 @@
         }
     }
 
-    function renderRadar(stats) {
+  function renderRadar(stats) {
         const ctx = document.getElementById('abilitiesChart');
         if (!ctx) return;
         
-        const labels = ['柔韧度 (Flex)', '力量 (Str)', '节奏 (Rhythm)', '记忆 (Mem)', '技巧 (Tech)', '勤奋度 (Ded)'];
-        
-        // ★★★ 修复 2：修正 JS 笔误 (stats.stats.rhythm -> stats.rhythm) ★★★
-        const dataValues = [
-            stats.flexibility, 
-            stats.strength, 
-            stats.rhythm, 
-            stats.memory, 
-            stats.technique, 
-            stats.dedication
+        // ★★★ 六大维度 (中英双语版) ★★★
+        // 数组格式 ['第一行', '第二行', '第三行'] 实现换行
+        const labels = [
+            ['身体结构 (形与控)', 'Body Alignment', '& Control'],        // 1. 对应 DB: dedication
+            ['柔韧开度 (软与能)', 'Flexibility', '& Extension'],         // 2. 对应 DB: flexibility
+            ['力量核心 (稳与爆发)', 'Strength &', 'Core Stability'],     // 3. 对应 DB: strength
+            ['节奏协调 (听与配)', 'Musicality &', 'Coordination'],       // 4. 对应 DB: rhythm
+            ['空间表演 (动与演)', 'Spatial & Expressive', 'Performance'],// 5. 对应 DB: memory
+            ['技巧综合 (转与跳)', 'Technique &', 'Integration']          // 6. 对应 DB: technique
         ];
+        
+        // ★★★ 数据映射 (保持原有的数据库字段对应关系) ★★★
+        const dataValues = [
+            stats.dedication,   // 1. 身体结构
+            stats.flexibility,  // 2. 柔韧度
+            stats.strength,     // 3. 力量
+            stats.rhythm,       // 4. 节奏
+            stats.memory,       // 5. 空间表演 (原 memory)
+            stats.technique     // 6. 技巧
+        ];
+
+        // 销毁旧图表 (防止重影)
+        const chartStatus = Chart.getChart("abilitiesChart");
+        if (chartStatus != undefined) {
+          chartStatus.destroy();
+        }
 
         new Chart(ctx, {
             type: 'radar',
             data: {
                 labels: labels,
                 datasets: [{
-                    label: 'Current Ability',
+                    label: 'Capability Assessment', // 图例改成英文
                     data: dataValues,
-                    backgroundColor: 'rgba(79, 172, 254, 0.4)',
-                    borderColor: '#4facfe',
+                    backgroundColor: 'rgba(233, 69, 96, 0.4)', 
+                    borderColor: '#e94560',
                     pointBackgroundColor: '#fff',
-                    borderWidth: 2
+                    pointBorderColor: '#e94560',
+                    borderWidth: 2,
+                    pointRadius: 3
                 }]
             },
             options: {
@@ -119,10 +136,15 @@
                     r: {
                         angleLines: { color: 'rgba(255,255,255,0.1)' },
                         grid: { color: 'rgba(255,255,255,0.1)' },
-                        pointLabels: { color: '#ccc', font: {size: 10} },
+                        pointLabels: { 
+                            color: '#ccc', 
+                            font: { size: 10 }, // 字体稍微调小一点以适应更多文字
+                            // 确保多行文字能居中显示
+                            textAlign: 'center'
+                        },
                         suggestedMin: 0,
                         suggestedMax: 100,
-                        ticks: { display: false }
+                        ticks: { display: false } // 隐藏刻度数字
                     }
                 },
                 plugins: { legend: { display: false } }

@@ -332,6 +332,22 @@
 
     // Init
     switchTab('courses');
+	
+	async function openStatsEditor(studentId, studentName) {
+    const score = prompt(
+        `请输入 ${studentName} 的各项评分 (逗号分隔):\n` +
+        `--------------------------------\n` +
+        `1. 身体结构 Body Alignment (DB:勤奋)\n` +
+        `2. 柔韧开度 Flexibility (DB:柔韧)\n` +
+        `3. 力量核心 Strength (DB:力量)\n` +
+        `4. 节奏协调 Musicality (DB:节奏)\n` +
+        `5. 空间表演 Performance (DB:记忆)\n` +
+        `6. 技巧综合 Technique (DB:技巧)\n` +
+        `--------------------------------\n` +
+        `例如: 80,75,90,60,70,95`
+    );
+    // ... 后续代码不变 ...
+}
 </script>
 </body>
 </html>
