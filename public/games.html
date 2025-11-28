@@ -65,6 +65,31 @@
     .detail-desc { background: #333; padding: 10px; border-radius: 8px; font-size: 0.9rem; color: #ccc; line-height: 1.4; }
     .loader-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); z-index: 300; display: none; flex-direction: column; justify-content: center; align-items: center; color: white; }
 
+	  /* 地图模式下的玩家位置指示器（呼吸光圈） */
+    @keyframes indicator-pulse {
+        0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.8; box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7); }
+        70% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; box-shadow: 0 0 0 20px rgba(255, 215, 0, 0); }
+        100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+    }
+
+    .map-indicator {
+        position: absolute;
+        top: 50%; left: 50%; /* 居中于人物 */
+        width: 150px; height: 150px; /* 很大，为了缩小时也能看见 */
+        border: 4px solid #ffd700; /* 金色 */
+        border-radius: 50%;
+        background: rgba(255, 215, 0, 0.3);
+        z-index: 240; /* 在人物下面 */
+        pointer-events: none;
+        display: none; /* 默认隐藏 */
+    }
+    
+    /* 激活时开启动画 */
+    .map-indicator.active {
+        display: block;
+        animation: indicator-pulse 1.5s infinite ease-out;
+    }
+	  
     /* Nav */
     .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #16213e; border-top: 1px solid #333; display: flex; justify-content: space-around; padding: 8px 0; z-index: 99; padding-bottom: max(8px, env(safe-area-inset-bottom)); }
     .nav-item { text-decoration: none; color: #888; font-size: 0.75rem; text-align: center; display: flex; flex-direction: column; align-items: center; flex: 1; }
@@ -107,14 +132,14 @@
     <div id="gameGrid" class="game-grid"></div>
   </div>
 	
-  <div id="virtualWorld" style="display:none; width:100%; height:100vh; position:fixed; top:0; left:0; z-index:200; overflow:hidden; background:#111;">
+<div id="virtualWorld" style="display:none; width:100%; height:100vh; position:fixed; top:0; left:0; z-index:200; overflow:hidden; background:#111;">
       
       <div style="position:fixed; top:80px; left:20px; z-index:500; display:flex; gap:10px;">
-          <button onclick="exitVirtualWorld()" style="background:rgba(0,0,0, 0.7); color:white; border:2px solid #e94560; padding:8px 15px; border-radius:30px; font-weight:bold;">
+          <button onclick="exitVirtualWorld()" style="background:rgba(0,0,0, 0.7); color:white; border:2px solid #e94560; padding:8px 15px; border-radius:30px; font-weight:bold; cursor:pointer;">
               ◀ Exit
           </button>
           
-          <button onclick="toggleMapMode()" id="btn-map-mode" style="background:rgba(0,0,0, 0.7); color:#4facfe; border:2px solid #4facfe; padding:8px 15px; border-radius:30px; font-weight:bold;">
+          <button onclick="toggleMapMode()" id="btn-map-mode" style="background:rgba(0,0,0, 0.7); color:#4facfe; border:2px solid #4facfe; padding:8px 15px; border-radius:30px; font-weight:bold; cursor:pointer;">
               🗺️ Map View
           </button>
       </div>
@@ -124,6 +149,9 @@
           <img id="scene-bg" src="/images/studio_map.png" style="width:2500px; height:auto; display:block;" onload="initCollisionMap(this)">
 
           <div id="my-player" style="position:absolute; top:1200px; left:1200px; z-index:250; text-align:center; transition: top 0.6s linear, left 0.6s linear;">
+              
+              <div id="player-radar" class="map-indicator"></div>
+
               <div style="background:rgba(0,0,0,0.6); color:#fff; padding:2px 6px; border-radius:4px; font-size:10px; white-space:nowrap; position:absolute; top:-20px; left:50%; transform:translateX(-50%);">
                   My Hero
               </div>
@@ -139,7 +167,7 @@
 
       <div id="game-tip" style="position:fixed; bottom:100px; width:100%; text-align:center; z-index:500; pointer-events:none;">
           <span style="background:rgba(0,0,0,0.5); padding:5px 10px; border-radius:15px; color:white;">
-              Tap to walk (Walls block you!)
+              Tap to walk
           </span>
       </div>
   </div>
