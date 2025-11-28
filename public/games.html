@@ -252,21 +252,26 @@
     function switchMode(mode) {
         const lobby = document.getElementById('lobbyView');
         const gameView = document.getElementById('gameView');
+        const virtualWorld = document.getElementById('virtualWorld'); // ★★★ 获取虚拟大厅元素
         
         if (mode === 'battle') { 
             // 进入战斗/地图模式
-            // 注意：initVirtualCampus 现在是在 virtual_campus.js 里定义的
-            // 因为挂载到了 window 对象，这里直接调用即可
             if (typeof window.initVirtualCampus === 'function') {
-                lobby.style.display = 'none'; 
-                gameView.style.display = 'none'; // 先隐藏普通列表
-                window.initVirtualCampus();      // 启动虚拟大厅
+                if(lobby) lobby.style.display = 'none'; 
+                if(gameView) gameView.style.display = 'none'; 
+                
+                // ★★★ 关键修复：必须把这一行加回去！显示虚拟大厅 ★★★
+                if(virtualWorld) virtualWorld.style.display = 'block'; 
+
+                window.initVirtualCampus();      // 启动逻辑
             } else {
                 console.error("virtual_campus.js 未加载！");
+                alert("正在加载资源，请稍后再试...");
             }
         } else { 
             // 回到主页
             if(gameView) gameView.style.display = 'none';
+            if(virtualWorld) virtualWorld.style.display = 'none'; // ★★★ 记得这里也要隐藏
             if(lobby) lobby.style.display = 'block';
         }
     }
