@@ -283,22 +283,27 @@ async function submitAwardUpload() {
    // 1. 加载奖杯数据的函数
     async function loadTrophies() {
         const container = document.getElementById('trophyArea');
-        container.innerHTML = ''; // 清空现有内容
+        container.innerHTML = ''; 
 
         try {
-            // 假设后端获取自己奖杯的接口是 /api/my-trophies
-            // (如果您的接口名不一样，请这里修改)
             const res = await fetch('/api/my-trophies'); 
             const trophies = await res.json();
 
             if (!trophies || trophies.length === 0) return;
 
             trophies.forEach(t => {
+                // ★★★ 核心修复：添加状态拦截 ★★★
+                // 检查 t.status 是否为 'APPROVED' (大小写可能需根据数据库调整，这里做了兼容)
+                // 如果状态不是“已通过”，直接 return 跳过，不渲染这个图标
+                const status = (t.status || '').toUpperCase();
+                if (status !== 'APPROVED') {
+                    return; 
+                }
+
+                // --- 下面是正常的渲染逻辑 ---
                 const div = document.createElement('div');
                 div.className = 'trophy-item';
                 
-                // 根据类型显示不同的 Emoji 或图标
-                // 这些类型对应 admin.html 里的按钮 (gold, silver, badge 等)
                 let icon = '🎖️';
                 if (t.type === 'gold') { icon = '🏆'; div.classList.add('t-gold'); }
                 else if (t.type === 'silver') icon = '🥈';
@@ -308,10 +313,7 @@ async function submitAwardUpload() {
                 else if (t.type === 'badge') icon = '🏅';
                 
                 div.textContent = icon;
-                
-                // 绑定点击事件，点击显示详情
                 div.onclick = () => showTrophyDetail(t);
-                
                 container.appendChild(div);
             });
         } catch (e) {
