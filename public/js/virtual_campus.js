@@ -207,6 +207,17 @@ function addOtherPlayer(playerInfo) {
     otherPlayers[playerInfo.id] = el;
 }
 
+// 在 create() 函数内部，创建完 player 之后添加：
+
+// 1. 设置世界边界 (World Bounds)
+// 假设您的背景图宽 2400，高 1800 (请根据您实际背景图 background.png 的大小修改这两个数字)
+this.physics.world.setBounds(0, 0, 2400, 1800);
+
+// 2. 告诉摄像机也要遵守这个边界 (这样摄像机不会拍到黑边)
+this.cameras.main.setBounds(0, 0, 2400, 1800);
+
+// 3. 最关键的一步：禁止人物走出边界
+player.setCollideWorldBounds(true);
 
 // ================= 通用辅助函数 (保持不变) =================
 

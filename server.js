@@ -402,7 +402,19 @@ app.post('/api/save-avatar', requireLogin, async(req,res)=>{ try{ await pool.que
 app.post('/api/admin/courses', requireAdmin, async(req,res)=>{ try{ await pool.query("INSERT INTO courses (name, day_of_week, start_time, end_time, teacher, price, casual_price, classroom, age_group) VALUES ($1,$2,$3,$4,$5,$6,25,$7,$8)", [req.body.name, req.body.day, req.body.start, req.body.end, req.body.teacher, 230, req.body.classroom, req.body.age]); res.json({success:true}); }catch(e){res.status(500).json({error:e.message})} });
 app.delete('/api/admin/courses/:id', requireAdmin, async(req,res)=>{ try{ await pool.query("DELETE FROM courses WHERE id=$1",[req.params.id]); res.json({success:true}); }catch(e){res.status(500).json({error:e.message})} });
 app.get('/api/admin/all-courses', requireAdmin, async(req,res)=>{ try{ const r=await pool.query("SELECT * FROM courses ORDER BY day_of_week, start_time"); res.json(r.rows); }catch(e){res.status(500).json({error:e.message})} });
-app.get('/api/admin/trophies/pending', requireAdmin, async(req,res)=>{ try{ const r=await pool.query("SELECT t.*, u.student_name FROM trophies t JOIN users u ON t.user_id=u.id WHERE t.status='PENDING'"); const d=r.rows.map(i=>({...i, extra_images:i.extra_images?JSON.parse(i.extra_images):[]})); res.json(d); }catch(e){res.status(500).json({error:e.message})} });
+app.get('/api/admin/trophies/pending', requireAdmin, async(req,res)=>{ 
+    try{ 
+        // ★★★ 强制禁止缓存 (Admin版) ★★★
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        res.set('Expires', '-1');
+        
+        const r=await pool.query("SELECT t.*, u.student_name FROM trophies t JOIN users u ON t.user_id=u.id WHERE t.status='PENDING'"); 
+        const d=r.rows.map(i=>({...i, extra_images:i.extra_images?JSON.parse(i.extra_images):[]})); 
+        res.json(d); 
+    }catch(e){
+        res.status(500).json({error:e.message})
+    } 
+});
 app.post('/api/admin/trophies/approve', requireAdmin, async(req,res)=>{ try{ if(req.body.action==='reject') await pool.query("UPDATE trophies SET status='REJECTED' WHERE id=$1",[req.body.trophyId]); else await pool.query("UPDATE trophies SET status='APPROVED', trophy_type=$2, source_name=$3 WHERE id=$1",[req.body.trophyId, req.body.type, req.body.sourceName]); res.json({success:true}); }catch(e){res.status(500).json({error:e.message})} });
 app.get('/api/admin/invoices', requireAdmin, async (req, res) => { try { const sql = `SELECT b.id, b.total_price, b.status, b.created_at, u.student_name, c.name as course_name, c.day_of_week, c.start_time, c.classroom, c.age_group FROM bookings b JOIN users u ON b.user_id = u.id JOIN courses c ON b.course_id = c.id ORDER BY b.created_at DESC`; const result = await pool.query(sql); res.json(result.rows); } catch (e) { res.status(500).json({ error: e.message }); } });
 app.post('/api/admin/invoices/update-status', requireAdmin, async (req, res) => { try { await pool.query("UPDATE bookings SET status = $1 WHERE id = $2", [req.body.newStatus, req.body.bookingId]); res.json({ success: true }); } catch (e) { res.status(500).json({ error: e.message }); } });
