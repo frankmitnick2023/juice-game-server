@@ -15,6 +15,19 @@ let otherPlayers = {};
 window.initVirtualCampus = function() {
     console.log("🚀 启动虚拟校园 (联机版)...");
 
+function create() {
+    // 1. 创建角色 (原有的代码)
+    player = this.physics.add.sprite(1250, 1200, 'student');
+    
+    // ... 其他创建代码 ...
+
+    // ★★★ 2. 限制地图边界 (必须放在 create 内部！) ★★★
+    // 这里的 2400, 1800 请改为您背景图片的实际像素宽高
+    this.physics.world.setBounds(0, 0, 2400, 1800);
+    this.cameras.main.setBounds(0, 0, 2400, 1800);
+    player.setCollideWorldBounds(true);
+}
+
     // 1. 同步头像
     const heroImgSrc = document.getElementById('heroImg') ? document.getElementById('heroImg').src : '';
     const playerImg = document.getElementById('player-img');
@@ -207,17 +220,7 @@ function addOtherPlayer(playerInfo) {
     otherPlayers[playerInfo.id] = el;
 }
 
-// 在 create() 函数内部，创建完 player 之后添加：
 
-// 1. 设置世界边界 (World Bounds)
-// 假设您的背景图宽 2400，高 1800 (请根据您实际背景图 background.png 的大小修改这两个数字)
-this.physics.world.setBounds(0, 0, 2400, 1800);
-
-// 2. 告诉摄像机也要遵守这个边界 (这样摄像机不会拍到黑边)
-this.cameras.main.setBounds(0, 0, 2400, 1800);
-
-// 3. 最关键的一步：禁止人物走出边界
-player.setCollideWorldBounds(true);
 
 // ================= 通用辅助函数 (保持不变) =================
 
@@ -335,3 +338,26 @@ window.showClickMarker = function(x, y) {
     marker.style.display = 'block';
     marker.animate([{ transform: 'translate(-50%, -50%) scale(0.5)', opacity: 1 }, { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 0 }], { duration: 400, fill: 'forwards' });
 };
+
+// --- ★★★ 必须添加：将函数公开给 HTML 调用 ★★★ ---
+
+// 1. 公开切换地图模式的函数
+window.toggleMapMode = function() {
+    // 把您原本 toggleMapMode 函数里的代码逻辑写在这里，或者直接调用它
+    // 如果您原本是 function toggleMapMode() {...} 
+    // 请改为 window.toggleMapMode = function() {...}
+    console.log("切换地图模式...");
+    const map = document.getElementById('mapOverlay');
+    if(map) map.style.display = (map.style.display === 'none' ? 'block' : 'none');
+};
+
+// 2. 公开移动玩家的函数 (如果用到)
+window.movePlayerTo = function(x, y) {
+    if (typeof gameInstance !== 'undefined' && player) {
+        player.x = x;
+        player.y = y;
+    }
+};
+
+// 3. 确保初始化函数也是公开的
+window.initVirtualCampus = initVirtualCampus;
