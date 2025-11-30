@@ -41,16 +41,17 @@ window.initVirtualCampus = function() {
     viewport.onclick = function(e) {
         if (e.target.closest('button')) return;
 
-	if (e.target !== mapLayer) {
-        // 如果点击到了地图上的其他元素（如头像、标记），不触发移动
-        return;
+        // 修正点 1：这里的判断需要闭合
+        if (e.target !== mapLayer) {
+            // 如果点击到了地图上的其他元素（如头像、标记），不触发移动
+            return;
+        } // <--- 加上这个大括号！
 
-	// ★ 关键过滤 2: 如果是在地图模式，不移动
+        // ★ 关键过滤 2: 如果是在地图模式，不移动
         if(window.isMapMode) {
             window.toggleMapMode(); 
             return;
-
-        }
+        } // <--- 这里的括号原来也有可能缺失，确保加上
 
         const rect = mapLayer.getBoundingClientRect();
         const clickX = e.clientX - rect.left;
@@ -77,7 +78,6 @@ window.initVirtualCampus = function() {
             }
         }
     };
-};
 
 // ================= 联机逻辑 (Socket.io) =================
 
