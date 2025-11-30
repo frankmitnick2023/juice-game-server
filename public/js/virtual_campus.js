@@ -78,6 +78,7 @@ window.initVirtualCampus = function() {
             }
         }
     };
+};
 
 // ================= 联机逻辑 (Socket.io) =================
 
