@@ -84,46 +84,30 @@ window.initVirtualCampus = function() {
 
 function initSocketConnection(name, avatar) {
 
-    if (typeof io === 'undefined') {
-        console.error("❌ Socket.io 库未加载，无法联机！");
-        return;
-    }
-
-    // 避免重复连接
-    if (socket && socket.connected) {
-        return; 
-    }
-
-    // ★ 监听连接成功
-    socket.on('connect', () => {
-        console.log("✅ 连上了！");
-        // 变绿灯
-        const led = document.getElementById('net-status');
-        if(led) led.classList.add('online');
-        
-        // ... 原有的 emit joinGame 代码 ...
-    });
-    
-    // ★ 监听断开
-    socket.on('disconnect', () => {
-        const led = document.getElementById('net-status');
-        if(led) led.classList.remove('online');
-    });
-
-    // 检查是否引入了库
+    // 1. 检查库是否加载
     if (typeof io === 'undefined') {
         console.error("❌ Socket.io 库未加载，无法联机！请检查 games.html");
         return;
     }
 
-    // 连接服务器
+    // 2. 避免重复连接
+    if (socket && socket.connected) {
+        return; 
+    }
+
+    // 3. ★★★ 关键修复：先初始化 socket！★★★
     socket = io(); 
 
-    // A. 连接成功，发送身份信息
+    // 4. 连接成功逻辑 (合并了绿灯和加入游戏)
     socket.on('connect', () => {
         console.log("✅ 已连入校园网络 ID:", socket.id);
-        const myPlayer = document.getElementById('my-player');
         
+        // 变绿灯
+        const led = document.getElementById('net-status');
+        if(led) led.classList.add('online');
+
+        // 发送身份信息加入游戏
+        const myPlayer = document.getElementById('my-player');
         socket.emit('joinGame', {
             x: parseFloat(myPlayer.style.left) || 1250,
             y: parseFloat(myPlayer.style.top) || 1200,
@@ -131,8 +115,14 @@ function initSocketConnection(name, avatar) {
             avatar: avatar
         });
     });
+    
+    // 5. 断开连接逻辑 (变红灯)
+    socket.on('disconnect', () => {
+        const led = document.getElementById('net-status');
+        if(led) led.classList.remove('online');
+    });
 
-    // B. 显示已存在的其他玩家
+    // 6. 显示已存在的其他玩家
     socket.on('currentPlayers', (players) => {
         Object.keys(players).forEach((id) => {
             if (id !== socket.id) {
@@ -141,13 +131,13 @@ function initSocketConnection(name, avatar) {
         });
     });
 
-    // C. 有新玩家加入
+    // 7. 有新玩家加入
     socket.on('newPlayer', (playerInfo) => {
         console.log("👋 新同学来了:", playerInfo.name);
         addOtherPlayer(playerInfo);
     });
 
-    // D. 别人移动了
+    // 8. 别人移动了
     socket.on('playerMoved', (data) => {
         const el = otherPlayers[data.id];
         if (el) {
@@ -171,23 +161,16 @@ function initSocketConnection(name, avatar) {
         }
     });
 
-    // E. 别人离开了
-    socket.on('disconnect', (id) => { // 注意：这里的事件名可能需要后端配合改为 'playerDisconnected'，如果后端发的是默认的 disconnect 可能会混淆
-        // 修正：后端通常发的是自定义事件，例如 'userLeft'，或者前端监听 socket 默认事件
-        // 假设后端写的是 io.emit('disconnect', socket.id); 
-        // 但 socket.io 客户端保留字也是 disconnect。
-        // 建议后端改成 io.emit('userLeft', socket.id);
-        // 这里暂时兼容处理：
-        if (otherPlayers[id]) {
-            otherPlayers[id].remove();
-            delete otherPlayers[id];
-        }
-    });
-    
-    // 监听后端发来的 userLeft (推荐)
-    socket.on('disconnect', (id) => removePlayer(id)); // 如果后端发的是 id
+    // 9. 别人离开了
+    // 监听 removePlayer 事件 (如果后端发的是这个)
+    socket.on('removePlayer', (id) => removePlayer(id)); 
+    // 兼容 disconnect 事件
+    socket.on('disconnect', (id) => removePlayer(id)); 
+    // 兼容 userLeft 事件
+    socket.on('userLeft', (id) => removePlayer(id));
 }
 
+// 辅助函数：移除玩家
 function removePlayer(id) {
     if (otherPlayers[id]) {
         otherPlayers[id].remove();
@@ -195,6 +178,7 @@ function removePlayer(id) {
     }
 }
 
+// 辅助函数：添加玩家 (保持独立，不要删)
 function addOtherPlayer(playerInfo) {
     // 如果已经存在，就不重复加
     if (otherPlayers[playerInfo.id]) return;
@@ -220,7 +204,6 @@ function addOtherPlayer(playerInfo) {
     mapLayer.appendChild(el);
     otherPlayers[playerInfo.id] = el;
 }
-
 
 // ================= 通用辅助函数 (保持不变) =================
 
