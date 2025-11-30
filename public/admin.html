@@ -242,17 +242,78 @@
     function viewImage(url) { document.getElementById('imgPreview').src = url; document.getElementById('imgModal').style.display = 'flex'; }
 
     // --- 3. Invoices ---
-    async function loadBookings() { const res = await fetch('/api/admin/invoices'); globalBookings = await res.json(); populateSelect('filterBookingDay', DAYS, 'All Days'); filterBookings(); }
+    // 1. 加载数据 (保持不变)
+    async function loadBookings() { 
+        const res = await fetch('/api/admin/invoices'); 
+        globalBookings = await res.json(); 
+        populateSelect('filterBookingDay', DAYS, 'All Days'); 
+        filterBookings(); 
+    }
+
+    // 2. 渲染列表 (修改了内部 HTML 生成逻辑，加入了 Cancel 按钮)
     function filterBookings() {
-        let list = globalBookings; const d = document.getElementById('filterBookingDay').value; if(d) list = list.filter(b => b.day_of_week === d);
+        let list = globalBookings; 
+        const d = document.getElementById('filterBookingDay').value; 
+        if(d) list = list.filter(b => b.day_of_week === d);
+        
         const tbody = document.getElementById('invoiceBody');
+        
         tbody.innerHTML = list.length ? list.map(b => {
+            // 判断状态
             const isPaid = b.status === 'PAID';
-            return `<tr><td>${b.student_name}</td><td>${b.course_name}</td><td>$${b.total_price}</td><td>${isPaid?'<span class="status-paid">✅ PAID</span>':'<span class="status-unpaid">UNPAID</span>'}</td><td>${!isPaid?`<button class="btn-mark-paid" onclick="markPaid(${b.id})">Mark Paid</button>`:''}</td></tr>`;
+            const isCancelled = b.status === 'CANCELLED';
+            
+            // 状态栏显示逻辑
+            let statusBadge = '<span class="status-unpaid">UNPAID</span>';
+            if (isPaid) statusBadge = '<span class="status-paid">✅ PAID</span>';
+            if (isCancelled) statusBadge = '<span style="color:#999; font-weight:bold;">🚫 CANCELLED</span>';
+
+            // 按钮显示逻辑
+            let buttons = '';
+            
+            // 如果没付钱且没取消，显示 "Mark Paid"
+            if (!isPaid && !isCancelled) {
+                buttons += `<button class="btn-mark-paid" onclick="updateStatus(${b.id}, 'PAID')" style="margin-right:5px;">Mark Paid</button>`;
+            }
+
+            // 只要没取消，就显示 "Cancel" (哪怕付过钱了也可以取消退款)
+            if (!isCancelled) {
+                buttons += `<button onclick="updateStatus(${b.id}, 'CANCELLED')" style="background-color:#e74c3c; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">Cancel</button>`;
+            } else {
+                buttons += '<span style="color:#ccc; font-size:12px;">(No Actions)</span>';
+            }
+
+            return `
+                <tr>
+                    <td>${b.student_name}</td>
+                    <td>${b.course_name}</td>
+                    <td>$${b.total_price}</td>
+                    <td>${statusBadge}</td>
+                    <td>${buttons}</td>
+                </tr>
+            `;
         }).join('') : '<tr><td colspan="5">No bookings.</td></tr>';
     }
-    async function markPaid(id) { if(confirm('Confirm Paid?')) { await fetch('/api/admin/invoices/update-status', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({bookingId:id, newStatus:'PAID'})}); loadBookings(); } }
 
+    // 3. 通用更新函数 (替代了原来的 markPaid)
+    async function updateStatus(id, newStatus) { 
+        // 不同的操作显示不同的提示语
+        let confirmMsg = 'Confirm Paid?';
+        if (newStatus === 'CANCELLED') {
+            confirmMsg = '⚠️ 确定要取消这个订单吗？\n取消后学生将无法看到该课程。';
+        }
+
+        if(confirm(confirmMsg)) { 
+            await fetch('/api/admin/invoices/update-status', {
+                method: 'POST', 
+                headers: {'Content-Type':'application/json'}, 
+                body: JSON.stringify({bookingId: id, newStatus: newStatus})
+            }); 
+            // 刷新列表
+            loadBookings(); 
+        } 
+    }
+	
     // --- 4. Check In (Daily/Weekly) ---
     function changeView(view) {
         currentView = view;
