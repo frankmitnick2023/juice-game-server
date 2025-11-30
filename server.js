@@ -13,37 +13,64 @@ const app = express();
 const server = http.createServer(app); // 1. 创建 HTTP server 包装 app
 const io = new Server(server); // 2. 创建 Socket.io 实例
 
-// --- ★★★ 多人联机逻辑 ★★★ ---
-const players = {}; // 内存里存储所有在线玩家的状态 { socketId: { x, y, name, avatar } }
+// --- ★★★ 多人联机逻辑 (已修复重复 & 增加挤号保护) ★★★ ---
+const players = {}; // 内存里存储所有在线玩家的状态
 
 io.on('connection', (socket) => {
-    console.log('一位新同学连入了校园: ' + socket.id);
+    console.log('🔗 新连接接入:', socket.id);
 
-    // 1. 当有新玩家加入时，把当前所有已在线的玩家发给他
+    // 1. 刚连上时：把当前已经在房间里的人发给新玩家
     socket.emit('currentPlayers', players);
 
-    // 2. 监听：新玩家报告自己的信息 (名字, 头像, 初始位置)
+    // 2. 监听：玩家进入游戏 (包含挤号逻辑)
     socket.on('joinGame', (userData) => {
-        // 记录到服务器内存
+        const playerName = userData.name || 'Student';
+        console.log(`👤 尝试加入: ${playerName} (${socket.id})`);
+
+        // ★★★ 核心升级：检测是否有同名玩家在线 (挤号保护) ★★★
+        // 遍历所有在线玩家，看有没有名字一样的
+        for (const [existingSocketId, player] of Object.entries(players)) {
+            if (player.name === playerName && existingSocketId !== socket.id) {
+                console.log(`⚡ 账号冲突: [${playerName}] 在新设备登录，正在踢除旧设备 ${existingSocketId}`);
+                
+                // A. 通知旧设备：你被顶号了
+                // (前提：前端得监听这个事件，没监听也没事，只是单纯断开)
+                io.to(existingSocketId).emit('force_disconnect', '您的账号已在其他设备登录');
+
+                // B. 服务器强制断开旧设备的连接
+                const oldSocket = io.sockets.sockets.get(existingSocketId);
+                if (oldSocket) {
+                    oldSocket.disconnect(true);
+                }
+
+                // C. 从内存中立刻移除旧数据
+                delete players[existingSocketId];
+                // D. 广播给所有人：旧的那个分身消失了
+                io.emit('disconnect', existingSocketId); 
+            }
+        }
+        // ★★★ 挤号逻辑结束 ★★★
+
+        // 3. 记录新玩家数据
         players[socket.id] = {
             id: socket.id,
             x: userData.x || 1250,
             y: userData.y || 1200,
-            name: userData.name || 'Student',
-            avatar: userData.avatar || '/avatars/boy_junior_uniform.png'
+            name: playerName,
+            avatar: userData.avatar
         };
-        
-        // 广播给所有人：有个新玩家来了！
+
+        // 4. 广播给所有人(除了自己)：有新人来了，快显示他！
         socket.broadcast.emit('newPlayer', players[socket.id]);
     });
 
-    // 3. 监听：玩家移动
+    // 5. 监听：玩家移动
     socket.on('playerMovement', (movementData) => {
         if (players[socket.id]) {
             players[socket.id].x = movementData.x;
             players[socket.id].y = movementData.y;
             
-            // 广播给其他人：这哥们动了，你们也更新一下他的位置
+            // 广播给其他人：这哥们动了
             socket.broadcast.emit('playerMoved', {
                 id: socket.id,
                 x: players[socket.id].x,
@@ -52,67 +79,17 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 4. 监听：断开连接
-    socket.on('disconnect', () => {
-        console.log('同学离开了: ' + socket.id);
-        delete players[socket.id]; // 从内存删除
-        io.emit('disconnect', socket.id); // 告诉所有人删除这个人的画面
-    });
-});
-
-// 1. 全局变量：存储所有在线玩家
-// 格式: { "socket_id": { x, y, name, avatar } }
-
-io.on('connection', (socket) => {
-    console.log('🔗 新连接接入:', socket.id);
-
-    // 2. 刚连上时：把当前已经在房间里的人发给新玩家
-    // 这样新玩家就能看到早已在场的人
-    socket.emit('currentPlayers', players);
-
-    // 3. 监听：玩家进入游戏 (joinGame)
-    socket.on('joinGame', (data) => {
-        console.log(`👤 玩家加入: ${data.name} (${socket.id})`);
-        
-        // 记录到服务器内存
-        players[socket.id] = {
-            id: socket.id,
-            x: data.x,
-            y: data.y,
-            name: data.name,
-            avatar: data.avatar
-        };
-
-        // 广播给所有人(除了自己)：有新人来了，快显示他！
-        socket.broadcast.emit('newPlayer', players[socket.id]);
-    });
-
-    // 4. 监听：玩家移动 (playerMovement)
-    socket.on('playerMovement', (data) => {
-        if (players[socket.id]) {
-            players[socket.id].x = data.x;
-            players[socket.id].y = data.y;
-
-            // 广播给所有人(除了自己)：这人动了，快更新他的位置！
-            socket.broadcast.emit('playerMoved', {
-                id: socket.id,
-                x: data.x,
-                y: data.y
-            });
-        }
-    });
-
-    // 5. 监听：断开连接
+    // 6. 监听：断开连接
     socket.on('disconnect', () => {
         console.log('❌ 连接断开:', socket.id);
-        // 从内存移除
-        delete players[socket.id];
-        // 告诉所有人：删掉这个人的画面
-        io.emit('disconnect', socket.id); 
+        // 如果内存里有这个人，就移除
+        if (players[socket.id]) {
+            delete players[socket.id];
+            // 告诉所有人删除画面
+            io.emit('disconnect', socket.id); 
+        }
     });
 });
-
-// ★★★★★ 结束复制 ★★★★★
 
 // --- Postgres Connection ---
 const pool = new Pool({
