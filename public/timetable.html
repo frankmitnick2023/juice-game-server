@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>2026 Timetable (选课)</title>
   <style>
-    /* ... 样式保持不变 ... */
     body{font-family:'Segoe UI', sans-serif;margin:0;background:#f9f9f9;padding-bottom:5rem}
     .header{background:#ff6b35;color:white;padding:1rem;text-align:center;position:sticky;top:0;z-index:90}
     .day-tabs {display:flex;overflow-x:auto;background:white;padding:10px;box-shadow:0 2px 5px rgba(0,0,0,0.05);position:sticky;top:60px;z-index:80}
@@ -27,15 +26,17 @@
     .modal {background:white;width:100%;max-width:600px;border-radius:20px 20px 0 0;padding:20px;box-sizing:border-box;animation:slideUp 0.3s}
     @keyframes slideUp {from{transform:translateY(100%)} to{transform:translateY(0)}}
     
-    .option-box {border:1px solid #ddd;border-radius:8px;padding:15px;margin-bottom:10px;cursor:pointer}
+    .option-box {border:1px solid #ddd;border-radius:8px;padding:15px;margin-bottom:10px;cursor:pointer; display:flex; justify-content:space-between; align-items:center}
     .option-box.selected {border-color:#ff6b35;background:#fff0e6}
     .option-box.disabled {opacity:0.5; cursor:not-allowed; background:#eee; border-color:#ccc}
     
-    .date-grid {display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px;display:none}
-    .date-item {background:#f0f0f0;padding:8px;text-align:center;border-radius:4px;font-size:0.8rem;cursor:pointer}
-    .date-item.active {background:#ff6b35;color:white}
-    .date-item.booked {background:#ccc;color:#666;cursor:not-allowed;text-decoration:line-through}
+    .date-grid {display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px;display:none; padding:10px; background:#f9f9f9; border-radius:8px;}
+    .date-item {background:white; border:1px solid #ddd; padding:8px; text-align:center;border-radius:4px;font-size:0.8rem;cursor:pointer}
+    .date-item.active {background:#ff6b35;color:white; border-color:#ff6b35}
+    .date-item.booked {background:#e0e0e0;color:#999;cursor:not-allowed;text-decoration:line-through; border-color:#ccc}
 
+    .btn-confirm {width:100%; padding:15px; background:#ff6b35; color:white; border:none; border-radius:8px; font-weight:bold; font-size:1.1rem; margin-top:15px; cursor:pointer}
+    
     .nav-bar{position:fixed;bottom:0;left:0;width:100%;background:white;border-top:1px solid #eee;display:flex;justify-content:space-around;padding:8px 0;z-index:99; padding-bottom: max(8px, env(safe-area-inset-bottom));}
     .nav-item{text-decoration:none;color:#888;font-size:0.75rem;text-align:center;display:flex;flex-direction:column;align-items:center;flex:1}
     .nav-icon{font-size:1.4rem;margin-bottom:2px}
@@ -52,7 +53,37 @@
 </div>
 
 <div id="bookModal" class="modal-overlay">
-  </div>
+    <div class="modal">
+        <h2 id="mTitle" style="margin-top:0">Course Name</h2>
+        <div style="margin-bottom:15px; color:#666" id="mInfo"></div>
+        
+        <div class="option-box selected" id="optTerm" onclick="selectMode('term')">
+            <div>
+                <div style="font-weight:bold">Full Term (10 Weeks)</div>
+                <div style="font-size:0.85rem;color:#666">Best Value • Guaranteed Spot</div>
+            </div>
+            <div style="font-weight:bold;color:#ff6b35" id="priceTerm">$230</div>
+        </div>
+
+        <div class="option-box" id="optCasual" onclick="selectMode('casual')">
+             <div>
+                <div style="font-weight:bold">Casual / Make-up</div>
+                <div style="font-size:0.85rem;color:#666">Select specific dates</div>
+            </div>
+            <div style="font-weight:bold;color:#ff6b35">$25/class</div>
+        </div>
+
+        <div class="date-grid" id="dateGrid"></div>
+
+        <div style="display:flex; justify-content:space-between; margin-top:15px; font-weight:bold">
+            <span>Total:</span>
+            <span id="totalDisplay" style="color:#ff6b35">$230</span>
+        </div>
+
+        <button class="btn-confirm" id="btnConfirm" onclick="confirmBooking()">Confirm Booking</button>
+        <button onclick="closeModal()" style="width:100%;padding:12px;background:none;border:none;color:#999;margin-top:5px">Cancel</button>
+    </div>
+</div>
 
 <div class="nav-bar">
     <a href="/games.html" class="nav-item"><span class="nav-icon">🎮</span>Home<br>(大厅)</a>
@@ -63,21 +94,32 @@
 </div>
 
 <script>
+  // 假定 2026 Term 1 从 2月2日开始
   const TERM_START = new Date("2026-02-02"); 
   const WEEKS = 10; 
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   
   let allCourses = [];
-  let myBookings = []; // 存储用户已报名的信息
+  let myBookings = []; 
   let currentDay = 'Monday';
   let currentCourse = null;
   let selectedMode = 'term';
-  let selectedDates = [];
-  let userMakeupCredits = 0;
+  let selectedDates = []; 
+  
+  function getCourseDates(dayStr) {
+      const dayIndex = days.indexOf(dayStr);
+      const result = [];
+      for(let i=0; i<WEEKS; i++) {
+          const d = new Date(TERM_START);
+          d.setDate(d.getDate() + (i*7) + dayIndex);
+          result.push(d.toISOString().split('T')[0]);
+      }
+      return result;
+  }
 
   async function init() {
-    // 1. 初始化 Tab
     const tabContainer = document.getElementById('dayTabs');
+    tabContainer.innerHTML = ''; // 清空防止重复
     days.forEach((d) => {
         const div = document.createElement('div');
         div.className = `day-tab ${d === 'Monday' ? 'active' : ''}`;
@@ -86,20 +128,11 @@
         tabContainer.appendChild(div);
     });
 
-    // 2. 获取用户信息 & 已报名课程 (MOCK DATA for now)
-    // 真实环境: fetch('/api/my-bookings')
-    // 这里模拟：假设用户已经报了 'Ballet Grade 1' 的整学期，以及 'Jazz' 的第一周
     try {
-        const resMe = await fetch('/api/me');
-        const user = await resMe.json();
-        userMakeupCredits = user.makeup_credits || 0;
-        
-        // 获取已报名数据 (API需返回 array: [{courseId: 1, type: 'term'}, {courseId: 2, type: 'casual', dates:['2026-02-02']}] )
         const resBooks = await fetch('/api/my-bookings'); 
         myBookings = await resBooks.json();
-    } catch(e) { console.log('Mocking bookings'); myBookings = []; }
+    } catch(e) { myBookings = []; }
 
-    // 3. 获取课程列表
     try {
         const res = await fetch('/api/courses/recommended');
         const data = await res.json();
@@ -124,20 +157,16 @@
       if(todayCourses.length === 0) list.innerHTML = '<p style="text-align:center;color:#999;margin-top:20px">No classes today.</p>';
 
       todayCourses.forEach(c => {
-          // 检查是否已报名
-          const existing = myBookings.find(b => b.course_id === c.id);
-          const isFullTermBooked = existing && existing.type === 'term';
-          
+          const termBooking = myBookings.find(b => b.course_id === c.id && b.type === 'term');
           const div = document.createElement('div');
-          // 如果整学期已报，卡片稍微变灰
-          div.className = `course-card ${isFullTermBooked ? 'disabled' : ''}`;
+          div.className = `course-card ${termBooking ? 'disabled' : ''}`;
           
           let btnHtml = '';
-          if (isFullTermBooked) {
+          if (termBooking) {
               btnHtml = `<button class="btn-book" disabled>✅ Joined</button>`;
           } else {
-              // 传入 existing 数据以便在 modal 里处理单次课重复
-              btnHtml = `<button class="btn-book" onclick='openModal(${JSON.stringify(c)})'>Book</button>`;
+              // ★★★ 核心修复：只传递 ID，避免引号嵌套导致点击失效 ★★★
+              btnHtml = `<button class="btn-book" onclick="openBookingModal(${c.id})">Book</button>`;
           }
 
           div.innerHTML = `
@@ -147,7 +176,7 @@
                 <div class="c-detail">
                     <span class="tag">📍 ${c.classroom || 'Studio 1'}</span>
                     <span class="tag">👩‍🏫 ${c.teacher}</span>
-                    <span class="tag">$${c.price}</span>
+                    <span class="tag">$${c.price} / Term</span>
                 </div>
             </div>
             ${btnHtml}
@@ -156,11 +185,133 @@
       });
   }
 
-  function openModal(course) { /* ... */ }
-  function selectMode(mode) { /* ... */ }
-  function toggleDate(div, date, e, mode) { /* ... */ }
-  function closeModal() { document.getElementById('bookModal').style.display = 'none'; }
-  async function confirmBooking() { /* ... */ }
+  // ★★★ 新增的打开函数：根据 ID 找课程 ★★★
+  window.openBookingModal = function(courseId) {
+      // 在数组里找到这个课程对象
+      const course = allCourses.find(c => c.id === courseId);
+      if (!course) return alert("Error: Course not found");
+
+      currentCourse = course;
+      const allDates = getCourseDates(course.day_of_week);
+      
+      const existingDates = new Set();
+      const existing = myBookings.filter(b => b.course_id === course.id);
+      existing.forEach(b => {
+          if(b.type === 'term') allDates.forEach(d => existingDates.add(d));
+          else if(b.dates) b.dates.forEach(d => existingDates.add(d));
+      });
+
+      document.getElementById('mTitle').textContent = course.name;
+      document.getElementById('mInfo').textContent = `${course.day_of_week} ${course.start_time} @ ${course.classroom}`;
+      document.getElementById('priceTerm').textContent = `$${course.price}`;
+
+      const grid = document.getElementById('dateGrid');
+      grid.innerHTML = '';
+      allDates.forEach(dateStr => {
+          const dObj = new Date(dateStr);
+          const display = `${dObj.getDate()}/${dObj.getMonth()+1}`;
+          const isBooked = existingDates.has(dateStr);
+          
+          const item = document.createElement('div');
+          item.className = `date-item ${isBooked ? 'booked' : ''}`;
+          item.textContent = display;
+          if(!isBooked) {
+              item.onclick = () => toggleDate(item, dateStr);
+          }
+          grid.appendChild(item);
+      });
+
+      selectMode('term'); 
+      document.getElementById('bookModal').style.display = 'flex';
+  }
+
+  window.selectMode = function(mode) {
+      selectedMode = mode;
+      document.getElementById('optTerm').className = `option-box ${mode==='term'?'selected':''}`;
+      document.getElementById('optCasual').className = `option-box ${mode==='casual'?'selected':''}`;
+      
+      const grid = document.getElementById('dateGrid');
+      if(mode === 'term') {
+          grid.style.display = 'none';
+          updateTotal();
+      } else {
+          grid.style.display = 'grid';
+          selectedDates = []; 
+          document.querySelectorAll('.date-item').forEach(el => {
+              if(!el.classList.contains('booked')) el.classList.remove('active');
+          });
+          updateTotal();
+      }
+  }
+
+  window.toggleDate = function(el, dateStr) {
+      if(selectedMode !== 'casual') return;
+      if(selectedDates.includes(dateStr)) {
+          selectedDates = selectedDates.filter(d => d !== dateStr);
+          el.classList.remove('active');
+      } else {
+          selectedDates.push(dateStr);
+          el.classList.add('active');
+      }
+      updateTotal();
+  }
+
+  function updateTotal() {
+      const display = document.getElementById('totalDisplay');
+      const btn = document.getElementById('btnConfirm');
+      
+      if(selectedMode === 'term') {
+          display.textContent = `$${currentCourse.price}`;
+          btn.textContent = `Confirm ($${currentCourse.price})`;
+          btn.disabled = false;
+      } else {
+          const cost = selectedDates.length * 25; 
+          display.textContent = `$${cost}`;
+          if(selectedDates.length === 0) {
+              btn.textContent = 'Select Dates';
+              btn.disabled = true;
+          } else {
+              btn.textContent = `Confirm ($${cost})`;
+              btn.disabled = false;
+          }
+      }
+  }
+
+  window.closeModal = function() {
+      document.getElementById('bookModal').style.display = 'none';
+  }
+
+  window.confirmBooking = async function() {
+      const btn = document.getElementById('btnConfirm');
+      btn.textContent = 'Processing...';
+      btn.disabled = true;
+
+      const payload = {
+          courseId: currentCourse.id,
+          type: selectedMode,
+          totalPrice: selectedMode === 'term' ? currentCourse.price : (selectedDates.length * 25),
+          selectedDates: selectedMode === 'term' ? [] : selectedDates
+      };
+
+      try {
+          const res = await fetch('/api/book-course', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if(data.success) {
+              alert('✅ Booking Successful!');
+              closeModal();
+              init(); 
+          } else {
+              alert('Failed: ' + (data.message || 'Error'));
+          }
+      } catch(e) {
+          alert('Network Error');
+      }
+      btn.disabled = false;
+  }
   
   init();
 </script>
