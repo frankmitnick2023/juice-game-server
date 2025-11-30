@@ -171,8 +171,18 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <div class="header">
     <div id="userInfo" class="user-name">LOADING...</div>
-    <a href="#" id="logout" class="logout">退出</a>
+    
+    <div style="display:flex; gap:10px; align-items:center;">
+        <button id="musicBtn" onclick="toggleMusic()" style="background:none; border:1px solid #444; color:#fff; border-radius:15px; padding:4px 10px; cursor:pointer;">
+            🔇 Music Off
+        </button>
+        <a href="#" id="logout" class="logout">退出</a>
+    </div>
   </div>
+
+  <audio id="bgmPlayer" loop>
+      <source src="/audio/bgm.mp3" type="audio/mpeg">
+  </audio>
 
   <div id="lobbyView">
       <div class="stage-container">
@@ -310,6 +320,58 @@
             loadTrophies();
         } catch (e) { console.error(e); }
     }
+	
+	// ================= 🎵 音乐控制逻辑 =================
+
+    const bgm = document.getElementById('bgmPlayer');
+    const musicBtn = document.getElementById('musicBtn');
+    let isMusicPlaying = false;
+
+    // 1. 开关音乐函数
+    function toggleMusic() {
+        if (bgm.paused) {
+            bgm.play().then(() => {
+                updateMusicIcon(true);
+            }).catch(e => console.log("播放失败:", e));
+        } else {
+            bgm.pause();
+            updateMusicIcon(false);
+        }
+    }
+
+    // 2. 更新按钮图标
+    function updateMusicIcon(playing) {
+        isMusicPlaying = playing;
+        if (playing) {
+            musicBtn.textContent = "🎵 Music On";
+            musicBtn.style.color = "#00ff00"; // 亮绿色
+            musicBtn.style.borderColor = "#00ff00";
+        } else {
+            musicBtn.textContent = "🔇 Music Off";
+            musicBtn.style.color = "#fff";
+            musicBtn.style.borderColor = "#444";
+        }
+    }
+
+    // 3. ★★★ 自动播放黑科技 ★★★
+    // 浏览器不许自动播放，但允许用户“第一次点击页面任意位置”后播放
+    // 所以我们监听一次点击事件，帮用户自动打开音乐
+    function autoPlayOnFirstClick() {
+        if(isMusicPlaying) return; // 已经在这个设备播放了就不管
+        
+        bgm.play().then(() => {
+            updateMusicIcon(true);
+            // 成功播放后，移除监听，不再打扰
+            document.removeEventListener('click', autoPlayOnFirstClick);
+            document.removeEventListener('touchstart', autoPlayOnFirstClick);
+        }).catch(() => {
+            // 如果失败（比如用户只是点了个空白），继续等待下一次点击
+        });
+    }
+
+    // 监听全屏点击
+    document.addEventListener('click', autoPlayOnFirstClick);
+    document.addEventListener('touchstart', autoPlayOnFirstClick);
 
     // ==========================================
     // 2. 界面切换 (大厅 vs 战斗模式)
