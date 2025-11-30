@@ -43,7 +43,7 @@ window.initVirtualCampus = function() {
     function preload() {
         // ★ 背景地图：如果没有这张图，背景可能是黑的，但功能正常
         // 您可以换成您的地图路径，例如 '/images/background.png'
-        this.load.image('map_bg', '/images/virtual_campus_map.png'); 
+        this.load.image('map_bg', '/images/studio_map.png'); 
         
         // 加载玩家头像
         this.load.image('student', avatarUrl);
