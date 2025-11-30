@@ -25,7 +25,7 @@ function create() {
     // 这里的 2400, 1800 请改为您背景图片的实际像素宽高
     this.physics.world.setBounds(0, 0, 2400, 1800);
     this.cameras.main.setBounds(0, 0, 2400, 1800);
-    player.setCollideWorldBounds(true);
+    //player.setCollideWorldBounds(true);
 }
 
 const config = {
