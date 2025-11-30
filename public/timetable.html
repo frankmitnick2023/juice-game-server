@@ -117,6 +117,59 @@
       return result;
   }
 
+// 假设你有一个 fetchCourses 的函数，我们在里面加上状态判断
+
+async function loadCourses() {
+    // 1. 先并行获取：所有课程 + 我的预定记录
+    const [coursesRes, myBookingsRes] = await Promise.all([
+        fetch('/api/courses/recommended'), 
+        fetch('/api/my-bookings') // 确保 server.js 提供了这个接口，返回包含 course_id 和 type 的数据
+    ]);
+    
+    const coursesData = await coursesRes.json();
+    const myBookings = await myBookingsRes.json(); // 格式应该是 [{course_id: 1, type: 'casual'}, ...]
+
+    const grid = document.getElementById('courseGrid'); // 假设你的容器叫这个
+    grid.innerHTML = '';
+
+    coursesData.courses.forEach(c => {
+        // ★★★ 核心逻辑：判断状态 ★★★
+        // 在我的预定里找这门课
+        // 过滤掉已取消的 (如果在后端没过滤的话)
+        const myBooking = myBookings.find(b => b.course_id === c.id && b.status !== 'CANCELLED');
+        
+        let btnHtml = '';
+        let statusBadge = '';
+
+        if (myBooking) {
+            if (myBooking.type === 'term') {
+                // 全学期已满
+                statusBadge = '<span style="color:#2ecc71; font-weight:bold; font-size:0.8rem;">✅ Enrolled</span>';
+                btnHtml = `<button disabled style="background:#ccc; cursor:not-allowed;">Joined</button>`;
+            } else {
+                // 部分预定 (Casual)
+                statusBadge = '<span style="color:#f39c12; font-weight:bold; font-size:0.8rem;">⚠️ Partial</span>';
+                // 允许点击进去再买其他的，或者查看
+                btnHtml = `<button onclick="openBookingModal(${c.id})" style="background:#f39c12;">Add More</button>`;
+            }
+        } else {
+            // 没买过
+            btnHtml = `<button onclick="openBookingModal(${c.id})">Book</button>`;
+        }
+
+        // 渲染卡片 (根据你现有的 HTML 结构调整)
+        grid.innerHTML += `
+            <div class="course-card">
+                <h3>${c.name} ${statusBadge}</h3>
+                <p>${c.day_of_week} ${c.start_time}</p>
+                <div class="action-area">
+                    ${btnHtml}
+                </div>
+            </div>
+        `;
+    });
+}	
+	
   async function init() {
     const tabContainer = document.getElementById('dayTabs');
     tabContainer.innerHTML = ''; // 清空防止重复

@@ -332,7 +332,81 @@ app.get('/api/public-schedule', async (req, res) => { try { const r = await pool
 app.get('/api/courses/recommended', async (req, res) => { try { let age = 7; if (req.session.userId) { const uRes = await pool.query("SELECT dob FROM users WHERE id = $1", [req.session.userId]); if (uRes.rows.length > 0) age = calculateAge(uRes.rows[0].dob); } const r = await pool.query("SELECT * FROM courses"); let list = r.rows.filter(c => { if(!c.age_group) return true; if(c.age_group.toLowerCase().includes('beginner')) return true; if(c.age_group.includes('-')) { const p = c.age_group.split('-'); return age >= parseFloat(p[0]) && age <= parseFloat(p[1]); } if(c.age_group.includes('+')) return age >= parseFloat(c.age_group); if(!isNaN(parseFloat(c.age_group))) return age === parseFloat(c.age_group); return true; }); res.json({ age, courses: list }); } catch(e) { res.status(500).json({ error: 'DB Error' }); } });
 
 app.get('/api/my-bookings', requireLogin, async (req, res) => { try { const r = await pool.query("SELECT course_id, type, dates FROM bookings WHERE user_id = $1", [req.session.userId]); res.json(r.rows.map(row => ({...row, dates: row.dates?JSON.parse(row.dates):[]}))); } catch(e) { res.json([]); } });
-app.post('/api/book-course', requireLogin, async (req, res) => { try { const {courseId, type, selectedDates, totalPrice} = req.body; const check = await pool.query("SELECT * FROM bookings WHERE user_id=$1 AND course_id=$2 AND type='term'", [req.session.userId, courseId]); if(check.rows.length) return res.status(400).json({success:false, message:'Already Joined'}); await pool.query("INSERT INTO bookings (user_id, course_id, type, dates, total_price) VALUES ($1, $2, $3, $4, $5)", [req.session.userId, courseId, type, JSON.stringify(selectedDates||[]), totalPrice]); res.json({success:true}); } catch(e) { res.status(500).json({success:false}); } });
+// ★★★ 修复后的预定接口：防重复、防冲突 ★★★
+app.post('/api/book-course', requireLogin, async (req, res) => {
+    try {
+        const { courseId, type, selectedDates, totalPrice } = req.body;
+        const userId = req.session.userId;
+
+        // 1. 先把这个人这门课的所有 ACTIVE (未取消) 订单查出来
+        const existingBookingsRes = await pool.query(
+            "SELECT * FROM bookings WHERE user_id=$1 AND course_id=$2 AND status != 'CANCELLED'", 
+            [userId, courseId]
+        );
+        const existingBookings = existingBookingsRes.rows;
+
+        // --- 场景 A: 用户想报【全学期 Term】 ---
+        if (type === 'term') {
+            // 检查 1: 是否已经报过全学期？
+            const hasTerm = existingBookings.some(b => b.type === 'term');
+            if (hasTerm) {
+                return res.status(400).json({ success: false, message: 'You are already enrolled for the full term.' });
+            }
+
+            // 检查 2: 是否已经报过部分散课？
+            // 如果有散课，禁止直接报全学期，防止重复收费
+            const hasCasual = existingBookings.some(b => b.type === 'casual');
+            if (hasCasual) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: 'Detected existing partial bookings. Please cancel your casual classes first to upgrade to full term.' 
+                });
+            }
+        }
+
+        // --- 场景 B: 用户想报【散课 Casual】 ---
+        if (type === 'casual') {
+            // 检查 1: 是否已经报过全学期？
+            const hasTerm = existingBookings.some(b => b.type === 'term');
+            if (hasTerm) {
+                return res.status(400).json({ success: false, message: 'You already have the full term!' });
+            }
+
+            // 检查 2: 日期是否重复？
+            // 把数据库里所有已报的日期拿出来，摊平到一个数组里
+            let bookedDates = [];
+            existingBookings.forEach(b => {
+                if (b.dates) {
+                    const d = JSON.parse(b.dates);
+                    bookedDates = bookedDates.concat(d);
+                }
+            });
+
+            // 检查当前想报的日期，有没有已经在 bookedDates 里的
+            const newDates = selectedDates || [];
+            const duplicate = newDates.find(date => bookedDates.includes(date));
+            
+            if (duplicate) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: `Date ${duplicate} is already booked!` 
+                });
+            }
+        }
+
+        // 3. 通过检查，写入数据库
+        await pool.query(
+            "INSERT INTO bookings (user_id, course_id, type, dates, total_price, status) VALUES ($1, $2, $3, $4, $5, 'UNPAID')", 
+            [userId, courseId, type, JSON.stringify(selectedDates || []), totalPrice]
+        );
+
+        res.json({ success: true });
+
+    } catch (e) {
+        console.error("Booking Error:", e);
+        res.status(500).json({ success: false, message: 'Server error during booking.' });
+    }
+});
 app.get('/api/my-schedule', requireLogin, async (req, res) => { try { const sql = `SELECT b.id, b.type as booking_type, b.status, c.name, c.day_of_week, c.start_time, c.teacher, c.classroom FROM bookings b JOIN courses c ON b.course_id = c.id WHERE b.user_id = $1`; const r = await pool.query(sql, [req.session.userId]); res.json(r.rows); } catch(e) { res.json([]); } });
 app.get('/api/my-invoices', requireLogin, async(req,res)=>{ try{ const r=await pool.query("SELECT b.id, b.total_price as price_snapshot, b.status, b.created_at, c.name as course_name, c.day_of_week, c.start_time FROM bookings b JOIN courses c ON b.course_id = c.id WHERE b.user_id = $1 ORDER BY b.created_at DESC",[req.session.userId]); res.json(r.rows); }catch(e){res.json([])} });
 app.post('/api/upload-trophy-v2', requireLogin, upload, async(req,res)=>{ try{ const main=req.files['mainImage']?'/uploads/'+req.files['mainImage'][0].filename:null; const extras=req.files['extraImages']?req.files['extraImages'].map(f=>'/uploads/'+f.filename):[]; await pool.query("INSERT INTO trophies (user_id, image_path, extra_images, source_name) VALUES ($1,$2,$3,$4)",[req.session.userId, main, JSON.stringify(extras), 'Pending']); res.json({success:true}); }catch(e){res.status(500).json({success:false})} });
