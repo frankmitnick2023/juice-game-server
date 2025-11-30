@@ -7,6 +7,51 @@
   <style>
     /* CSS 样式 */
 	  
+	/* 🎮 虚拟方向键样式 */
+.d-pad-container {
+    position: fixed;
+    bottom: 140px; /* 位于底部导航栏上方 */
+    left: 20px;
+    width: 150px;
+    height: 150px;
+    z-index: 600; /* 确保在地图之上 */
+    display: none; /* 默认隐藏，进入地图模式才显示 */
+    pointer-events: none; /* 让容器本身不阻挡点击，只有按钮阻挡 */
+}
+
+/* 十字键布局 */
+.d-pad-btn {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    background: rgba(255, 255, 255, 0.25);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    border-radius: 50%;
+    color: white;
+    font-size: 24px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    pointer-events: auto; /* 按钮可以点击 */
+    backdrop-filter: blur(4px);
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background 0.1s;
+}
+
+.d-pad-btn:active, .d-pad-btn.active {
+    background: rgba(233, 69, 96, 0.8); /* 按下变红 */
+    transform: scale(0.95);
+}
+
+/* 方向定位 */
+.d-up { top: 0; left: 50px; }
+.d-down { bottom: 0; left: 50px; }
+.d-left { top: 50px; left: 0; }
+.d-right { top: 50px; right: 0; }  
+	  
+	  
 	  /* 全局禁止图片拖拽，防止小朋友手滑拖出新标签页 */
     img {
     -webkit-user-drag: none;
@@ -197,6 +242,14 @@
               Tap to walk
           </span>
       </div>
+	
+	<div id="d-pad" class="d-pad-container">
+    <div class="d-pad-btn d-up"    onpointerdown="startMove(0, -1)" onpointerup="stopMove()" onpointerleave="stopMove()">⬆️</div>
+    <div class="d-pad-btn d-left"  onpointerdown="startMove(-1, 0)" onpointerup="stopMove()" onpointerleave="stopMove()">⬅️</div>
+    <div class="d-pad-btn d-right" onpointerdown="startMove(1, 0)"  onpointerup="stopMove()" onpointerleave="stopMove()">➡️</div>
+    <div class="d-pad-btn d-down"  onpointerdown="startMove(0, 1)"  onpointerup="stopMove()" onpointerleave="stopMove()">⬇️</div>
+      </div>
+	
   </div>
 	
     <div id="phaser-game" style="width:100%; height:100%;"></div>
@@ -265,6 +318,7 @@
         const lobby = document.getElementById('lobbyView');
         const gameView = document.getElementById('gameView');
         const virtualWorld = document.getElementById('virtualWorld'); // ★★★ 获取虚拟大厅元素
+		const dpad = document.getElementById('d-pad'); // ★ 获取方向键元素
         
         if (mode === 'battle') { 
             // 进入战斗/地图模式
@@ -274,6 +328,7 @@
                 
                 // ★★★ 关键修复：必须把这一行加回去！显示虚拟大厅 ★★★
                 if(virtualWorld) virtualWorld.style.display = 'block'; 
+				if(dpad) dpad.style.display = 'block'; // ★ 显示方向键
 
                 window.initVirtualCampus();      // 启动逻辑
             } else {
@@ -284,6 +339,7 @@
             // 回到主页
             if(gameView) gameView.style.display = 'none';
             if(virtualWorld) virtualWorld.style.display = 'none'; // ★★★ 记得这里也要隐藏
+			if(dpad) dpad.style.display = 'none'; // ★ 隐藏方向键
             if(lobby) lobby.style.display = 'block';
         }
     }

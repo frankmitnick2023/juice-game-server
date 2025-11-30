@@ -355,3 +355,95 @@ window.showClickMarker = function(x, y) {
     marker.style.display = 'block';
     marker.animate([{ transform: 'translate(-50%, -50%) scale(0.5)', opacity: 1 }, { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 0 }], { duration: 400, fill: 'forwards' });
 };
+
+// ==================== 🎮 方向键控制逻辑 ====================
+
+let moveInterval = null;
+const MOVE_SPEED = 8; // 移动速度 (越大越快)
+
+window.startMove = function(dx, dy) {
+    if (moveInterval) clearInterval(moveInterval); // 防止重复触发
+
+    const player = document.getElementById('my-player');
+    
+    // 1. 切换模式：移除 CSS transition，因为按键移动需要实时响应，不能有延迟
+    player.style.transition = 'none'; 
+
+    // 2. 启动循环定时器 (模拟游戏帧)
+    moveInterval = setInterval(() => {
+        // 获取当前坐标 (解析 style.left/top)
+        let currentX = parseFloat(player.style.left) + 25; // +25 是为了取中心点
+        let currentY = parseFloat(player.style.top) + 70;  // +70 是底部中心
+
+        // 计算目标坐标
+        let nextX = currentX + (dx * MOVE_SPEED);
+        let nextY = currentY + (dy * MOVE_SPEED);
+
+        // 3. 碰撞检测 (复用你已有的 isWall 函数)
+        if (!window.isWall(nextX, nextY)) {
+            // 如果没撞墙，更新位置
+            player.style.left = (nextX - 25) + 'px';
+            player.style.top = (nextY - 70) + 'px';
+
+            // 4. 处理朝向 (左右翻转)
+            const img = player.querySelector('img');
+            if (dx < 0) img.style.transform = "scaleX(-1)"; // 向左
+            if (dx > 0) img.style.transform = "scaleX(1)";  // 向右
+
+            // 5. 更新摄像机跟随
+            window.updateCamera(nextX, nextY, 0); // 0表示无延迟跟随
+
+            // 6. 发送位置给服务器 (联机同步)
+            // 限制发送频率，防止卡顿，这里简单的每帧都发，如果卡顿可以加节流阀
+            if (socket) {
+                 socket.emit('playerMovement', { x: nextX, y: nextY });
+            }
+            
+            // 走路动画
+            player.classList.add('is-walking');
+        } else {
+            // 撞墙了，不移动，但也不报错
+            console.log("🧱 咚!");
+        }
+
+    }, 20); // 每20毫秒执行一次 (约50帧/秒)
+};
+
+window.stopMove = function() {
+    // 停止循环
+    if (moveInterval) {
+        clearInterval(moveInterval);
+        moveInterval = null;
+    }
+    
+    // 停止走路动画
+    const player = document.getElementById('my-player');
+    if(player) player.classList.remove('is-walking');
+
+    // 恢复 CSS transition (为了让点击移动恢复平滑)
+    // 稍微延迟一点恢复，避免最后一步跳跃
+    setTimeout(() => {
+        if(player) player.style.transition = 'top 0.6s linear, left 0.6s linear';
+    }, 50);
+};
+
+// ==================== 🎹 键盘支持 (WASD / 方向键) ====================
+// 既然加了逻辑，顺便把键盘控制也加上，电脑上玩更爽
+document.addEventListener('keydown', (e) => {
+    if (document.getElementById('virtualWorld').style.display === 'none') return;
+    // 防止按住不放时重复触发 startMove
+    if (e.repeat) return; 
+
+    switch(e.key) {
+        case 'ArrowUp': case 'w': case 'W': window.startMove(0, -1); break;
+        case 'ArrowDown': case 's': case 'S': window.startMove(0, 1); break;
+        case 'ArrowLeft': case 'a': case 'A': window.startMove(-1, 0); break;
+        case 'ArrowRight': case 'd': case 'D': window.startMove(1, 0); break;
+    }
+});
+
+document.addEventListener('keyup', (e) => {
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d','W','A','S','D'].includes(e.key)) {
+        window.stopMove();
+    }
+});
