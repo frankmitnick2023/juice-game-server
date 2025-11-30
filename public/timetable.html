@@ -117,58 +117,90 @@
       return result;
   }
 
-// 假设你有一个 fetchCourses 的函数，我们在里面加上状态判断
+// ==========================================
+// 请将此函数替换 timetable.html 中原有的 loadCourses
+// ==========================================
 
 async function loadCourses() {
-    // 1. 先并行获取：所有课程 + 我的预定记录
-    const [coursesRes, myBookingsRes] = await Promise.all([
-        fetch('/api/courses/recommended'), 
-        fetch('/api/my-bookings') // 确保 server.js 提供了这个接口，返回包含 course_id 和 type 的数据
-    ]);
+    const container = document.getElementById('course-list-container'); // 请确认你的容器 ID
+    if (!container) return;
     
-    const coursesData = await coursesRes.json();
-    const myBookings = await myBookingsRes.json(); // 格式应该是 [{course_id: 1, type: 'casual'}, ...]
+    container.innerHTML = '<div style="text-align:center; padding:20px;">Loading...</div>';
 
-    const grid = document.getElementById('courseGrid'); // 假设你的容器叫这个
-    grid.innerHTML = '';
+    try {
+        // ★★★ 关键步骤：同时获取“所有课程”和“我的预定” ★★★
+        const [coursesRes, bookingsRes] = await Promise.all([
+            fetch('/api/courses/recommended'), // 或者 /api/public-schedule
+            fetch('/api/my-bookings')          // 获取我已经买了啥
+        ]);
 
-    coursesData.courses.forEach(c => {
-        // ★★★ 核心逻辑：判断状态 ★★★
-        // 在我的预定里找这门课
-        // 过滤掉已取消的 (如果在后端没过滤的话)
-        const myBooking = myBookings.find(b => b.course_id === c.id && b.status !== 'CANCELLED');
-        
-        let btnHtml = '';
-        let statusBadge = '';
+        const coursesData = await coursesRes.json();
+        // 确保 bookings 是个数组，防止报错
+        const myBookings = bookingsRes.ok ? await bookingsRes.json() : [];
 
-        if (myBooking) {
-            if (myBooking.type === 'term') {
-                // 全学期已满
-                statusBadge = '<span style="color:#2ecc71; font-weight:bold; font-size:0.8rem;">✅ Enrolled</span>';
-                btnHtml = `<button disabled style="background:#ccc; cursor:not-allowed;">Joined</button>`;
-            } else {
-                // 部分预定 (Casual)
-                statusBadge = '<span style="color:#f39c12; font-weight:bold; font-size:0.8rem;">⚠️ Partial</span>';
-                // 允许点击进去再买其他的，或者查看
-                btnHtml = `<button onclick="openBookingModal(${c.id})" style="background:#f39c12;">Add More</button>`;
-            }
-        } else {
-            // 没买过
-            btnHtml = `<button onclick="openBookingModal(${c.id})">Book</button>`;
+        // 清空容器
+        container.innerHTML = '';
+        const list = coursesData.courses || coursesData; // 兼容不同接口返回格式
+
+        if (list.length === 0) {
+            container.innerHTML = '<div style="text-align:center; color:#888;">No courses available.</div>';
+            return;
         }
 
-        // 渲染卡片 (根据你现有的 HTML 结构调整)
-        grid.innerHTML += `
-            <div class="course-card">
-                <h3>${c.name} ${statusBadge}</h3>
-                <p>${c.day_of_week} ${c.start_time}</p>
-                <div class="action-area">
-                    ${btnHtml}
+        // 开始渲染每一个课程卡片
+        list.forEach(course => {
+            
+            // ★★★ 核心逻辑：去我的订单里找这门课 ★★★
+            // 过滤掉已取消的订单
+            const booking = myBookings.find(b => b.course_id === course.id && b.status !== 'CANCELLED');
+            
+            let actionBtn = '';
+            let statusBadge = '';
+
+            // --- 情况 1: 完全没买过 ---
+            if (!booking) {
+                // 默认显示橙色 Book 按钮
+                actionBtn = `<button class="btn-book" onclick="openBookingModal(${course.id}, '${course.name}', '${course.day_of_week}', '${course.start_time}')">Book</button>`;
+            } 
+            
+            // --- 情况 2: 买过，是全学期 (Term) ---
+            else if (booking.type === 'term') {
+                // 显示绿色 Joined
+                statusBadge = `<span style="color:#2ecc71; background:rgba(46,204,113,0.1); padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px;">✅ Joined</span>`;
+                actionBtn = `<button class="btn-joined" disabled style="background:#ddd; color:#888; cursor:default;">Joined</button>`;
+            } 
+            
+            // --- 情况 3: 买过，是散课 (Casual) --> 这就是你要的 Partial ---
+            else {
+                // 显示橙黄色 Partial
+                // 这里的颜色使用了 #f1c40f (黄色) 或 #e67e22 (橙色) 来区分
+                statusBadge = `<span style="color:#e67e22; background:rgba(230,126,34,0.1); padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px;">⚠️ Partial</span>`;
+                
+                // 按钮文字改成 "Add More" 或 "Edit"，让用户知道还可以继续买
+                actionBtn = `<button class="btn-partial" onclick="openBookingModal(${course.id}, '${course.name}', '${course.day_of_week}', '${course.start_time}')" style="background:#e67e22; color:white;">Add More</button>`;
+            }
+
+            // --- 生成 HTML (请根据你原本的卡片样式调整 class) ---
+            const card = document.createElement('div');
+            card.className = 'course-card'; // 保持你原有的 CSS 类名
+            card.innerHTML = `
+                <div class="card-left">
+                    <h3 class="c-title">${course.name} ${statusBadge}</h3>
+                    <div class="c-time">⏰ ${course.day_of_week} ${course.start_time} - ${course.end_time}</div>
+                    <div class="c-loc">📍 ${course.classroom || 'Studio 1'} &nbsp; 👩‍🏫 ${course.teacher}</div>
                 </div>
-            </div>
-        `;
-    });
-}	
+                <div class="card-right">
+                    ${actionBtn}
+                </div>
+            `;
+            container.appendChild(card);
+        });
+
+    } catch (e) {
+        console.error(e);
+        container.innerHTML = 'Error loading courses.';
+    }
+}
 	
   async function init() {
     const tabContainer = document.getElementById('dayTabs');
