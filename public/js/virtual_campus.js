@@ -122,11 +122,28 @@ function initSocketConnection(name, avatar) {
         if(led) led.classList.remove('online');
     });
 
-    // 6. 显示已存在的其他玩家
+    // 6. 显示已存在的其他玩家 (含防多设备登录检测)
     socket.on('currentPlayers', (players) => {
+        // 获取当前自己的名字用于比对
+        const myName = document.getElementById('userInfo') ? document.getElementById('userInfo').textContent : 'Hero';
+        let duplicateFound = false;
+
         Object.keys(players).forEach((id) => {
             if (id !== socket.id) {
-                addOtherPlayer(players[id]);
+                const p = players[id];
+                
+                // ★★★ 核心修改：检测是否有同名玩家在线 ★★★
+                if (p.name === myName) {
+                    duplicateFound = true;
+                    alert(`⚠️ 账号安全警告\n\n检测到账号 [${myName}] 已在其他设备登录！\n本次连接将被拒绝，请先退出其他设备。`);
+                    
+                    socket.disconnect(); // 立即掐断网线
+                    window.exitVirtualWorld(); // 退出虚拟界面
+                    return; // 停止执行
+                }
+
+                // 没有冲突，才显示别人
+                addOtherPlayer(p);
             }
         });
     });
