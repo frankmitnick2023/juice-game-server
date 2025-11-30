@@ -331,7 +331,21 @@ app.get('/api/games', async (req, res) => { try { const r = await pool.query("SE
 app.get('/api/public-schedule', async (req, res) => { try { const r = await pool.query("SELECT name, day_of_week, start_time, end_time, classroom FROM courses"); res.json(r.rows); } catch(e) { res.status(500).json([]); } });
 app.get('/api/courses/recommended', async (req, res) => { try { let age = 7; if (req.session.userId) { const uRes = await pool.query("SELECT dob FROM users WHERE id = $1", [req.session.userId]); if (uRes.rows.length > 0) age = calculateAge(uRes.rows[0].dob); } const r = await pool.query("SELECT * FROM courses"); let list = r.rows.filter(c => { if(!c.age_group) return true; if(c.age_group.toLowerCase().includes('beginner')) return true; if(c.age_group.includes('-')) { const p = c.age_group.split('-'); return age >= parseFloat(p[0]) && age <= parseFloat(p[1]); } if(c.age_group.includes('+')) return age >= parseFloat(c.age_group); if(!isNaN(parseFloat(c.age_group))) return age === parseFloat(c.age_group); return true; }); res.json({ age, courses: list }); } catch(e) { res.status(500).json({ error: 'DB Error' }); } });
 
-app.get('/api/my-bookings', requireLogin, async (req, res) => { try { const r = await pool.query("SELECT course_id, type, dates FROM bookings WHERE user_id = $1", [req.session.userId]); res.json(r.rows.map(row => ({...row, dates: row.dates?JSON.parse(row.dates):[]}))); } catch(e) { res.json([]); } });
+app.get('/api/my-bookings', requireLogin, async (req, res) => { 
+    try { 
+        // ★★★ 修复：把 status 和 id 都查出来 ★★★
+        const sql = "SELECT id, course_id, type, dates, status, total_price FROM bookings WHERE user_id = $1";
+        const r = await pool.query(sql, [req.session.userId]); 
+        
+        res.json(r.rows.map(row => ({
+            ...row, 
+            dates: row.dates ? JSON.parse(row.dates) : [] 
+        }))); 
+    } catch(e) { 
+        console.error(e);
+        res.json([]); 
+    } 
+});
 // ★★★ 修复后的预定接口：防重复、防冲突 ★★★
 app.post('/api/book-course', requireLogin, async (req, res) => {
     try {

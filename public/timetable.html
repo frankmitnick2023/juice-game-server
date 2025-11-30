@@ -127,6 +127,7 @@ async function loadCourses() {
     container.innerHTML = '<div style="text-align:center; padding:20px;">Loading...</div>';
 
     try {
+        // 获取数据
         const [coursesRes, bookingsRes] = await Promise.all([
             fetch('/api/courses/recommended'), 
             fetch('/api/my-bookings')          
@@ -144,13 +145,13 @@ async function loadCourses() {
         }
 
         list.forEach(course => {
-            // 找出这门课的所有相关订单（可能有一条已取消的，也可能有一条新的）
-            const courseBookings = myBookings.filter(b => b.course_id === course.id);
+            // ★★★ 修复：使用 == 进行宽松比较，防止 ID 类型不一致 (String vs Number)
+            const courseBookings = myBookings.filter(b => b.course_id == course.id);
 
-            // 1. 优先找：有没有【有效】的订单？
+            // 1. 优先找【有效】订单 (非取消)
             const activeBooking = courseBookings.find(b => b.status !== 'CANCELLED');
             
-            // 2. 如果没有有效的，再找：有没有【已取消】的订单？
+            // 2. 其次找【已取消】订单
             const cancelledBooking = courseBookings.find(b => b.status === 'CANCELLED');
             
             let actionBtn = '';
@@ -162,6 +163,7 @@ async function loadCourses() {
                     statusBadge = `<span style="color:#2ecc71; background:rgba(46,204,113,0.1); padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px;">✅ Joined</span>`;
                     actionBtn = `<button class="btn-joined" disabled style="background:#ddd; color:#888; cursor:default;">Joined</button>`;
                 } else {
+                    // Flexibility Core 应该会走到这里
                     statusBadge = `<span style="color:#e67e22; background:rgba(230,126,34,0.1); padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px;">⚠️ Partial</span>`;
                     actionBtn = `<button class="btn-partial" onclick="openBookingModal(${course.id}, '${course.name}', '${course.day_of_week}', '${course.start_time}')" style="background:#e67e22; color:white;">Add More</button>`;
                 }
@@ -169,20 +171,16 @@ async function loadCourses() {
             
             // --- 情况 B: 只有已取消的订单 (Cancelled) ---
             else if (cancelledBooking) {
-                // 显示灰红色 Cancelled 标签
+                // Contemporary Adv 应该会走到这里，显示 Rebook 按钮
                 statusBadge = `<span style="color:#e74c3c; background:rgba(231,76,60,0.1); padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px; text-decoration:line-through;">🚫 Cancelled</span>`;
-                
-                // ★★★ 重点：Rebook 按钮 ★★★
-                // 调用同样的 openBookingModal，因为后端会自动忽略已取消的订单，视为新购买
                 actionBtn = `<button class="btn-rebook" onclick="openBookingModal(${course.id}, '${course.name}', '${course.day_of_week}', '${course.start_time}')" style="background:#3498db; color:white;">🔄 Rebook</button>`;
             }
             
-            // --- 情况 C: 纯路人 (Book) ---
+            // --- 情况 C: 没买过 ---
             else {
                 actionBtn = `<button class="btn-book" onclick="openBookingModal(${course.id}, '${course.name}', '${course.day_of_week}', '${course.start_time}')">Book</button>`;
             }
 
-            // 渲染 HTML
             const card = document.createElement('div');
             card.className = 'course-card'; 
             card.innerHTML = `
