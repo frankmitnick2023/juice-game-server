@@ -212,8 +212,7 @@
     async function loadReviews() {
         const list = document.getElementById('pendingList'); list.innerHTML = 'Loading...';
         try {
-            const res = await fetch('/api/admin/trophies/pending?t=' + new Date().getTime()); 
-            const data = await res.json();
+            const res = await fetch('/api/admin/trophies/pending'); const data = await res.json();
             if(!data || !data.length) { list.innerHTML = '<div style="text-align:center;color:#999;padding:20px">No pending reviews.</div>'; return; }
             list.innerHTML = '';
             data.forEach(item => {

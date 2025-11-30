@@ -71,22 +71,6 @@
         0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.8; box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.7); }
         70% { transform: translate(-50%, -50%) scale(2.0); opacity: 0; box-shadow: 0 0 0 40px rgba(255, 215, 0, 0); }
         100% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
-		
-		/* --- 新增：防止长按弹出图片菜单 --- */
-    img, .stage-container, canvas {
-        /* 禁止长按弹出菜单 (iOS/Android) */
-        -webkit-touch-callout: none !important;
-        /* 禁止选择文本/图片 */
-        -webkit-user-select: none !important;
-        -moz-user-select: none !important;
-        -ms-user-select: none !important;
-        user-select: none !important;
-        /* 禁止拖拽图片 */
-        -webkit-user-drag: none !important;
-        /* 禁止图片作为链接被点击跳转 (如果它被包裹在链接里) */
-        pointer-events: auto; 
-    }
-		
     }
 
     .map-indicator {
@@ -155,16 +139,12 @@
       </div>
   </div>
 
- <div id="gameView" class="content-section" style="max-width:100%; padding:0; margin-top:0; height:100vh; background:#000; overflow:hidden;">
-    <div style="position:absolute; top:10px; left:10px; z-index:100;">
-        <div class="back-bar" onclick="switchMode('home')" style="background:rgba(0,0,0,0.6); padding:8px 15px; border-radius:20px; border:1px solid #444;">
-            <span>◀ Exit World</span>
-        </div>
-    </div>
+ <div id="gameView" class="content-section" style="display:none;">
+    <div class="back-bar" onclick="switchMode('home')"><span>◀ Back</span></div>
+    <div style="font-size:1.2rem;font-weight:bold;color:#e94560;margin-bottom:15px;border-left:4px solid #e94560;padding-left:10px">Available Games</div>
     
-    <div id="phaser-game" style="width:100%; height:100%;"></div>
-
-    </div>
+    <div id="gameGrid" class="game-grid"></div>
+  </div>
 	
 <div id="virtualWorld" style="display:none; width:100%; height:100vh; position:fixed; top:0; left:0; z-index:200; overflow:hidden; background:#111;">
       
@@ -219,7 +199,6 @@
           <span class="close-modal" onclick="closeModal('uploadModal')">&times;</span>
           <h3 style="margin-top:0; text-align:center">Upload Achievement</h3>
           <div class="upload-section"><label class="upload-label">1. Certificate (Main)</label><input type="file" id="mainCertInput" accept="image/*" onchange="previewFiles(this, 'previewMain')"><div id="previewMain" class="file-preview"></div></div>
-		  <div id="uploadUserHint" style="text-align:center; color:#e94560; font-weight:bold; margin-bottom:15px; background:rgba(233,69,96,0.1); padding:5px; border-radius:5px;"></div>
           <div class="upload-section"><label class="upload-label">2. Photos (Optional)</label><input type="file" id="extraPhotosInput" accept="image/*" multiple onchange="previewFiles(this, 'previewExtra')"><div id="previewExtra" class="file-preview"></div></div>
           <button class="btn-submit" onclick="submitAwardUpload()">Submit</button>
       </div>
@@ -249,25 +228,7 @@
     // 引入 Socket.io 客户端库 (确保这一行在 head 或 body 都有)
     // <script src="/socket.io/socket.io.js"><\/script> 
     // <script src="/js/virtual_campus.js"><\/script>
-// --- 新增：强制禁止图片的默认行为 ---
-    document.addEventListener('DOMContentLoaded', () => {
-        // 1. 禁止右键菜单 (以及手机上的长按菜单)
-        document.addEventListener('contextmenu', function(e) {
-            // 如果点击的是图片，或者在该游戏区域内，拦截它
-            if (e.target.tagName === 'IMG' || e.target.closest('#gameView') || e.target.closest('.stage-container')) {
-                e.preventDefault();
-                return false;
-            }
-        }, { passive: false });
 
-        // 2. 禁止图片被拖拽 (防止拖动导致跳转)
-        document.addEventListener('dragstart', function(e) {
-            if (e.target.tagName === 'IMG') {
-                e.preventDefault();
-                return false;
-            }
-        }, { passive: false });
-    });
     // ==========================================
     // 1. 初始化逻辑 (获取用户信息)
     // ==========================================
@@ -449,28 +410,7 @@
         }
     }
     // 上传弹窗逻辑
-    function openUploadModal() { 
-        const modal = document.getElementById('uploadModal');
-        
-        // 1. 获取当前登录者的名字 (从页面左上角获取)
-        const currentName = document.getElementById('userInfo').textContent;
-
-        // 2. 动态插入一个提示框，告诉用户现在是谁
-        // 每次打开先清空旧的提示，避免重复添加
-        const oldHint = document.getElementById('user-upload-hint');
-        if(oldHint) oldHint.remove();
-
-        const hintDiv = document.createElement('div');
-        hintDiv.id = 'user-upload-hint';
-        hintDiv.style.cssText = 'background:#fff0f0; color:#d32f2f; padding:10px; border-radius:5px; margin-bottom:15px; text-align:center; border:1px solid #ffcdd2; font-weight:bold;';
-        hintDiv.innerHTML = `当前上传身份: <span style="font-size:1.2rem">${currentName}</span><br><span style="font-size:0.8rem;color:#666">(如非本人，请先退出登录)</span>`;
-        
-        // 插在标题下面
-        const title = modal.querySelector('h3');
-        title.parentNode.insertBefore(hintDiv, title.nextSibling);
-
-        modal.style.display = 'flex'; 
-    }
+    function openUploadModal() { document.getElementById('uploadModal').style.display = 'flex'; }
     function closeModal(id) { document.getElementById(id).style.display = 'none'; }
     
     // 文件预览

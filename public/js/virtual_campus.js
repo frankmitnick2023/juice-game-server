@@ -1,258 +1,326 @@
-// virtual_campus.js - 全功能修复整合版
+// virtual_campus.js - 全功能整合版 (地图+缩放+防穿墙+多人联机)
 
 // ================= 全局变量 =================
-let gameInstance; // 游戏实例
-let player;       // 玩家角色
-let socket;       // 联机插座
-let otherPlayers = {}; // 其他玩家列表
-window.isMapMode = false; // 地图模式状态
+window.isMapMode = false;      
+window.collisionCtx = null;    
+const MAP_WIDTH = 2500;     
+window.walkTimer = null;       
+
+// ★ 联机相关变量
+let socket; 
+let otherPlayers = {}; 
 
 // ================= 核心入口函数 =================
+
 window.initVirtualCampus = function() {
-    console.log("🚀 启动虚拟校园 (Phaser 引擎版)...");
+    console.log("🚀 启动虚拟校园 (联机版)...");
 
-    // 1. 获取当前用户信息 (从 HTML 页面读取)
-    const heroImg = document.getElementById('heroImg');
-    const avatarUrl = heroImg ? heroImg.src : '/avatars/boy_junior_uniform.png'; 
-    const userName = document.getElementById('userInfo') ? document.getElementById('userInfo').textContent : 'Hero';
+    // 1. 同步头像
+    const heroImgSrc = document.getElementById('heroImg') ? document.getElementById('heroImg').src : '';
+    const playerImg = document.getElementById('player-img');
+    if(playerImg && heroImgSrc) playerImg.src = heroImgSrc;
+    
+    // 获取名字
+    const myName = document.getElementById('userInfo') ? document.getElementById('userInfo').textContent : 'Hero';
+    const myPlayer = document.getElementById('my-player');
+    const nameLabel = myPlayer.querySelector('div'); // 名字标签
+    if(nameLabel) nameLabel.textContent = myName;
 
-    // 2. Phaser 游戏配置
-    const config = {
-        type: Phaser.AUTO,
-        parent: 'phaser-game', // 对应 HTML 里的 div id
-        width: window.innerWidth,
-        height: window.innerHeight,
-        
-        // ★ 性能优化：消除黄色警告
-        canvasContext: { willReadFrequently: true },
-        
-        physics: {
-            default: 'arcade',
-            arcade: {
-                debug: false // 设为 true 可看到碰撞边界调试
+    // 2. 初始位置
+    window.movePlayerTo(1250, 1200, true); 
+
+    // 3. ★★★ 启动联机连接 ★★★
+    initSocketConnection(myName, heroImgSrc);
+
+    // 4. 绑定点击移动
+    const viewport = document.getElementById('virtualWorld');
+    const mapLayer = document.getElementById('world-map');
+    
+    viewport.onclick = null; 
+
+    viewport.onclick = function(e) {
+        if (e.target.closest('button')) return;
+
+        if(window.isMapMode) {
+            window.toggleMapMode(); 
+            return;
+        }
+
+        const rect = mapLayer.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top;
+
+        // 碰撞检测
+        const player = document.getElementById('my-player');
+        const startX = parseFloat(player.style.left) + 25; 
+        const startY = parseFloat(player.style.top) + 70;  
+
+        const check = window.checkPathBlocked(startX, startY, clickX, clickY);
+
+        if (check.blocked) {
+            window.showBlockMarker(check.x, check.y);
+            console.log("🚫 撞墙了");
+        } else {
+            // 移动自己
+            window.movePlayerTo(clickX, clickY);
+            window.showClickMarker(clickX, clickY);
+            
+            // ★★★ 告诉服务器：我移动了 ★★★
+            if (socket) {
+                socket.emit('playerMovement', { x: clickX, y: clickY });
             }
-        },
-        scene: {
-            preload: preload,
-            create: create,
-            update: update
         }
     };
-
-    // --- 内部函数：预加载资源 ---
-    function preload() {
-        // ★ 背景地图：如果没有这张图，背景可能是黑的，但功能正常
-        // 您可以换成您的地图路径，例如 '/images/background.png'
-        this.load.image('map_bg', '/images/studio_map.png'); 
-        
-        // 加载玩家头像
-        this.load.image('student', avatarUrl);
-    }
-
-    // --- 内部函数：创建世界 (核心逻辑) ---
-    function create() {
-        // A. 创建地图背景
-        // 假设地图尺寸是 2400 x 1800，请根据实际图片调整
-        try { 
-            let bg = this.add.image(0, 0, 'map_bg').setOrigin(0, 0);
-            bg.setDisplaySize(2400, 1800); // 强制拉伸到指定大小
-        } catch(e) { console.log("地图背景加载失败，使用默认黑底"); }
-
-        // B. ★★★ 设置世界边界 (防止走出地图) ★★★
-        this.physics.world.setBounds(0, 0, 2400, 1800);
-
-        // C. 创建玩家
-        // 初始位置 1250, 1200
-        player = this.physics.add.sprite(1250, 1200, 'student');
-        player.setDisplaySize(60, 80); // 调整人物显示大小
-        player.setCollideWorldBounds(true); // ★ 开启撞墙限制，禁止出界
-
-        // D. 摄像机跟随
-        this.cameras.main.setBounds(0, 0, 2400, 1800);
-        this.cameras.main.startFollow(player);
-
-        // E. ★★★ 鼠标点击移动 (修复人物不动的关键) ★★★
-        this.input.on('pointerdown', (pointer) => {
-            // 简单防误触：只有点击顶部菜单(y>50)以下才移动
-            if (pointer.y > 50) {
-                // 物理移动：让人物走到点击的坐标
-                this.physics.moveTo(player, pointer.worldX, pointer.worldY, 300); // 300 是速度
-                
-                // 记录目标点，用于在 update 里判断是否到达
-                player.targetX = pointer.worldX;
-                player.targetY = pointer.worldY;
-                player.isMoving = true;
-
-                // 翻转图片朝向
-                if (pointer.worldX < player.x) player.flipX = true;
-                else player.flipX = false;
-
-                // 联机：告诉服务器我动了
-                if(socket) socket.emit('playerMovement', { x: pointer.worldX, y: pointer.worldY });
-            }
-        }, this);
-
-        // F. 启动联机 (传入当前场景 this)
-        initSocketConnection(userName, avatarUrl, this);
-    }
-
-    // --- 内部函数：每帧更新 ---
-    function update() {
-        // 如果正在移动，检查是否到达目标
-        if (player && player.isMoving) {
-            const dist = Phaser.Math.Distance.Between(player.x, player.y, player.targetX, player.targetY);
-            // 如果距离小于 10 像素，认为到达，停止移动
-            if (dist < 10) {
-                player.body.reset(player.targetX, player.targetY); // 强制停住
-                player.isMoving = false;
-            }
-        }
-    }
-
-    // 销毁旧游戏防止重复
-    if(gameInstance) gameInstance.destroy(true);
-    gameInstance = new Phaser.Game(config);
 };
 
-// ================= 联机逻辑 (适配 Phaser) =================
-function initSocketConnection(name, avatar, scene) {
-    if (typeof io === 'undefined') {
-        console.error("Socket.io 未加载");
-        return;
-    }
-    
-    // 避免重复连接
-    if(socket && socket.connected) socket.disconnect();
-    
+// ================= 联机逻辑 (Socket.io) =================
+
+function initSocketConnection(name, avatar) {
+
+    if (typeof io === 'undefined') return;
     socket = io(); 
 
-    // 1. 连接成功
+    // ★ 监听连接成功
     socket.on('connect', () => {
-        console.log("✅ 联机成功! ID:", socket.id);
+        console.log("✅ 连上了！");
+        // 变绿灯
         const led = document.getElementById('net-status');
         if(led) led.classList.add('online');
+        
+        // ... 原有的 emit joinGame 代码 ...
+    });
+    
+    // ★ 监听断开
+    socket.on('disconnect', () => {
+        const led = document.getElementById('net-status');
+        if(led) led.classList.remove('online');
+    });
 
-        // 发送加入请求
+    // 检查是否引入了库
+    if (typeof io === 'undefined') {
+        console.error("❌ Socket.io 库未加载，无法联机！请检查 games.html");
+        return;
+    }
+
+    // 连接服务器
+    socket = io(); 
+
+    // A. 连接成功，发送身份信息
+    socket.on('connect', () => {
+        console.log("✅ 已连入校园网络 ID:", socket.id);
+        const myPlayer = document.getElementById('my-player');
+        
         socket.emit('joinGame', {
-            x: 1250, 
-            y: 1200,
+            x: parseFloat(myPlayer.style.left) || 1250,
+            y: parseFloat(myPlayer.style.top) || 1200,
             name: name,
             avatar: avatar
         });
     });
 
-    // 2. 别人加入
-    socket.on('newPlayer', (pInfo) => {
-        addOtherPlayer(scene, pInfo);
-    });
-
-    // 3. 显示已在场的玩家
+    // B. 显示已存在的其他玩家
     socket.on('currentPlayers', (players) => {
         Object.keys(players).forEach((id) => {
-            if (id !== socket.id) addOtherPlayer(scene, players[id]);
+            if (id !== socket.id) {
+                addOtherPlayer(players[id]);
+            }
         });
     });
 
-    // 4. 别人移动
+    // C. 有新玩家加入
+    socket.on('newPlayer', (playerInfo) => {
+        console.log("👋 新同学来了:", playerInfo.name);
+        addOtherPlayer(playerInfo);
+    });
+
+    // D. 别人移动了
     socket.on('playerMoved', (data) => {
-        if (otherPlayers[data.id]) {
-            const other = otherPlayers[data.id];
-            // 使用物理引擎移动别人
-            scene.physics.moveTo(other, data.x, data.y, 300);
+        const el = otherPlayers[data.id];
+        if (el) {
+            // 平滑移动
+            el.style.left = (data.x - 25) + 'px';
+            el.style.top = (data.y - 70) + 'px';
             
-            // 或者使用 Tween 平滑动画 (二选一，这里用 Tween 更平滑)
-            scene.tweens.add({
-                targets: other,
-                x: data.x,
-                y: data.y,
-                duration: 200, // 200ms 内移过去
-                onUpdate: () => {
-                    // 简单的朝向判断
-                    if(data.x < other.x) other.flipX = true;
-                    else other.flipX = false;
-                }
-            });
+            // 面向判断
+            const oldX = parseFloat(el.getAttribute('data-x') || data.x);
+            const img = el.querySelector('img');
+            if(img) {
+                if (data.x < oldX) img.style.transform = "scaleX(-1)";
+                else img.style.transform = "scaleX(1)";
+            }
+            el.setAttribute('data-x', data.x);
+            
+            // 走路动画
+            el.classList.add('is-walking');
+            if (el.walkTimeout) clearTimeout(el.walkTimeout);
+            el.walkTimeout = setTimeout(() => el.classList.remove('is-walking'), 600);
         }
     });
 
-    // 5. 别人断线
-    socket.on('disconnect', (id) => { 
-        // 尝试移除玩家
+    // E. 别人离开了
+    socket.on('disconnect', (id) => { // 注意：这里的事件名可能需要后端配合改为 'playerDisconnected'，如果后端发的是默认的 disconnect 可能会混淆
+        // 修正：后端通常发的是自定义事件，例如 'userLeft'，或者前端监听 socket 默认事件
+        // 假设后端写的是 io.emit('disconnect', socket.id); 
+        // 但 socket.io 客户端保留字也是 disconnect。
+        // 建议后端改成 io.emit('userLeft', socket.id);
+        // 这里暂时兼容处理：
         if (otherPlayers[id]) {
-            otherPlayers[id].destroy();
+            otherPlayers[id].remove();
             delete otherPlayers[id];
         }
     });
+    
+    // 监听后端发来的 userLeft (推荐)
+    socket.on('disconnect', (id) => removePlayer(id)); // 如果后端发的是 id
 }
 
-// 辅助：添加其他玩家 Sprite
-function addOtherPlayer(scene, pInfo) {
-    if (otherPlayers[pInfo.id]) return;
-
-    // 创建别人的 sprite
-    // 注意：这里暂时用 'student' (自己的头像图) 代替，避免加载错误
-    const otherSprite = scene.physics.add.sprite(pInfo.x, pInfo.y, 'student'); 
-    otherSprite.setDisplaySize(60, 80);
-    otherSprite.setTint(0xcccccc); // 染成灰色，区分这是别人
-    
-    // 把名字顶在头顶 (Phaser 里的 Text)
-    // 稍微复杂点，这里暂时只显示人，为了不报错先不加文字
-    
-    otherPlayers[pInfo.id] = otherSprite;
-}
-
-// ================= UI 交互函数 (保留您原有的按钮功能) =================
-
-// 1. 退出虚拟世界
-window.exitVirtualWorld = function() {
-    console.log("退出游戏...");
-    // 隐藏游戏层
-    document.getElementById('virtualWorld').style.display = 'none';
-    
-    // 显示大厅层
-    const lobby = document.getElementById('lobbyView');
-    if(lobby) lobby.style.display = 'block';
-    
-    // 显示底部导航
-    const nav = document.querySelector('.nav-bar');
-    if(nav) nav.style.display = 'flex'; // 或者是 block，看您原本 CSS
-    
-    // 断开 Socket 省流量
-    if(socket) socket.disconnect();
-    
-    // 销毁游戏实例释放内存
-    if(gameInstance) {
-        gameInstance.destroy(true);
-        gameInstance = null;
+function removePlayer(id) {
+    if (otherPlayers[id]) {
+        otherPlayers[id].remove();
+        delete otherPlayers[id];
     }
-};
+}
 
-// 2. 切换地图模式 (Map View)
+function addOtherPlayer(playerInfo) {
+    // 如果已经存在，就不重复加
+    if (otherPlayers[playerInfo.id]) return;
+
+    const mapLayer = document.getElementById('world-map');
+    
+    const el = document.createElement('div');
+    el.style.position = 'absolute';
+    el.style.zIndex = '240'; 
+    el.style.textAlign = 'center';
+    el.style.transition = 'top 0.6s linear, left 0.6s linear'; 
+    el.style.left = (playerInfo.x - 25) + 'px';
+    el.style.top = (playerInfo.y - 70) + 'px';
+    
+    // 生成别人的 HTML
+    el.innerHTML = `
+        <div style="background:rgba(0,0,0,0.4); color:#eee; padding:2px 6px; border-radius:4px; font-size:10px; white-space:nowrap; position:absolute; top:-20px; left:50%; transform:translateX(-50%);">
+            ${playerInfo.name}
+        </div>
+        <img src="${playerInfo.avatar}" style="width:50px; height:auto; filter: drop-shadow(0 5px 5px rgba(0,0,0,0.5));">
+    `;
+    
+    mapLayer.appendChild(el);
+    otherPlayers[playerInfo.id] = el;
+}
+
+
+// ================= 通用辅助函数 (保持不变) =================
+
 window.toggleMapMode = function() {
     window.isMapMode = !window.isMapMode;
+    const mapLayer = document.getElementById('world-map');
     const btn = document.getElementById('btn-map-mode');
+    const radar = document.getElementById('player-radar');
     
     if (window.isMapMode) {
         if(btn) { btn.textContent = "🔍 Close Map"; btn.style.background = "#e94560"; }
-        // Phaser 摄像机缩放效果
-        if (gameInstance && gameInstance.scene.scenes[0]) {
-             const cam = gameInstance.scene.scenes[0].cameras.main;
-             cam.zoomTo(0.3, 1000); // 缩小镜头看全图
-        }
+        if(radar) radar.classList.add('active');
+        const scale = window.innerWidth / MAP_WIDTH;
+        const topOffset = (window.innerHeight - (mapLayer.clientHeight || 2000) * scale) / 2;
+        mapLayer.style.transform = `translate(0px, ${topOffset}px) scale(${scale})`;
     } else {
         if(btn) { btn.textContent = "🗺️ Map View"; btn.style.background = "rgba(0,0,0, 0.7)"; }
-        // 恢复摄像机
-        if (gameInstance && gameInstance.scene.scenes[0]) {
-             const cam = gameInstance.scene.scenes[0].cameras.main;
-             cam.zoomTo(1, 1000); // 恢复正常视角
-        }
+        if(radar) radar.classList.remove('active');
+        const player = document.getElementById('my-player');
+        const currentX = parseFloat(player.style.left) + 25;
+        const currentY = parseFloat(player.style.top) + 70;
+        window.updateCamera(currentX, currentY);
     }
 };
 
-// 3. 兼容性接口 (防止旧代码报错)
-window.movePlayerTo = function(x, y) {
-    if(player) {
-        player.x = x; 
-        player.y = y;
+window.exitVirtualWorld = function() {
+    document.getElementById('virtualWorld').style.display = 'none';
+    const lobby = document.getElementById('lobbyView');
+    if(lobby) lobby.style.display = 'block';
+    const nav = document.querySelector('.nav-bar');
+    if(nav) nav.style.display = 'flex';
+    
+    // 退出时断开连接，节省资源
+    if(socket) socket.disconnect();
+};
+
+window.initCollisionMap = function(imgElement) {
+    const canvas = document.getElementById('collision-canvas');
+    if(!canvas) return;
+    window.collisionCtx = canvas.getContext('2d');
+    canvas.width = MAP_WIDTH;
+    canvas.height = imgElement.naturalHeight * (MAP_WIDTH / imgElement.naturalWidth);
+    window.collisionCtx.drawImage(imgElement, 0, 0, canvas.width, canvas.height);
+};
+
+window.movePlayerTo = function(x, y, instant=false) {
+    const player = document.getElementById('my-player');
+    const currentLeft = parseFloat(player.style.left || 0);
+    const currentTop = parseFloat(player.style.top || 0);
+    const dist = Math.sqrt(Math.pow(x - currentLeft, 2) + Math.pow(y - currentTop, 2));
+    const duration = instant ? 0 : (dist / 600); 
+    
+    player.style.transition = `top ${duration}s linear, left ${duration}s linear`;
+    player.style.left = (x - 25) + 'px';
+    player.style.top = (y - 70) + 'px';
+
+    if(!instant) {
+        player.classList.add('is-walking');
+        if(window.walkTimer) clearTimeout(window.walkTimer);
+        window.walkTimer = setTimeout(() => player.classList.remove('is-walking'), duration * 1000);
     }
+
+    const img = player.querySelector('img');
+    if (x < currentLeft) img.style.transform = "scaleX(-1)";
+    else img.style.transform = "scaleX(1)";
+
+    window.updateCamera(x, y, duration);
+};
+
+window.updateCamera = function(targetX, targetY, duration=0) {
+    const mapLayer = document.getElementById('world-map');
+    const screenCenterX = window.innerWidth / 2;
+    const screenCenterY = window.innerHeight / 2;
+    const mapX = screenCenterX - targetX;
+    const mapY = screenCenterY - targetY;
+    mapLayer.style.transition = `transform ${duration}s linear`;
+    mapLayer.style.transform = `translate(${mapX}px, ${mapY}px) scale(1)`;
+};
+
+window.isWall = function(x, y) {
+    if (!window.collisionCtx) return false;
+    try {
+        const p = window.collisionCtx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
+        if (p[0] < 60 && p[1] < 60 && p[2] < 60 && p[3] > 200) return true; 
+        return false;
+    } catch (e) { return false; }
+};
+
+window.checkPathBlocked = function(startX, startY, endX, endY) {
+    const steps = 20; 
+    const dx = (endX - startX) / steps;
+    const dy = (endY - startY) / steps;
+    for (let i = 1; i <= steps; i++) {
+        const checkX = startX + dx * i;
+        const checkY = startY + dy * i;
+        if (window.isWall(checkX, checkY)) return { blocked: true, x: checkX, y: checkY };
+    }
+    return { blocked: false };
+};
+
+window.showBlockMarker = function(x, y) {
+    const marker = document.getElementById('block-marker');
+    if(!marker) return;
+    marker.style.left = x + 'px';
+    marker.style.top = y + 'px';
+    marker.style.display = 'block';
+    marker.animate([{ transform: 'translate(-50%, -50%) scale(1)' }, { transform: 'translate(-50%, -50%) scale(1)', opacity: 0 }], { duration: 500, fill: 'forwards' });
+};
+
+window.showClickMarker = function(x, y) {
+    const marker = document.getElementById('click-marker');
+    if(!marker) return;
+    marker.style.left = x + 'px';
+    marker.style.top = y + 'px';
+    marker.style.display = 'block';
+    marker.animate([{ transform: 'translate(-50%, -50%) scale(0.5)', opacity: 1 }, { transform: 'translate(-50%, -50%) scale(1.5)', opacity: 0 }], { duration: 400, fill: 'forwards' });
 };

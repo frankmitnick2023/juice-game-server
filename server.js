@@ -330,29 +330,7 @@ app.post('/api/login', async (req, res) => {
   try {
     let r = await pool.query("SELECT * FROM users WHERE email = $1 AND password = $2", [email, hashPassword(password)]); 
     if (r.rows.length === 0) { r = await pool.query("SELECT * FROM users WHERE email = $1 AND password = $2", [email, password]); if (r.rows.length === 0) return res.status(400).json({ error: 'Invalid credentials' }); }
-   // ... 验证密码成功后 ...
-const user = r.rows[0];
-
-// ★★★ 新增：踢人逻辑 (单点登录限制) ★★★
-try {
-    // 1. 在数据库的 session_store 表中，查找并删除该用户的所有旧 Session
-    // 注意：sess 是 JSON 字段，我们需要匹配里面的 userId
-    await pool.query(
-        `DELETE FROM session_store WHERE sess ->> 'userId' = $1`, 
-        [String(user.id)]
-    );
-    console.log(`🔒 用户 ${user.student_name} (ID:${user.id}) 登录，已清除其所有旧设备登录状态。`);
-} catch (err) {
-    console.error("踢人失败:", err);
-    // 即使踢人出错，也不要阻挡当前用户登录，继续往下走
-}
-
-// 2. 只有清理完旧的，才设置当前这个新的 Session
-// 这样当响应结束时，系统会把这个全新的 Session 写入数据库，成为唯一的有效登录
-req.session.userId = user.id;
-req.session.user = { isAdmin: user.is_admin || false, name: user.student_name }; 
-res.json({ success: true, user: req.session.user });
-
+    const user = r.rows[0]; req.session.userId = user.id; req.session.user = { isAdmin: user.is_admin || false, name: user.student_name }; res.json({ success: true, user: req.session.user });
   } catch (e) { res.status(500).json({ error: 'DB Error' }); }
 });
 app.post('/api/register', async (req, res) => {
@@ -381,40 +359,14 @@ app.post('/api/book-course', requireLogin, async (req, res) => { try { const {co
 app.get('/api/my-schedule', requireLogin, async (req, res) => { try { const sql = `SELECT b.id, b.type as booking_type, b.status, c.name, c.day_of_week, c.start_time, c.teacher, c.classroom FROM bookings b JOIN courses c ON b.course_id = c.id WHERE b.user_id = $1`; const r = await pool.query(sql, [req.session.userId]); res.json(r.rows); } catch(e) { res.json([]); } });
 app.get('/api/my-invoices', requireLogin, async(req,res)=>{ try{ const r=await pool.query("SELECT b.id, b.total_price as price_snapshot, b.status, b.created_at, c.name as course_name, c.day_of_week, c.start_time FROM bookings b JOIN courses c ON b.course_id = c.id WHERE b.user_id = $1 ORDER BY b.created_at DESC",[req.session.userId]); res.json(r.rows); }catch(e){res.json([])} });
 app.post('/api/upload-trophy-v2', requireLogin, upload, async(req,res)=>{ try{ const main=req.files['mainImage']?'/uploads/'+req.files['mainImage'][0].filename:null; const extras=req.files['extraImages']?req.files['extraImages'].map(f=>'/uploads/'+f.filename):[]; await pool.query("INSERT INTO trophies (user_id, image_path, extra_images, source_name) VALUES ($1,$2,$3,$4)",[req.session.userId, main, JSON.stringify(extras), 'Pending']); res.json({success:true}); }catch(e){res.status(500).json({success:false})} });
-// 找到原来的 '/api/my-trophies' 接口，替换为：
-
-app.get('/api/my-trophies', requireLogin, async(req,res)=>{ 
-    try{ 
-        // ★★★ 核心修复：禁止浏览器缓存此接口 ★★★
-        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-        res.set('Expires', '-1');
-        res.set('Pragma', 'no-cache');
-
-        const r=await pool.query("SELECT * FROM trophies WHERE user_id=$1 ORDER BY created_at DESC",[req.session.userId]); 
-        res.json(r.rows); 
-    }catch(e){
-        res.json([])
-    } 
-});
+app.get('/api/my-trophies', requireLogin, async(req,res)=>{ try{ const r=await pool.query("SELECT * FROM trophies WHERE user_id=$1 ORDER BY created_at DESC",[req.session.userId]); res.json(r.rows); }catch(e){res.json([])} });
 app.post('/api/save-avatar', requireLogin, async(req,res)=>{ try{ await pool.query("UPDATE users SET avatar_config=$1 WHERE id=$2",[JSON.stringify(req.body.config), req.session.userId]); res.json({success:true}); }catch(e){res.status(500).json({error:'Error'})} });
 
 // --- ADMIN APIs (God Mode - No strict checks) ---
 app.post('/api/admin/courses', requireAdmin, async(req,res)=>{ try{ await pool.query("INSERT INTO courses (name, day_of_week, start_time, end_time, teacher, price, casual_price, classroom, age_group) VALUES ($1,$2,$3,$4,$5,$6,25,$7,$8)", [req.body.name, req.body.day, req.body.start, req.body.end, req.body.teacher, 230, req.body.classroom, req.body.age]); res.json({success:true}); }catch(e){res.status(500).json({error:e.message})} });
 app.delete('/api/admin/courses/:id', requireAdmin, async(req,res)=>{ try{ await pool.query("DELETE FROM courses WHERE id=$1",[req.params.id]); res.json({success:true}); }catch(e){res.status(500).json({error:e.message})} });
 app.get('/api/admin/all-courses', requireAdmin, async(req,res)=>{ try{ const r=await pool.query("SELECT * FROM courses ORDER BY day_of_week, start_time"); res.json(r.rows); }catch(e){res.status(500).json({error:e.message})} });
-app.get('/api/admin/trophies/pending', requireAdmin, async(req,res)=>{ 
-    try{ 
-        // ★★★ 强制禁止缓存 (Admin版) ★★★
-        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-        res.set('Expires', '-1');
-        
-        const r=await pool.query("SELECT t.*, u.student_name FROM trophies t JOIN users u ON t.user_id=u.id WHERE t.status='PENDING'"); 
-        const d=r.rows.map(i=>({...i, extra_images:i.extra_images?JSON.parse(i.extra_images):[]})); 
-        res.json(d); 
-    }catch(e){
-        res.status(500).json({error:e.message})
-    } 
-});
+app.get('/api/admin/trophies/pending', requireAdmin, async(req,res)=>{ try{ const r=await pool.query("SELECT t.*, u.student_name FROM trophies t JOIN users u ON t.user_id=u.id WHERE t.status='PENDING'"); const d=r.rows.map(i=>({...i, extra_images:i.extra_images?JSON.parse(i.extra_images):[]})); res.json(d); }catch(e){res.status(500).json({error:e.message})} });
 app.post('/api/admin/trophies/approve', requireAdmin, async(req,res)=>{ try{ if(req.body.action==='reject') await pool.query("UPDATE trophies SET status='REJECTED' WHERE id=$1",[req.body.trophyId]); else await pool.query("UPDATE trophies SET status='APPROVED', trophy_type=$2, source_name=$3 WHERE id=$1",[req.body.trophyId, req.body.type, req.body.sourceName]); res.json({success:true}); }catch(e){res.status(500).json({error:e.message})} });
 app.get('/api/admin/invoices', requireAdmin, async (req, res) => { try { const sql = `SELECT b.id, b.total_price, b.status, b.created_at, u.student_name, c.name as course_name, c.day_of_week, c.start_time, c.classroom, c.age_group FROM bookings b JOIN users u ON b.user_id = u.id JOIN courses c ON b.course_id = c.id ORDER BY b.created_at DESC`; const result = await pool.query(sql); res.json(result.rows); } catch (e) { res.status(500).json({ error: e.message }); } });
 app.post('/api/admin/invoices/update-status', requireAdmin, async (req, res) => { try { await pool.query("UPDATE bookings SET status = $1 WHERE id = $2", [req.body.newStatus, req.body.bookingId]); res.json({ success: true }); } catch (e) { res.status(500).json({ error: e.message }); } });
