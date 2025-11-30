@@ -28,6 +28,25 @@ function create() {
     player.setCollideWorldBounds(true);
 }
 
+const config = {
+    type: Phaser.AUTO, // 或者 Phaser.CANVAS
+    width: window.innerWidth,
+    height: window.innerHeight,
+    
+    // ★★★ 新增这行配置来消除黄色警告 ★★★
+    canvasContext: { willReadFrequently: true },
+    
+    parent: 'phaser-game',
+    physics: {
+        default: 'arcade',
+        arcade: {
+            debug: false // 如果不想看到碰撞框，设为 false
+        }
+    },
+    // ... 其他配置 ...
+};
+
+
     // 1. 同步头像
     const heroImgSrc = document.getElementById('heroImg') ? document.getElementById('heroImg').src : '';
     const playerImg = document.getElementById('player-img');
