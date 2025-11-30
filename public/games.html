@@ -109,7 +109,7 @@
   </style>
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/js/virtual_campus.js"></script>
+  <script src="/js/virtual_campus.js?v=2"></script>
 </head>
 <body>
   
@@ -374,6 +374,8 @@
             data.forEach(t => {
                 const el = document.createElement('div');
                 el.className = 'trophy-item';
+				
+				if (t.status !== 'APPROVED') return;
                 
                 // ★★★ 核心修复：根据类型显示不同图标 ★★★
                 let icon = '🏆'; // 默认
