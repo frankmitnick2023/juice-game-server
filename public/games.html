@@ -551,7 +551,12 @@
                     colorClass = '';
                 } else if (type.includes('medal')) {
                     icon = '🥇';
+					// ★★★ 新增：这里识别 badge 类型 ★★★
+                } else if (type.includes('badge')) {
+                    icon = '🎖️'; // 你可以用 🎖️ (军功章), 🏵️ (小红花), 或 🛡️ (盾牌)
+                    colorClass = ''; 
                 }
+                
 
                 el.textContent = icon;
                 
