@@ -45,7 +45,18 @@ const config = {
     },
     // ... 其他配置 ...
 };
-
+// --- 检查这段代码是否存在？ ---
+    this.input.on('pointerdown', (pointer) => {
+        // 只有点击游戏区域才移动 (避免点UI也跑动)
+        if (pointer.y > 100) { // 简单防误触顶部
+             const targetX = pointer.worldX;
+             const targetY = pointer.worldY;
+             
+             // 调用移动逻辑 (假设您有 movePlayerTo 这个函数)
+             // 或者直接在这里写物理移动:
+             this.physics.moveTo(player, targetX, targetY, 200); // 200是速度
+        }
+    });
 
     // 1. 同步头像
     const heroImgSrc = document.getElementById('heroImg') ? document.getElementById('heroImg').src : '';
