@@ -41,9 +41,15 @@ window.initVirtualCampus = function() {
     viewport.onclick = function(e) {
         if (e.target.closest('button')) return;
 
+	if (e.target !== mapLayer) {
+        // 如果点击到了地图上的其他元素（如头像、标记），不触发移动
+        return;
+
+	// ★ 关键过滤 2: 如果是在地图模式，不移动
         if(window.isMapMode) {
             window.toggleMapMode(); 
             return;
+
         }
 
         const rect = mapLayer.getBoundingClientRect();
@@ -77,8 +83,15 @@ window.initVirtualCampus = function() {
 
 function initSocketConnection(name, avatar) {
 
-    if (typeof io === 'undefined') return;
-    socket = io(); 
+    if (typeof io === 'undefined') {
+        console.error("❌ Socket.io 库未加载，无法联机！");
+        return;
+    }
+
+    // 避免重复连接
+    if (socket && socket.connected) {
+        return; 
+    }
 
     // ★ 监听连接成功
     socket.on('connect', () => {
