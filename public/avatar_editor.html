@@ -144,6 +144,7 @@
                 const user = await res.json();
                 if(!user.id) return location.href='/';
 
+                // 1. 性别判断 (保持不变)
                 const name = (user.student_name || "").toLowerCase();
                 if (/[aeiy]$/.test(name) || ['yolanda','cindy','alice'].some(n=>name.includes(n))) { 
                     currentConfig.gender = 'girl'; 
@@ -155,27 +156,39 @@
                     document.getElementById('genderLabel').style.color = "#4facfe";
                 }
 
+                // 2. ★★★ 核心修复：强制计算年龄组 ★★★
                 let age = 7; 
-                if (user.dob) age = new Date().getFullYear() - new Date(user.dob).getFullYear();
+                if (user.dob) {
+                    // 精确计算年龄
+                    const dob = new Date(user.dob);
+                    const diff = Date.now() - dob.getTime();
+                    const ageDate = new Date(diff); 
+                    age = Math.abs(ageDate.getUTCFullYear() - 1970);
+                }
                 
-                // 修复：保持新的3档年龄分组
-                if (age >= 12) currentConfig.ageGroup = 'senior';
-                else if (age >= 8) currentConfig.ageGroup = 'middle';
-                else currentConfig.ageGroup = 'junior';
+                // 计算出的正确组别
+                let correctAgeGroup = 'junior';
+                if (age >= 12) correctAgeGroup = 'senior';
+                else if (age >= 8) correctAgeGroup = 'middle'; // 9岁会进这里
+                else correctAgeGroup = 'junior';
 
+                // 3. 读取已保存的设置 (衣服等)
                 if (user.avatar_config) {
                     Object.assign(currentConfig, user.avatar_config);
-                    
-                    // 恢复按钮选中态
-                    if(currentConfig.outfit && !currentConfig.useAiAvatar) {
-                         updateButtonState(currentConfig.outfit);
-                    }
+                }
+
+                // ★★★ 关键一步：强制把 AgeGroup 改回算出来的正确值 ★★★
+                // 哪怕数据库里存的是 Senior，这里也会强制改成 Middle
+                currentConfig.ageGroup = correctAgeGroup; 
+
+                // 4. 恢复按钮选中态
+                if(currentConfig.outfit && !currentConfig.useAiAvatar) {
+                     updateButtonState(currentConfig.outfit);
                 }
 
                 updateImage();
             } catch(e) { console.error(e); }
         }
-
         function updateButtonState(outfitCode) {
             const map = {'uniform':'Uniform', 'ballet':'Ballet', 'jazz':'Jazz', 'hiphop':'HipHop', 'kpop':'K-POP'};
             const text = map[outfitCode] || 'Uniform';
