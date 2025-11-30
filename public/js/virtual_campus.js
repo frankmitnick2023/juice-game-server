@@ -287,22 +287,53 @@ window.updateCamera = function(targetX, targetY, duration=0) {
 };
 
 window.isWall = function(x, y) {
-    if (!window.collisionCtx) return false;
+    if (!window.collisionCtx) return false; // 画布未加载，默认无阻挡
+
+    // ★★★ 新增：硬性边界限制 ★★★
+    // 假设地图宽2500，高大概1700左右。防止跑到负数区域或无限远
+    const mapW = window.collisionCtx.canvas.width;
+    const mapH = window.collisionCtx.canvas.height;
+    if (x < 50 || x > mapW - 50 || y < 50 || y > mapH - 50) {
+        return true; // 地图最外圈50px视为隐形墙
+    }
+
     try {
+        // 获取该坐标的像素颜色
         const p = window.collisionCtx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
-        if (p[0] < 60 && p[1] < 60 && p[2] < 60 && p[3] > 200) return true; 
+        
+        // p[0]=R, p[1]=G, p[2]=B, p[3]=Alpha
+        // ★★★ 优化判定算法：检测黑色 ★★★
+        // 只要 R, G, B 都小于 80 (深灰色/黑色)，就认为是墙
+        // 或者 Alpha < 50 (透明区域，即地图外的空白)，也认为是墙
+        const isDark = p[0] < 80 && p[1] < 80 && p[2] < 80;
+        const isTransparent = p[3] < 50; 
+        
+        if (isDark || isTransparent) return true; 
+
         return false;
-    } catch (e) { return false; }
+    } catch (e) { return true; } // 出错则视为墙，防止穿帮
 };
 
 window.checkPathBlocked = function(startX, startY, endX, endY) {
-    const steps = 20; 
+    const dist = Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2));
+    
+    // ★★★ 优化：动态步长 ★★★
+    // 原来是固定20步，如果距离很远，每步跨度太大，会跨过墙壁。
+    // 现在每隔 15px (小于墙壁厚度) 检查一次，绝无漏网之鱼。
+    const stepSize = 15; 
+    const steps = Math.ceil(dist / stepSize); 
+
     const dx = (endX - startX) / steps;
     const dy = (endY - startY) / steps;
+
     for (let i = 1; i <= steps; i++) {
         const checkX = startX + dx * i;
         const checkY = startY + dy * i;
-        if (window.isWall(checkX, checkY)) return { blocked: true, x: checkX, y: checkY };
+        
+        if (window.isWall(checkX, checkY)) {
+            // 发现撞墙，返回阻挡点
+            return { blocked: true, x: checkX, y: checkY };
+        }
     }
     return { blocked: false };
 };

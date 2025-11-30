@@ -6,6 +6,16 @@
   <title>WE DANCE - Hero Hub</title>
   <style>
     /* CSS 样式 */
+	  
+	  /* 全局禁止图片拖拽，防止小朋友手滑拖出新标签页 */
+    img {
+    -webkit-user-drag: none;
+    user-select: none;
+    -moz-user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+    }
+	  
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background: #1a1a2e; color: white; padding-bottom: 5rem; overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
     .header { background: rgba(22, 33, 62, 0.95); padding: 0 1rem; height: 60px; display: flex; justify-content: space-between; align-items: center; position: fixed; top: 0; left: 0; right: 0; z-index: 100; border-bottom: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px); }
     .user-name { font-weight: bold; color: #e94560; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 1px; }
@@ -161,7 +171,9 @@
 	
       <div id="world-map" style="position:absolute; top:0; left:0; transform-origin: 0 0; transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);">
           
-          <img id="scene-bg" src="/images/studio_map.png" style="width:2500px; height:auto; display:block;" onload="window.initCollisionMap(this)">
+          <img id="scene-bg" src="/images/studio_map.png" 
+     style="width:2500px; height:auto; display:block; pointer-events: none; user-select: none; -webkit-user-drag: none;" 
+     onload="window.initCollisionMap(this)">
 
           <div id="my-player" style="position:absolute; top:1200px; left:1200px; z-index:250; text-align:center; transition: top 0.6s linear, left 0.6s linear;">
               
