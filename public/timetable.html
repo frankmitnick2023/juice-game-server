@@ -49,7 +49,7 @@
 <div class="day-tabs" id="dayTabs"></div>
 <div class="container">
   <div id="ageTip" style="text-align:center;color:#666;margin:10px">Loading...</div>
-  <div id="courseList"></div>
+  <div id="course-list-container"></div>
 </div>
 
 <div id="bookModal" class="modal-overlay">
@@ -121,13 +121,24 @@
 // 请将此函数替换 timetable.html 中原有的 loadCourses
 // ==========================================
 async function loadCourses() {
-    const container = document.getElementById('course-list-container');
-    if (!container) return;
+    // 1. 尝试通过 ID 获取容器
+    let container = document.getElementById('course-list-container');
     
-    container.innerHTML = '<div style="text-align:center; padding:20px;">Loading...</div>';
+    // 2. 如果 ID 没写对，尝试通过类名“智能”查找 (容错机制)
+    if (!container) container = document.querySelector('.course-grid');
+    if (!container) container = document.querySelector('.grid-container');
+    
+    // 3. 如果还是找不到，尝试找包含特定文字的父容器 (最后的救命稻草)
+    if (!container) {
+        const sample = Array.from(document.querySelectorAll('div, section')).find(el => el.textContent.includes('Loading') || el.textContent.includes('RAD Ballet'));
+        if (sample) container = sample.parentElement;
+    }
+
+    if (!container) return; // 实在找不到就算了
+
+    container.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">Loading courses...</div>';
 
     try {
-        // 获取数据
         const [coursesRes, bookingsRes] = await Promise.all([
             fetch('/api/courses/recommended'), 
             fetch('/api/my-bookings')          
@@ -135,9 +146,9 @@ async function loadCourses() {
 
         const coursesData = await coursesRes.json();
         const myBookings = bookingsRes.ok ? await bookingsRes.json() : [];
-
-        container.innerHTML = '';
         const list = coursesData.courses || coursesData;
+
+        container.innerHTML = ''; // 清空加载提示
 
         if (list.length === 0) {
             container.innerHTML = '<div style="text-align:center; color:#888;">No courses available.</div>';
@@ -145,51 +156,49 @@ async function loadCourses() {
         }
 
         list.forEach(course => {
-            // ★★★ 修复：使用 == 进行宽松比较，防止 ID 类型不一致 (String vs Number)
+            // 宽松比较 ID
             const courseBookings = myBookings.filter(b => b.course_id == course.id);
 
-            // 1. 优先找【有效】订单 (非取消)
-            const activeBooking = courseBookings.find(b => b.status !== 'CANCELLED');
-            
-            // 2. 其次找【已取消】订单
+            // 区分有效订单和取消订单 (确保 status 存在)
+            const activeBooking = courseBookings.find(b => b.status && b.status !== 'CANCELLED');
             const cancelledBooking = courseBookings.find(b => b.status === 'CANCELLED');
             
             let actionBtn = '';
             let statusBadge = '';
 
-            // --- 情况 A: 有效订单 (Joined / Partial) ---
+            // --- A: 有效 (Joined / Partial) ---
             if (activeBooking) {
                 if (activeBooking.type === 'term') {
                     statusBadge = `<span style="color:#2ecc71; background:rgba(46,204,113,0.1); padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px;">✅ Joined</span>`;
-                    actionBtn = `<button class="btn-joined" disabled style="background:#ddd; color:#888; cursor:default;">Joined</button>`;
+                    actionBtn = `<button class="btn-joined" disabled style="background:#ddd; color:#888; cursor:default; border:none; padding:5px 10px; border-radius:15px;">Joined</button>`;
                 } else {
-                    // Flexibility Core 应该会走到这里
                     statusBadge = `<span style="color:#e67e22; background:rgba(230,126,34,0.1); padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px;">⚠️ Partial</span>`;
-                    actionBtn = `<button class="btn-partial" onclick="openBookingModal(${course.id}, '${course.name}', '${course.day_of_week}', '${course.start_time}')" style="background:#e67e22; color:white;">Add More</button>`;
+                    actionBtn = `<button onclick="openBookingModal(${course.id}, '${course.name}', '${course.day_of_week}', '${course.start_time}')" style="background:#e67e22; color:white; border:none; padding:5px 15px; border-radius:15px; cursor:pointer;">Add More</button>`;
                 }
             } 
-            
-            // --- 情况 B: 只有已取消的订单 (Cancelled) ---
+            // --- B: 已取消 (Cancelled) ---
             else if (cancelledBooking) {
-                // Contemporary Adv 应该会走到这里，显示 Rebook 按钮
                 statusBadge = `<span style="color:#e74c3c; background:rgba(231,76,60,0.1); padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px; text-decoration:line-through;">🚫 Cancelled</span>`;
-                actionBtn = `<button class="btn-rebook" onclick="openBookingModal(${course.id}, '${course.name}', '${course.day_of_week}', '${course.start_time}')" style="background:#3498db; color:white;">🔄 Rebook</button>`;
+                actionBtn = `<button onclick="openBookingModal(${course.id}, '${course.name}', '${course.day_of_week}', '${course.start_time}')" style="background:#3498db; color:white; border:none; padding:5px 15px; border-radius:15px; cursor:pointer;">🔄 Rebook</button>`;
             }
-            
-            // --- 情况 C: 没买过 ---
+            // --- C: 未购买 (Book) ---
             else {
-                actionBtn = `<button class="btn-book" onclick="openBookingModal(${course.id}, '${course.name}', '${course.day_of_week}', '${course.start_time}')">Book</button>`;
+                actionBtn = `<button onclick="openBookingModal(${course.id}, '${course.name}', '${course.day_of_week}', '${course.start_time}')" style="background:#e74c3c; color:white; border:none; padding:5px 15px; border-radius:15px; cursor:pointer;">Book</button>`;
             }
 
+            // 渲染卡片
             const card = document.createElement('div');
+            // 保持原有的样式类名，防止样式崩坏
             card.className = 'course-card'; 
+            card.style.cssText = "background:white; margin-bottom:15px; padding:15px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 5px rgba(0,0,0,0.05);";
+            
             card.innerHTML = `
-                <div class="card-left">
-                    <h3 class="c-title">${course.name} ${statusBadge}</h3>
-                    <div class="c-time">⏰ ${course.day_of_week} ${course.start_time} - ${course.end_time}</div>
-                    <div class="c-loc">📍 ${course.classroom || 'Studio 1'} &nbsp; 👩‍🏫 ${course.teacher}</div>
+                <div style="flex:1;">
+                    <h3 style="margin:0 0 5px 0; font-size:1rem; color:#333;">${course.name} ${statusBadge}</h3>
+                    <div style="font-size:0.85rem; color:#666;">⏰ ${course.day_of_week} ${course.start_time} - ${course.end_time}</div>
+                    <div style="font-size:0.85rem; color:#999; margin-top:3px;">📍 ${course.classroom || 'Studio 1'} &nbsp; 👩‍🏫 ${course.teacher}</div>
                 </div>
-                <div class="card-right">
+                <div>
                     ${actionBtn}
                 </div>
             `;
