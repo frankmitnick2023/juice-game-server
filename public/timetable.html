@@ -7,20 +7,19 @@
   <style>
     body{font-family:'Segoe UI', sans-serif;margin:0;background:#f9f9f9;padding-bottom:5rem}
     .header{background:#ff6b35;color:white;padding:1rem;text-align:center;position:sticky;top:0;z-index:90}
-    .day-tabs {display:flex;overflow-x:auto;background:white;padding:10px;box-shadow:0 2px 5px rgba(0,0,0,0.05);position:sticky;top:60px;z-index:80}
-    .day-tab {flex:0 0 auto;padding:8px 16px;margin-right:10px;border-radius:20px;background:#f0f0f0;color:#666;font-weight:bold;cursor:pointer;font-size:0.9rem}
-    .day-tab.active {background:#ff6b35;color:white}
+    /* Day Tabs 样式保留但暂时不用，因为新版是列表展示 */
+    .day-tabs {display:none; overflow-x:auto;background:white;padding:10px;box-shadow:0 2px 5px rgba(0,0,0,0.05);position:sticky;top:60px;z-index:80}
     .container{max-width:800px;margin:1rem auto;padding:0 1rem}
     
     .course-card{background:white;border-radius:12px;padding:1.2rem;margin-bottom:1rem;box-shadow:0 2px 8px rgba(0,0,0,0.05);display:flex;justify-content:space-between;align-items:center; transition:0.2s}
-    .course-card.disabled {opacity: 0.6; background: #eee; cursor: not-allowed;}
     
     .c-main h3{margin:0 0 5px 0;color:#333}
     .c-detail{font-size:0.9rem;color:#666;margin:2px 0}
-    .tag{font-size:0.8rem;background:#fff0e6;color:#ff6b35;padding:2px 5px;border-radius:4px;margin-right:5px}
     
     .btn-book{background:#ff6b35;color:white;border:none;padding:8px 16px;border-radius:20px;cursor:pointer;font-weight:bold}
-    .btn-book:disabled {background:#ccc; cursor: not-allowed;}
+    .btn-joined{background:#ddd;color:#888;cursor:default;border:none;padding:8px 16px;border-radius:20px;font-weight:bold}
+    .btn-partial{background:#e67e22;color:white;border:none;padding:8px 16px;border-radius:20px;cursor:pointer;font-weight:bold}
+    .btn-rebook{background:#3498db;color:white;border:none;padding:8px 16px;border-radius:20px;cursor:pointer;font-weight:bold}
 
     .modal-overlay {display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:999;justify-content:center;align-items:end}
     .modal {background:white;width:100%;max-width:600px;border-radius:20px 20px 0 0;padding:20px;box-sizing:border-box;animation:slideUp 0.3s}
@@ -28,7 +27,6 @@
     
     .option-box {border:1px solid #ddd;border-radius:8px;padding:15px;margin-bottom:10px;cursor:pointer; display:flex; justify-content:space-between; align-items:center}
     .option-box.selected {border-color:#ff6b35;background:#fff0e6}
-    .option-box.disabled {opacity:0.5; cursor:not-allowed; background:#eee; border-color:#ccc}
     
     .date-grid {display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px;display:none; padding:10px; background:#f9f9f9; border-radius:8px;}
     .date-item {background:white; border:1px solid #ddd; padding:8px; text-align:center;border-radius:4px;font-size:0.8rem;cursor:pointer}
@@ -46,9 +44,8 @@
 <body>
 
 <div class="header"><h3>2026 TERM 1 Timetable</h3></div>
-<div class="day-tabs" id="dayTabs"></div>
+
 <div class="container">
-  <div id="ageTip" style="text-align:center;color:#666;margin:10px">Loading...</div>
   <div id="course-list-container"></div>
 </div>
 
@@ -86,22 +83,22 @@
 </div>
 
 <div class="nav-bar">
-    <a href="/games.html" class="nav-item"><span class="nav-icon">🎮</span>Home<br>(大厅)</a>
-    <a href="/my_schedule.html" class="nav-item"><span class="nav-icon">📅</span>Schedule<br>(课表)</a>
-    <a href="#" class="nav-item active"><span class="nav-icon">🛒</span>Book<br>(选课)</a>
-    <a href="/growth.html" class="nav-item"><span class="nav-icon">📊</span>Growth<br>(成长)</a> 
-    <a href="/rooms.html" class="nav-item"><span class="nav-icon">🔑</span>Rooms<br>(教室)</a>
+    <a href="/games.html" class="nav-item"><span class="nav-icon">🎮</span>Home</a>
+    <a href="/my_schedule.html" class="nav-item"><span class="nav-icon">📅</span>Schedule</a>
+    <a href="#" class="nav-item active"><span class="nav-icon">🛒</span>Book</a>
+    <a href="/growth.html" class="nav-item"><span class="nav-icon">📊</span>Growth</a> 
+    <a href="/rooms.html" class="nav-item"><span class="nav-icon">🔑</span>Rooms</a>
 </div>
 
 <script>
-  // 假定 2026 Term 1 从 2月2日开始
+  // 基础配置
   const TERM_START = new Date("2026-02-02"); 
   const WEEKS = 10; 
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   
+  // ★ 全局变量：必须定义，否则弹窗报错
   let allCourses = [];
   let myBookings = []; 
-  let currentDay = 'Monday';
   let currentCourse = null;
   let selectedMode = 'term';
   let selectedDates = []; 
@@ -117,24 +114,10 @@
       return result;
   }
 
-// ==========================================
-// 请将此函数替换 timetable.html 中原有的 loadCourses
-// ==========================================
-async function loadCourses() {
-    // 1. 尝试通过 ID 获取容器
+  // ★★★ 核心渲染函数：loadCourses ★★★
+  async function loadCourses() {
     let container = document.getElementById('course-list-container');
-    
-    // 2. 如果 ID 没写对，尝试通过类名“智能”查找 (容错机制)
-    if (!container) container = document.querySelector('.course-grid');
-    if (!container) container = document.querySelector('.grid-container');
-    
-    // 3. 如果还是找不到，尝试找包含特定文字的父容器 (最后的救命稻草)
-    if (!container) {
-        const sample = Array.from(document.querySelectorAll('div, section')).find(el => el.textContent.includes('Loading') || el.textContent.includes('RAD Ballet'));
-        if (sample) container = sample.parentElement;
-    }
-
-    if (!container) return; // 实在找不到就算了
+    if (!container) return;
 
     container.innerHTML = '<div style="text-align:center; padding:20px; color:#888;">Loading courses...</div>';
 
@@ -145,21 +128,23 @@ async function loadCourses() {
         ]);
 
         const coursesData = await coursesRes.json();
-        const myBookings = bookingsRes.ok ? await bookingsRes.json() : [];
-        const list = coursesData.courses || coursesData;
+        const bookingsData = bookingsRes.ok ? await bookingsRes.json() : [];
+        
+        // ★ 关键：更新全局变量，否则弹窗打不开
+        allCourses = coursesData.courses || coursesData;
+        myBookings = bookingsData;
 
-        container.innerHTML = ''; // 清空加载提示
+        container.innerHTML = ''; 
 
-        if (list.length === 0) {
+        if (allCourses.length === 0) {
             container.innerHTML = '<div style="text-align:center; color:#888;">No courses available.</div>';
             return;
         }
 
-        list.forEach(course => {
-            // 宽松比较 ID
+        allCourses.forEach(course => {
             const courseBookings = myBookings.filter(b => b.course_id == course.id);
 
-            // 区分有效订单和取消订单 (确保 status 存在)
+            // 区分有效订单和取消订单
             const activeBooking = courseBookings.find(b => b.status && b.status !== 'CANCELLED');
             const cancelledBooking = courseBookings.find(b => b.status === 'CANCELLED');
             
@@ -170,37 +155,31 @@ async function loadCourses() {
             if (activeBooking) {
                 if (activeBooking.type === 'term') {
                     statusBadge = `<span style="color:#2ecc71; background:rgba(46,204,113,0.1); padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px;">✅ Joined</span>`;
-                    actionBtn = `<button class="btn-joined" disabled style="background:#ddd; color:#888; cursor:default; border:none; padding:5px 10px; border-radius:15px;">Joined</button>`;
+                    actionBtn = `<button class="btn-joined">Joined</button>`;
                 } else {
                     statusBadge = `<span style="color:#e67e22; background:rgba(230,126,34,0.1); padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px;">⚠️ Partial</span>`;
-                    actionBtn = `<button onclick="openBookingModal(${course.id}, '${course.name}', '${course.day_of_week}', '${course.start_time}')" style="background:#e67e22; color:white; border:none; padding:5px 15px; border-radius:15px; cursor:pointer;">Add More</button>`;
+                    actionBtn = `<button class="btn-partial" onclick="openBookingModal(${course.id})">Add More</button>`;
                 }
             } 
             // --- B: 已取消 (Cancelled) ---
             else if (cancelledBooking) {
                 statusBadge = `<span style="color:#e74c3c; background:rgba(231,76,60,0.1); padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px; text-decoration:line-through;">🚫 Cancelled</span>`;
-                actionBtn = `<button onclick="openBookingModal(${course.id}, '${course.name}', '${course.day_of_week}', '${course.start_time}')" style="background:#3498db; color:white; border:none; padding:5px 15px; border-radius:15px; cursor:pointer;">🔄 Rebook</button>`;
+                actionBtn = `<button class="btn-rebook" onclick="openBookingModal(${course.id})">🔄 Rebook</button>`;
             }
             // --- C: 未购买 (Book) ---
             else {
-                actionBtn = `<button onclick="openBookingModal(${course.id}, '${course.name}', '${course.day_of_week}', '${course.start_time}')" style="background:#e74c3c; color:white; border:none; padding:5px 15px; border-radius:15px; cursor:pointer;">Book</button>`;
+                actionBtn = `<button class="btn-book" onclick="openBookingModal(${course.id})">Book</button>`;
             }
 
-            // 渲染卡片
             const card = document.createElement('div');
-            // 保持原有的样式类名，防止样式崩坏
             card.className = 'course-card'; 
-            card.style.cssText = "background:white; margin-bottom:15px; padding:15px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 5px rgba(0,0,0,0.05);";
-            
             card.innerHTML = `
                 <div style="flex:1;">
                     <h3 style="margin:0 0 5px 0; font-size:1rem; color:#333;">${course.name} ${statusBadge}</h3>
                     <div style="font-size:0.85rem; color:#666;">⏰ ${course.day_of_week} ${course.start_time} - ${course.end_time}</div>
                     <div style="font-size:0.85rem; color:#999; margin-top:3px;">📍 ${course.classroom || 'Studio 1'} &nbsp; 👩‍🏫 ${course.teacher}</div>
                 </div>
-                <div>
-                    ${actionBtn}
-                </div>
+                <div>${actionBtn}</div>
             `;
             container.appendChild(card);
         });
@@ -209,87 +188,21 @@ async function loadCourses() {
         console.error(e);
         container.innerHTML = 'Error loading courses.';
     }
-}
-	
-  async function init() {
-    const tabContainer = document.getElementById('dayTabs');
-    tabContainer.innerHTML = ''; // 清空防止重复
-    days.forEach((d) => {
-        const div = document.createElement('div');
-        div.className = `day-tab ${d === 'Monday' ? 'active' : ''}`;
-        div.textContent = d === 'Wednesday' ? 'Wed' : d.substring(0, 3);
-        div.onclick = () => switchDay(d, div);
-        tabContainer.appendChild(div);
-    });
-
-    try {
-        const resBooks = await fetch('/api/my-bookings'); 
-        myBookings = await resBooks.json();
-    } catch(e) { myBookings = []; }
-
-    try {
-        const res = await fetch('/api/courses/recommended');
-        const data = await res.json();
-        document.getElementById('ageTip').textContent = `Age: ${data.age} (Recommended)`;
-        allCourses = data.courses;
-        renderList();
-    } catch(e) {}
   }
 
-  function switchDay(day, el) {
-      currentDay = day;
-      document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
-      el.classList.add('active');
-      renderList();
-  }
+  // --- 弹窗相关逻辑 ---
 
-  function renderList() {
-      const list = document.getElementById('courseList');
-      list.innerHTML = '';
-      const todayCourses = allCourses.filter(c => c.day_of_week === currentDay);
-      
-      if(todayCourses.length === 0) list.innerHTML = '<p style="text-align:center;color:#999;margin-top:20px">No classes today.</p>';
-
-      todayCourses.forEach(c => {
-          const termBooking = myBookings.find(b => b.course_id === c.id && b.type === 'term');
-          const div = document.createElement('div');
-          div.className = `course-card ${termBooking ? 'disabled' : ''}`;
-          
-          let btnHtml = '';
-          if (termBooking) {
-              btnHtml = `<button class="btn-book" disabled>✅ Joined</button>`;
-          } else {
-              // ★★★ 核心修复：只传递 ID，避免引号嵌套导致点击失效 ★★★
-              btnHtml = `<button class="btn-book" onclick="openBookingModal(${c.id})">Book</button>`;
-          }
-
-          div.innerHTML = `
-            <div class="c-main">
-                <h3>${c.name}</h3>
-                <div class="c-detail">⏰ ${c.start_time} - ${c.end_time}</div>
-                <div class="c-detail">
-                    <span class="tag">📍 ${c.classroom || 'Studio 1'}</span>
-                    <span class="tag">👩‍🏫 ${c.teacher}</span>
-                    <span class="tag">$${c.price} / Term</span>
-                </div>
-            </div>
-            ${btnHtml}
-          `;
-          list.appendChild(div);
-      });
-  }
-
-  // ★★★ 新增的打开函数：根据 ID 找课程 ★★★
   window.openBookingModal = function(courseId) {
-      // 在数组里找到这个课程对象
-      const course = allCourses.find(c => c.id === courseId);
-      if (!course) return alert("Error: Course not found");
+      // 必须确保 allCourses 已经被 loadCourses 填充
+      const course = allCourses.find(c => c.id == courseId);
+      if (!course) return alert("Error: Course data not loaded.");
 
       currentCourse = course;
       const allDates = getCourseDates(course.day_of_week);
       
       const existingDates = new Set();
-      const existing = myBookings.filter(b => b.course_id === course.id);
+      // 过滤掉已取消的订单日期
+      const existing = myBookings.filter(b => b.course_id == course.id && b.status !== 'CANCELLED');
       existing.forEach(b => {
           if(b.type === 'term') allDates.forEach(d => existingDates.add(d));
           else if(b.dates) b.dates.forEach(d => existingDates.add(d));
@@ -397,7 +310,7 @@ async function loadCourses() {
           if(data.success) {
               alert('✅ Booking Successful!');
               closeModal();
-              init(); 
+              loadCourses(); // 刷新列表
           } else {
               alert('Failed: ' + (data.message || 'Error'));
           }
@@ -407,9 +320,8 @@ async function loadCourses() {
       btn.disabled = false;
   }
   
-  init();
+  // ★ 唯一入口：只调用 loadCourses
+  loadCourses();
 </script>
 </body>
 </html>
-// 测试测试测试111111111
-
