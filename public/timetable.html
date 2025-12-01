@@ -7,14 +7,9 @@
   <style>
     body{font-family:'Segoe UI', sans-serif;margin:0;background:#f9f9f9;padding-bottom:5rem}
     .header{background:#ff6b35;color:white;padding:1rem;text-align:center;position:sticky;top:0;z-index:90}
-    /* Day Tabs 样式保留但暂时不用，因为新版是列表展示 */
-    .day-tabs {display:none; overflow-x:auto;background:white;padding:10px;box-shadow:0 2px 5px rgba(0,0,0,0.05);position:sticky;top:60px;z-index:80}
     .container{max-width:800px;margin:1rem auto;padding:0 1rem}
     
     .course-card{background:white;border-radius:12px;padding:1.2rem;margin-bottom:1rem;box-shadow:0 2px 8px rgba(0,0,0,0.05);display:flex;justify-content:space-between;align-items:center; transition:0.2s}
-    
-    .c-main h3{margin:0 0 5px 0;color:#333}
-    .c-detail{font-size:0.9rem;color:#666;margin:2px 0}
     
     .btn-book{background:#ff6b35;color:white;border:none;padding:8px 16px;border-radius:20px;cursor:pointer;font-weight:bold}
     .btn-joined{background:#ddd;color:#888;cursor:default;border:none;padding:8px 16px;border-radius:20px;font-weight:bold}
@@ -96,7 +91,6 @@
   const WEEKS = 10; 
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   
-  // ★ 全局变量：必须定义，否则弹窗报错
   let allCourses = [];
   let myBookings = []; 
   let currentCourse = null;
@@ -114,8 +108,9 @@
       return result;
   }
 
-  // ★★★ 核心渲染函数：loadCourses ★★★
+  // ★★★ 核心渲染函数 ★★★
   async function loadCourses() {
+    // 这里的 ID 与上面的 HTML 对应，绝对不会错
     let container = document.getElementById('course-list-container');
     if (!container) return;
 
@@ -130,7 +125,6 @@
         const coursesData = await coursesRes.json();
         const bookingsData = bookingsRes.ok ? await bookingsRes.json() : [];
         
-        // ★ 关键：更新全局变量，否则弹窗打不开
         allCourses = coursesData.courses || coursesData;
         myBookings = bookingsData;
 
@@ -144,14 +138,14 @@
         allCourses.forEach(course => {
             const courseBookings = myBookings.filter(b => b.course_id == course.id);
 
-            // 区分有效订单和取消订单
+            // ★★★ 这里就是你想要的“右边截图”的逻辑 ★★★
             const activeBooking = courseBookings.find(b => b.status && b.status !== 'CANCELLED');
             const cancelledBooking = courseBookings.find(b => b.status === 'CANCELLED');
             
             let actionBtn = '';
             let statusBadge = '';
 
-            // --- A: 有效 (Joined / Partial) ---
+            // A: 有效 (Joined / Partial)
             if (activeBooking) {
                 if (activeBooking.type === 'term') {
                     statusBadge = `<span style="color:#2ecc71; background:rgba(46,204,113,0.1); padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px;">✅ Joined</span>`;
@@ -161,12 +155,12 @@
                     actionBtn = `<button class="btn-partial" onclick="openBookingModal(${course.id})">Add More</button>`;
                 }
             } 
-            // --- B: 已取消 (Cancelled) ---
+            // B: 已取消 (Cancelled) - 对应红色的 Rebook
             else if (cancelledBooking) {
                 statusBadge = `<span style="color:#e74c3c; background:rgba(231,76,60,0.1); padding:2px 6px; border-radius:4px; font-size:12px; margin-left:5px; text-decoration:line-through;">🚫 Cancelled</span>`;
                 actionBtn = `<button class="btn-rebook" onclick="openBookingModal(${course.id})">🔄 Rebook</button>`;
             }
-            // --- C: 未购买 (Book) ---
+            // C: 未购买 (Book)
             else {
                 actionBtn = `<button class="btn-book" onclick="openBookingModal(${course.id})">Book</button>`;
             }
@@ -190,10 +184,8 @@
     }
   }
 
-  // --- 弹窗相关逻辑 ---
-
+  // --- 弹窗逻辑 ---
   window.openBookingModal = function(courseId) {
-      // 必须确保 allCourses 已经被 loadCourses 填充
       const course = allCourses.find(c => c.id == courseId);
       if (!course) return alert("Error: Course data not loaded.");
 
@@ -201,7 +193,7 @@
       const allDates = getCourseDates(course.day_of_week);
       
       const existingDates = new Set();
-      // 过滤掉已取消的订单日期
+      // 过滤掉已取消的
       const existing = myBookings.filter(b => b.course_id == course.id && b.status !== 'CANCELLED');
       existing.forEach(b => {
           if(b.type === 'term') allDates.forEach(d => existingDates.add(d));
@@ -310,7 +302,7 @@
           if(data.success) {
               alert('✅ Booking Successful!');
               closeModal();
-              loadCourses(); // 刷新列表
+              loadCourses(); 
           } else {
               alert('Failed: ' + (data.message || 'Error'));
           }
@@ -320,7 +312,7 @@
       btn.disabled = false;
   }
   
-  // ★ 唯一入口：只调用 loadCourses
+  // 启动
   loadCourses();
 </script>
 </body>
