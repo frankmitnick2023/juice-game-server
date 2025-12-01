@@ -190,6 +190,22 @@ async function initDB() {
     await client.query(`CREATE TABLE IF NOT EXISTS course_progress (id SERIAL PRIMARY KEY, user_id INTEGER REFERENCES users(id), course_category TEXT, cumulative_hours REAL DEFAULT 0.0, UNIQUE (user_id, course_category))`);
     await client.query(`CREATE TABLE IF NOT EXISTS student_stats (user_id INTEGER PRIMARY KEY REFERENCES users(id), flexibility INTEGER DEFAULT 50, strength INTEGER DEFAULT 50, rhythm INTEGER DEFAULT 50, memory INTEGER DEFAULT 50, technique INTEGER DEFAULT 50, dedication INTEGER DEFAULT 0)`);
 
+// 在 initDB 函数里，找到这一堆 CREATE TABLE 后面...
+
+    await client.query(`CREATE TABLE IF NOT EXISTS student_stats (user_id INTEGER PRIMARY KEY REFERENCES users(id), flexibility INTEGER DEFAULT 50, strength INTEGER DEFAULT 50, rhythm INTEGER DEFAULT 50, memory INTEGER DEFAULT 50, technique INTEGER DEFAULT 50, dedication INTEGER DEFAULT 0)`);
+
+    // ★★★★★ 在这里插入补丁：强制添加 is_admin 列 ★★★★★
+    try {
+        await client.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE");
+    } catch (e) { 
+        // 如果列已经存在，报错也无所谓，忽略它
+        console.log("Column is_admin already exists or updated."); 
+    }
+    // ★★★★★ 补丁结束 ★★★★★
+
+    // 2. Admin User (下面是原有的代码)
+    await client.query("INSERT INTO users (email, password, student_name, is_admin) VALUES ('admin@admin.com', $1, 'Admin User', TRUE) ON CONFLICT (email) DO NOTHING", [hashPassword('admin123')]);
+
     // 2. Admin User
     await client.query("INSERT INTO users (email, password, student_name, is_admin) VALUES ('admin@admin.com', $1, 'Admin User', TRUE) ON CONFLICT (email) DO NOTHING", [hashPassword('admin123')]);
 
