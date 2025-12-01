@@ -333,7 +333,7 @@ app.get('/api/courses/recommended', async (req, res) => { try { let age = 7; if 
 
 app.get('/api/my-bookings', requireLogin, async (req, res) => { 
     try { 
-        // ★★★ 修复：把 status 和 id 都查出来 ★★★
+        // 👇 必须要有 status ！！！
         const sql = "SELECT id, course_id, type, dates, status, total_price FROM bookings WHERE user_id = $1";
         const r = await pool.query(sql, [req.session.userId]); 
         
